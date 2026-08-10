@@ -93,8 +93,15 @@ _seed_*.py
 _migrate_*.py
 _orders_schema.txt
 pasted-text-*.txt
+# КРИТИЧНО: requirements.txt и wsgi.py НЕ должны игнорироваться
 *.txt
+!requirements.txt
 !README.md
+!Procfile
+!Dockerfile
+!wsgi.py
+!config.py
+!runtime.txt
 
 # ===== Локальный парсер Ozon (dev-инструмент, на проде не нужен) =====
 ozon_parser/

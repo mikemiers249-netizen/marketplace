@@ -1,0 +1,27 @@
+# ===== Flask и расширения =====
+Flask==3.0.0
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-Migrate==4.0.5
+Flask-Mail==0.9.1
+Flask-Caching==2.1.0
+Flask-Cors==4.0.0
+
+# ===== База данных =====
+SQLAlchemy==2.0.23
+Alembic==1.13.0
+psycopg2-binary==2.9.9
+
+# ===== WSGI сервер =====
+Gunicorn==21.2.0
+
+# ===== Безопасность и утилиты =====
+Werkzeug==3.0.1
+python-slugify==8.0.1
+python-dotenv==1.0.0
+marshmallow==3.20.1
+
+# ===== Асинхронность =====
+aiofiles==23.2.1
+aiohttp==3.9.1
