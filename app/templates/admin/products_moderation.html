@@ -1,0 +1,79 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Модерация товаров - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>Модерация товаров</h1>
+    <div class="header-actions">
+        <span class="pending-count">Ожидают: {{ pending_count }} товар{% if pending_count % 10 in [2,3,4] %}{% elif pending_count % 100 in [11,12,13,14] %}ов{% elif pending_count % 10 == 0 %}ов{% else %}а{% endif %}</span>
+    </div>
+</div>
+
+<div class="moderation-tabs">
+    <a href="{{ url_for('admin.products_moderation', status='pending') }}" 
+       class="tab {% if status == 'pending' or not status %}active{% endif %}">
+        На проверке ({{ pending_count }})
+    </a>
+    <a href="{{ url_for('admin.products_moderation', status='approved') }}" 
+       class="tab {% if status == 'approved' %}active{% endif %}">
+        Одобренные ({{ approved_count }})
+    </a>
+    <a href="{{ url_for('admin.products_moderation', status='rejected') }}" 
+       class="tab {% if status == 'rejected' %}active{% endif %}">
+        Отклонённые ({{ rejected_count }})
+    </a>
+</div>
+
+<div class="moderation-grid">
+    {% for product in products %}
+    <a href="{{ url_for('admin.product_moderate', product_id=product.id) }}" class="moderation-card">
+        <div class="product-image">
+            {% if product.main_photo %}
+            <img src="{{ url_for('static', filename='uploads/products/' + product.main_photo.path) }}" 
+                 alt="{{ product.name }}">
+            {% else %}
+            <div class="no-image">Нет фото</div>
+            {% endif %}
+        </div>
+        
+        <div class="product-info">
+            <h3 class="product-name">{{ product.name }}</h3>
+            <p class="product-price">{{ format_price(product.price) }}</p>
+            <p class="product-seller">{{ product.seller.store_name }}</p>
+        </div>
+        
+        <div class="product-status status-{{ product.status }}">
+            {% if product.status == 'on_moderation' %}На проверке
+            {% elif product.status == 'approved' %}Одобрен
+            {% elif product.status == 'rejected' %}Отклонён
+            {% endif %}
+        </div>
+    </a>
+    {% else %}
+    <div class="empty-state-container">
+        <div class="empty-state">
+            <div class="empty-icon">📦</div>
+            <h3>Нет товаров</h3>
+            <p>
+                {% if status == 'pending' or not status %}
+                Нет товаров, ожидающих модерации
+                {% elif status == 'approved' %}
+                Нет одобренных товаров
+                {% elif status == 'rejected' %}
+                Нет отклонённых товаров
+                {% else %}
+                Нет товаров для модерации
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if pagination and pagination.pages > 1 %}
+<div class="admin-pagination">
+    {{ pagination.links }}
+</div>
+{% endif %}
+{% endblock %}

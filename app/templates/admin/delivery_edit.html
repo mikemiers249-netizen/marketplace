@@ -1,0 +1,82 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Редактирование службы доставки - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>Редактирование службы доставки</h1>
+    <a href="{{ url_for('admin.deliveries') }}" class="btn btn-secondary">Назад к списку</a>
+</div>
+
+<div class="admin-form-container">
+    <form method="POST" class="admin-form" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="form-group">
+            <label for="name">Название службы *</label>
+            <input type="text" id="name" name="name" required
+                   class="form-input" value="{{ service.name }}"
+                   placeholder="Например: СДЭК">
+        </div>
+
+        <div class="form-group">
+            <label for="code">Код службы *</label>
+            <input type="text" id="code" name="code" required
+                   class="form-input" value="{{ service.code }}"
+                   placeholder="Например: cdek"
+                   pattern="[a-z_]+"
+                   title="Только строчные буквы и подчёркивания" readonly>
+            <span class="form-help">Уникальный идентификатор на латинице (нельзя изменить)</span>
+        </div>
+
+        <div class="form-group">
+            <label for="logo">Логотип службы</label>
+            {% if service.logo_path %}
+            <div class="current-logo">
+                <img src="{{ url_for('static', filename=service.logo_path) }}" 
+                     alt="{{ service.name }}" class="delivery-logo-preview">
+                <label class="checkbox-label" style="margin-top: 10px;">
+                    <input type="checkbox" name="remove_logo" value="1">
+                    <span>Удалить логотип</span>
+                </label>
+            </div>
+            {% endif %}
+            <input type="file" id="logo" name="logo" accept="image/*" class="form-input">
+            <span class="form-help">Рекомендуемый размер: до 200x100 пикселей. Форматы: PNG, JPG, GIF, WebP</span>
+        </div>
+
+        <div class="form-group">
+            <label for="api_module">Модуль API</label>
+            <input type="text" id="api_module" name="api_module"
+                   class="form-input" value="{{ service.api_module or '' }}"
+                   placeholder="Например: app.delivery.cdek">
+            <span class="form-help">Python модуль для работы с API (необязательно)</span>
+        </div>
+
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" name="is_active" {% if service.is_active %}checked{% endif %}>
+                <span>Служба активна</span>
+            </label>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+            <a href="{{ url_for('admin.deliveries') }}" class="btn btn-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.delivery-logo-preview {
+    max-width: 200px;
+    max-height: 100px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 5px;
+    background: #f9f9f9;
+}
+.current-logo {
+    margin-bottom: 10px;
+}
+</style>
+{% endblock %}

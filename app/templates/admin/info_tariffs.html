@@ -1,0 +1,638 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ title }} - Админ-панель{% endblock %}
+
+{% block header_title %}{{ title }}{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="info-page info-page-detail">
+    <a class="info-back-link" href="{{ url_for('admin.info') }}">
+        <i class="bi bi-arrow-left"></i> Назад к информации
+    </a>
+
+    <div class="edu-list-head" style="margin-top: 1rem;">
+        <h2 class="edu-list-title">
+            <i class="bi {{ tile.icon }}"></i>
+            Тарифы и услуги
+        </h2>
+        <div>
+            <button type="button" class="btn btn-secondary btn-sm" data-open-modal="modal-block-create">
+                <i class="bi bi-plus-lg"></i> Добавить блок
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" data-open-modal="modal-row-create"
+                    {% if not blocks %}disabled{% endif %}>
+                <i class="bi bi-plus-lg"></i> Добавить строку
+            </button>
+        </div>
+    </div>
+
+    {% if not blocks %}
+    <div class="edu-empty">
+        <i class="bi bi-inbox"></i>
+        <p>Блоков тарифов пока нет. Создайте первый блок и наполните его строками.</p>
+    </div>
+    {% else %}
+        {% for block in blocks %}
+        <section class="tariff-block" id="block-{{ block.id }}">
+            <header class="tariff-block-head">
+                <h3 class="tariff-block-title">
+                    <i class="bi bi-stack"></i> {{ block.title }}
+                    <span class="tariff-block-section">
+                        <i class="bi bi-people"></i> {{ block.section_label(block.section) }}
+                    </span>
+                </h3>
+                <div class="tariff-block-actions">
+                    <button type="button" class="btn btn-secondary btn-sm"
+                            data-open-modal="modal-block-edit-{{ block.id }}">
+                        <i class="bi bi-pencil"></i> Переименовать
+                    </button>
+                    <form method="POST"
+                          action="{{ url_for('admin.tariff_row_create') }}"
+                          style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <input type="hidden" name="block_id" value="{{ block.id }}"/>
+                        <input type="hidden" name="name" value="Новая услуга"/>
+                        <button type="submit" class="btn btn-primary btn-sm"
+                                title="Быстро добавить пустую строку в этот блок">
+                            <i class="bi bi-plus-lg"></i> Строка
+                        </button>
+                    </form>
+                    <form method="POST"
+                          action="{{ url_for('admin.tariff_block_delete', block_id=block.id) }}"
+                          style="display: inline;"
+                          onsubmit="return confirm('Удалить блок «{{ block.title|e }}» и все его строки?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            <i class="bi bi-trash"></i> Удалить блок
+                        </button>
+                    </form>
+                </div>
+            </header>
+
+            <table class="tariff-table">
+                <thead>
+                    <tr>
+                        <th style="width: 18%;">Услуга</th>
+                        <th>Описание</th>
+                        <th style="width: 14%;">Стоимость</th>
+                        <th style="width: 12%;">Периодичность</th>
+                        <th style="width: 12%;">Тип</th>
+                        <th style="width: 80px; text-align: center;">Активен</th>
+                        <th style="width: 90px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in block.rows %}
+                    <tr>
+                        <td><strong>{{ row.name }}</strong></td>
+                        <td>{{ row.description or '—' }}</td>
+                        <td>{{ row.price or '—' }}</td>
+                        <td>{{ row.period or '—' }}</td>
+                        <td>
+                            <span class="tariff-kind-badge tariff-kind-{{ row.kind }}">
+                                {{ row.kind_label }}
+                            </span>
+                            {% if row.is_global_rule and row.percent_rate %}
+                            <div class="tariff-rate-hint">
+                                {{ '%.2f'|format(row.percent_rate) }}%{% if row.billing_period %} · {{ row.billing_period_label }}{% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center;">
+                            <form method="POST"
+                                  action="{{ url_for('admin.tariff_row_toggle', row_id=row.id) }}"
+                                  style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <input type="hidden" name="is_active" value="{{ '0' if row.is_active else '1' }}"/>
+                                <button type="submit"
+                                        class="tariff-toggle {% if row.is_active %}is-on{% endif %}"
+                                        title="{% if row.is_active %}Выключить (не применять к селлерам){% else %}Включить (применять ко всем селлерам без своей активной подписки){% endif %}">
+                                    <span class="tariff-toggle-knob"></span>
+                                </button>
+                            </form>
+                        </td>
+                        <td class="tariff-row-actions">
+                            <button type="button" class="btn btn-icon"
+                                    data-open-modal="modal-row-edit-{{ row.id }}"
+                                    title="Редактировать строку">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <form method="POST"
+                                  action="{{ url_for('admin.tariff_row_delete', row_id=row.id) }}"
+                                  style="display: inline;"
+                                  onsubmit="return confirm('Удалить строку «{{ row.name|e }}»?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-icon btn-icon-danger" title="Удалить">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="tariff-empty-row">
+                            В этом блоке пока нет строк.
+                            <button type="button" class="btn btn-link"
+                                    data-open-modal="modal-row-create"
+                                    data-preselect-block="{{ block.id }}">
+                                Добавить первую строку
+                            </button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        {% endfor %}
+    {% endif %}
+</div>
+
+{# ============ Модалки: создание блока ============ #}
+<div class="tariff-modal" id="modal-block-create" hidden>
+    <div class="tariff-modal-backdrop" data-close-modal></div>
+    <div class="tariff-modal-dialog">
+        <form method="POST" action="{{ url_for('admin.tariff_block_create') }}" class="admin-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="tariff-modal-header">
+                <h3><i class="bi bi-stack"></i> Новый блок тарифов</h3>
+                <button type="button" class="tariff-modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="tariff-modal-body">
+                <div class="form-group">
+                    <label for="block-title">Название блока *</label>
+                    <input type="text" id="block-title" name="title" required class="form-input"
+                           placeholder="Например: Подключение и обслуживание">
+                </div>
+                <div class="form-group">
+                    <label for="block-section">Раздел по умолчанию</label>
+                    <select id="block-section" name="section" class="form-select">
+                        {% for code, label in sections %}
+                        <option value="{{ code }}" {% if code == 'sellers' %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-hint">Раздел для строк, которые не указали свой.</small>
+                </div>
+            </div>
+            <div class="tariff-modal-footer">
+                <button type="button" class="btn btn-secondary" data-close-modal>Отмена</button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Создать блок
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ============ Модалки: создание строки ============ #}
+<div class="tariff-modal" id="modal-row-create" hidden>
+    <div class="tariff-modal-backdrop" data-close-modal></div>
+    <div class="tariff-modal-dialog">
+        <form method="POST" action="{{ url_for('admin.tariff_row_create') }}" class="admin-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="tariff-modal-header">
+                <h3><i class="bi bi-plus-lg"></i> Новая строка тарифа</h3>
+                <button type="button" class="tariff-modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="tariff-modal-body">
+                <div class="form-group">
+                    <label for="row-block">Блок *</label>
+                    <select id="row-block" name="block_id" class="form-select" required>
+                        {% for block in blocks %}
+                        <option value="{{ block.id }}">{{ block.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {# === Тип правила: Карточки / Процент (3 варианта) === #}
+                <div class="form-group">
+                    <label for="row-kind">Тип правила *</label>
+                    <select id="row-kind" name="kind" class="form-select" data-tariff-kind-select>
+                        {% for code, label in tariff_kinds %}
+                        <option value="{{ code }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-hint">
+                        «Карточки» — фикс-тариф, покупается селлером.
+                        Остальные — глобальные правила, применяются ко всем селлерам
+                        при включённом тумблере «Активен».
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="row-name">Наименование услуги *</label>
+                    <input type="text" id="row-name" name="name" required class="form-input"
+                           placeholder="Например: Размещение товара">
+                </div>
+                <div class="form-group">
+                    <label for="row-description">Описание</label>
+                    <textarea id="row-description" name="description" class="form-input" rows="2"
+                              placeholder="Что входит в услугу, условия, ограничения"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="row-price">Стоимость (отображаемая)</label>
+                        <input type="text" id="row-price" name="price" class="form-input"
+                               placeholder="500 ₽ или «X %»">
+                    </div>
+                    <div class="form-group">
+                        <label for="row-period">Периодичность (отображ.)</label>
+                        <input type="text" id="row-period" name="period" class="form-input"
+                               placeholder="мес. / разово / за заказ">
+                    </div>
+                </div>
+
+                {# === Группа полей: kind='cards' (фикс-тариф) === #}
+                <div data-kind-fields="cards" class="tariff-kind-fields">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="row-price-amount">Цена для покупки, ₽</label>
+                            <input type="number" id="row-price-amount" name="price_amount" min="0" step="0.01"
+                                   class="form-input" placeholder="например 1990">
+                            <small class="form-hint">Число — только если хотите продавать тариф селлерам. Иначе оставьте пустым.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="row-duration-days">Срок, дней</label>
+                            <input type="number" id="row-duration-days" name="duration_days" min="1" step="1"
+                                   class="form-input" placeholder="например 30">
+                            <small class="form-hint">Число — только если хотите продавать тариф селлерам. Иначе оставьте пустым.</small>
+                        </div>
+                    </div>
+                </div>
+
+                {# === Группа полей: глобальные правила (cards_turnover / card_sale / category_sale) === #}
+                <div data-kind-fields="cards_turnover,card_sale,category_sale" class="tariff-kind-fields" hidden>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="row-percent-rate">Величина процента *</label>
+                            <input type="number" id="row-percent-rate" name="percent_rate"
+                                   min="0.01" max="100" step="0.01" class="form-input"
+                                   placeholder="например 5">
+                            <small class="form-hint">Ставка в процентах от оборота/продажи.</small>
+                        </div>
+                        <div class="form-group" data-show-when="category_sale">
+                            <label for="row-subject-category">Предмет обложения (категория) *</label>
+                            <select id="row-subject-category" name="subject_category_id" class="form-select">
+                                <option value="">— выберите категорию —</option>
+                                {% for cat in all_categories %}
+                                <option value="{{ cat.id }}">{{ cat.full_path }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-hint">Процент будет списываться с продаж в выбранной категории.</small>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Периодичность начисления *</label>
+                        <div class="tariff-radio-row">
+                            <label class="tariff-radio">
+                                <input type="radio" name="billing_period" value="monthly">
+                                <span><i class="bi bi-calendar-month"></i> Ежемесячно</span>
+                                <small>Каждые 30 дней пересчёт по обороту/сумме продаж.</small>
+                            </label>
+                            <label class="tariff-radio">
+                                <input type="radio" name="billing_period" value="per_sale" checked>
+                                <span><i class="bi bi-bag-check"></i> Сразу (по факту сделки)</span>
+                                <small>Списание единовременно с каждой продажи. Подключение бесплатно.</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                {# === Глобальный тумблер «Активен» === #}
+                <div class="form-group" data-show-when="cards_turnover,card_sale,category_sale">
+                    <label class="tariff-toggle-row">
+                        <span>
+                            <strong>Активен</strong>
+                            <small class="form-hint">
+                                При включении правило применяется ко всем селлерам без
+                                своей активной подписки. Если у селлера есть оплаченный
+                                тариф — правило вступит после его истечения.
+                            </small>
+                        </span>
+                        <input type="checkbox" name="is_active" value="1" class="tariff-toggle-checkbox"
+                               data-tariff-active-checkbox>
+                        <span class="tariff-toggle" aria-hidden="true"><span class="tariff-toggle-knob"></span></span>
+                    </label>
+                </div>
+            </div>
+            <div class="tariff-modal-footer">
+                <button type="button" class="btn btn-secondary" data-close-modal>Отмена</button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Добавить строку
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ============ Модалки: редактирование блоков (по одной на блок) ============ #}
+{% for block in blocks %}
+<div class="modal" id="modal-block-edit-{{ block.id }}" hidden>
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-dialog">
+        <form method="POST" action="{{ url_for('admin.tariff_block_edit', block_id=block.id) }}" class="admin-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="modal-header">
+                <h3><i class="bi bi-pencil"></i> Редактирование блока</h3>
+                <button type="button" class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="block-title-{{ block.id }}">Название блока *</label>
+                    <input type="text" id="block-title-{{ block.id }}" name="title" required
+                           class="form-input" value="{{ block.title }}">
+                </div>
+                <div class="form-group">
+                    <label for="block-section-{{ block.id }}">Раздел</label>
+                    <select id="block-section-{{ block.id }}" name="section" class="form-select">
+                        {% for code, label in sections %}
+                        <option value="{{ code }}" {% if code == block.section %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-close-modal>Отмена</button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Сохранить
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endfor %}
+
+{# ============ Модалки: редактирование строк ============ #}
+{% for block in blocks %}
+    {% for row in block.rows %}
+    <div class="modal" id="modal-row-edit-{{ row.id }}" data-initial-kind="{{ row.kind }}" data-initial-active="{{ '1' if row.is_active else '0' }}" hidden>
+        <div class="modal-backdrop" data-close-modal></div>
+        <div class="modal-dialog">
+            <form method="POST" action="{{ url_for('admin.tariff_row_edit', row_id=row.id) }}" class="admin-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-header">
+                    <h3><i class="bi bi-pencil"></i> Редактирование услуги</h3>
+                    <button type="button" class="modal-close" data-close-modal>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="row-kind-{{ row.id }}">Тип правила *</label>
+                        <select id="row-kind-{{ row.id }}" name="kind" class="form-select" data-tariff-kind-select>
+                            {% for code, label in tariff_kinds %}
+                            <option value="{{ code }}" {% if code == row.kind %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="row-name-{{ row.id }}">Наименование услуги *</label>
+                        <input type="text" id="row-name-{{ row.id }}" name="name" required
+                               class="form-input" value="{{ row.name }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="row-description-{{ row.id }}">Описание</label>
+                        <textarea id="row-description-{{ row.id }}" name="description" class="form-input"
+                                  rows="2">{{ row.description or '' }}</textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="row-price-{{ row.id }}">Стоимость (отображаемая)</label>
+                            <input type="text" id="row-price-{{ row.id }}" name="price" class="form-input"
+                                   value="{{ row.price or '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="row-period-{{ row.id }}">Периодичность (отображ.)</label>
+                            <input type="text" id="row-period-{{ row.id }}" name="period" class="form-input"
+                                   value="{{ row.period or '' }}">
+                        </div>
+                    </div>
+
+                    {# === kind='cards' === #}
+                    <div data-kind-fields="cards" class="tariff-kind-fields" {% if row.kind != 'cards' %}hidden{% endif %}>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="row-price-amount-{{ row.id }}">Цена для покупки, ₽</label>
+                                <input type="number" id="row-price-amount-{{ row.id }}" name="price_amount" min="0" step="0.01"
+                                       class="form-input" value="{{ row.price_amount if row.price_amount is not none else '' }}">
+                                <small class="form-hint">Число — только если хотите продавать тариф селлерам.</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="row-duration-days-{{ row.id }}">Срок, дней</label>
+                                <input type="number" id="row-duration-days-{{ row.id }}" name="duration_days" min="1" step="1"
+                                       class="form-input" value="{{ row.duration_days if row.duration_days is not none else '' }}">
+                                <small class="form-hint">Число — только если хотите продавать тариф селлерам.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# === Глобальные правила === #}
+                    <div data-kind-fields="cards_turnover,card_sale,category_sale" class="tariff-kind-fields" {% if row.kind == 'cards' %}hidden{% endif %}>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="row-percent-rate-{{ row.id }}">Величина процента *</label>
+                                <input type="number" id="row-percent-rate-{{ row.id }}" name="percent_rate"
+                                       min="0.01" max="100" step="0.01" class="form-input"
+                                       value="{{ row.percent_rate if row.percent_rate is not none else '' }}"
+                                       placeholder="например 5">
+                            </div>
+                            <div class="form-group" data-show-when="category_sale" {% if row.kind != 'category_sale' %}hidden{% endif %}>
+                                <label for="row-subject-category-{{ row.id }}">Предмет обложения (категория) *</label>
+                                <select id="row-subject-category-{{ row.id }}" name="subject_category_id" class="form-select">
+                                    <option value="">— выберите категорию —</option>
+                                    {% for cat in all_categories %}
+                                    <option value="{{ cat.id }}" {% if row.subject_category_id == cat.id %}selected{% endif %}>
+                                        {{ cat.full_path }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Периодичность начисления *</label>
+                            <div class="tariff-radio-row">
+                                <label class="tariff-radio">
+                                    <input type="radio" name="billing_period" value="monthly"
+                                           {% if row.billing_period == 'monthly' %}checked{% endif %}>
+                                    <span><i class="bi bi-calendar-month"></i> Ежемесячно</span>
+                                    <small>Каждые 30 дней пересчёт по обороту/сумме продаж.</small>
+                                </label>
+                                <label class="tariff-radio">
+                                    <input type="radio" name="billing_period" value="per_sale"
+                                           {% if row.billing_period == 'per_sale' or not row.billing_period %}checked{% endif %}>
+                                    <span><i class="bi bi-bag-check"></i> Сразу (по факту сделки)</span>
+                                    <small>Списание единовременно с каждой продажи. Подключение бесплатно.</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# === Тумблер is_active (только для глобальных) === #}
+                    <div class="form-group" data-show-when="cards_turnover,card_sale,category_sale" {% if row.kind == 'cards' %}hidden{% endif %}>
+                        <label class="tariff-toggle-row">
+                            <span>
+                                <strong>Активен</strong>
+                                <small class="form-hint">
+                                    При включении правило применяется ко всем селлерам без
+                                    своей активной подписки.
+                                </small>
+                            </span>
+                            <input type="checkbox" name="is_active" value="1" class="tariff-toggle-checkbox"
+                                   data-tariff-active-checkbox {% if row.is_active %}checked{% endif %}>
+                            <span class="tariff-toggle" aria-hidden="true"><span class="tariff-toggle-knob"></span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-close-modal>Отмена</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Сохранить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+{% endfor %}
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/info.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tariffs.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    // Открыть/закрыть модалку по data-атрибутам.
+    function openModal(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.hidden = false;
+        document.body.style.overflow = 'hidden';
+    }
+    function closeModal(el) {
+        el.hidden = true;
+        document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('[data-open-modal]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var id = btn.getAttribute('data-open-modal');
+            // Если у кнопки есть подсказка, в каком блоке добавить строку
+            // (из пустого блока) — прокидываем выбор в <select>.
+            var pre = btn.getAttribute('data-preselect-block');
+            if (pre && id === 'modal-row-create') {
+                var sel = document.getElementById('row-block');
+                if (sel) sel.value = pre;
+            }
+            openModal(id);
+        });
+    });
+    // Закрытие: реагируем ТОЛЬКО если клик пришёл прямо по бэкдропу
+    // (не по input/кнопке внутри диалога). Иначе любой клик по полю
+    // формы «всплывал» бы до бэкдропа и модалка схлопывалась.
+    document.querySelectorAll('[data-close-modal]').forEach(function (el) {
+        el.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            // Если это бэкдроп — закрываем. Если это явная кнопка
+            // (крестик / «Отмена») внутри диалога — тоже закрываем.
+            var isBackdrop = el.classList.contains('modal-backdrop')
+                          || el.classList.contains('tariff-modal-backdrop');
+            if (isBackdrop) {
+                // Убеждаемся, что клик пришёл именно по самому бэкдропу,
+                // а не по вложенному диалогу (target === currentTarget).
+                if (e.target !== el) return;
+            }
+            var modal = el.closest('.modal') || el.closest('.tariff-modal');
+            if (modal) closeModal(modal);
+        });
+    });
+    // Дополнительно: не даём событию mousedown на диалоге «всплыть»
+    // до бэкдропа — иначе порядок событий ломает фокус в input.
+    document.querySelectorAll('.modal-dialog, .tariff-modal-dialog').forEach(function (dlg) {
+        dlg.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+        dlg.addEventListener('click', function (e) { e.stopPropagation(); });
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal:not([hidden]), .tariff-modal:not([hidden])').forEach(closeModal);
+        }
+    });
+
+    // ===========================================================
+    // Тарифы: переключение полей формы по типу правила (kind).
+    // ===========================================================
+    function applyKindVisibility(modal) {
+        var sel = modal.querySelector('[data-tariff-kind-select]');
+        if (!sel) return;
+        var kind = sel.value;
+        // Показываем/скрываем группы полей
+        modal.querySelectorAll('.tariff-kind-fields').forEach(function (box) {
+            var kinds = (box.getAttribute('data-kind-fields') || '').split(',').map(function (s) { return s.trim(); });
+            if (kinds.indexOf(kind) !== -1) {
+                box.hidden = false;
+            } else {
+                box.hidden = true;
+            }
+        });
+        // Показываем/скрываем элементы с data-show-when (например, выбор категории)
+        modal.querySelectorAll('[data-show-when]').forEach(function (el) {
+            var kinds = (el.getAttribute('data-show-when') || '').split(',').map(function (s) { return s.trim(); });
+            // Если родительский .tariff-kind-fields скрыт — элемент тоже скрываем
+            var parentFields = el.closest('.tariff-kind-fields');
+            if (parentFields && parentFields.hidden) {
+                el.hidden = true;
+                return;
+            }
+            el.hidden = kinds.indexOf(kind) === -1;
+        });
+    }
+
+    // Инициализация для каждой модалки (включая скрытые — к моменту открытия
+    // мы хотим уже корректное состояние)
+    document.querySelectorAll('.tariff-modal, .modal').forEach(function (modal) {
+        if (modal.querySelector('[data-tariff-kind-select]')) {
+            applyKindVisibility(modal);
+            var sel = modal.querySelector('[data-tariff-kind-select]');
+            sel.addEventListener('change', function () { applyKindVisibility(modal); });
+        }
+    });
+
+    // ===========================================================
+    // Тумблер is_active (визуальный, на основе hidden checkbox)
+    // ===========================================================
+    document.querySelectorAll('[data-tariff-active-checkbox]').forEach(function (cb) {
+        // При изменении чекбокса — переключаем класс на видимом toggle
+        var toggle = cb.parentElement.querySelector('.tariff-toggle');
+        function sync() {
+            if (cb.checked) toggle.classList.add('is-on');
+            else toggle.classList.remove('is-on');
+        }
+        sync();
+        cb.addEventListener('change', sync);
+        // Клик по визуальному toggle — переключаем чекбокс
+        if (toggle) {
+            toggle.addEventListener('click', function (e) {
+                e.preventDefault();
+                cb.checked = !cb.checked;
+                cb.dispatchEvent(new Event('change'));
+            });
+        }
+    });
+})();
+</script>
+{% endblock %}

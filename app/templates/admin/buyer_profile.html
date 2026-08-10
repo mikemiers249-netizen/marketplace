@@ -1,0 +1,207 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ buyer.login }} - Профиль покупателя{% endblock %}
+
+{% block extra_css %}
+<style>
+.profile-header {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.profile-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    color: #adb5bd;
+    flex-shrink: 0;
+}
+
+.profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.profile-info {
+    flex: 1;
+}
+
+.profile-info h1 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+}
+
+.profile-info .user-login {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+
+.profile-stats {
+    display: flex;
+    gap: 32px;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
+}
+
+.stat-label {
+    font-size: 13px;
+    color: #666;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+}
+
+.info-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.info-card h3 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    color: #333;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.info-card p {
+    margin: 8px 0;
+    color: #555;
+}
+
+.info-card p strong {
+    color: #333;
+}
+
+.orders-list {
+    margin-top: 16px;
+}
+
+.order-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.order-item a {
+    color: #0d6efd;
+    text-decoration: none;
+}
+
+.order-item a:hover {
+    text-decoration: underline;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-header">
+    <div class="profile-avatar">
+        {% if buyer.avatar %}
+        <img src="{{ url_for('static', filename='uploads/avatars/' + buyer.avatar) }}" alt="{{ buyer.login }}">
+        {% else %}
+        {{ buyer.login[0]|upper }}
+        {% endif %}
+    </div>
+    <div class="profile-info">
+        <h1>{{ buyer.name or buyer.login }}</h1>
+        <p class="user-login">@{{ buyer.login }}</p>
+        <div class="profile-stats">
+            <div class="stat-item">
+                <div class="stat-value">{{ orders_count }}</div>
+                <div class="stat-label">Заказов</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="info-grid">
+    <div class="info-card">
+        <h3>Основная информация</h3>
+        <p><strong>Email:</strong> {{ buyer.email }}</p>
+        <p><strong>Телефон:</strong> {{ buyer.phone or 'Не указан' }}</p>
+        <p><strong>Имя:</strong> {{ buyer.name or 'Не указано' }}</p>
+        <p><strong>Дата регистрации:</strong> {{ buyer.created_at.strftime('%d.%m.%Y') if buyer.created_at else '-' }}</p>
+        <p><strong>Статус:</strong> {% if buyer.is_active %}<span style="color: green;">Активен</span>{% else %}<span style="color: red;">Заблокирован</span>{% endif %}</p>
+    </div>
+    
+    <div class="info-card">
+        <h3>Адрес доставки</h3>
+        {% if buyer.address %}
+        <p>{{ buyer.address }}</p>
+        {% else %}
+        <p style="color: #999;">Адрес не указан</p>
+        {% endif%}
+        {% if buyer.city %}
+        <p><strong>Город:</strong> {{ buyer.city }}</p>
+        {% endif %}
+        {% if buyer.postal_code %}
+        <p><strong>Почтовый индекс:</strong> {{ buyer.postal_code }}</p>
+        {% endif %}
+    </div>
+    
+    <div class="info-card">
+        <h3>Последние заказы</h3>
+        {% if orders %}
+        <div class="orders-list">
+            {% for order in orders %}
+            <div class="order-item">
+                <div>
+                    <a href="{{ url_for('admin.order_detail', order_id=order.id) }}">Заказ #{{ order.id }}</a>
+                    <span style="color: #666; margin-left: 8px;">{{ order.created_at.strftime('%d.%m.%Y') }}</span>
+                </div>
+                <div style="text-align: right;">
+                    <span class="status-badge status-{{ order.status }}">{{ order.status_display }}</span>
+                    <span style="margin-left: 12px; font-weight: 500;">{{ format_price(order.grand_total) }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% if orders_count > 10 %}
+        <p style="text-align: center; margin-top: 12px;"><a href="{{ url_for('admin.users') }}?search={{ buyer.login }}">Все заказы ({{ orders_count }})</a></p>
+        {% endif %}
+        {% else %}
+        <p style="color: #999;">Заказов пока нет</p>
+        {% endif %}
+    </div>
+</div>
+
+<div style="margin-top: 24px;">
+    <a href="{{ url_for('admin.users') }}" class="btn btn-secondary">← К списку пользователей</a>
+    <a href="{{ url_for('admin.messages', tab='buyers', dialog_id=buyer.id) }}" class="btn btn-primary">Написать сообщение</a>
+</div>
+{% endblock %}

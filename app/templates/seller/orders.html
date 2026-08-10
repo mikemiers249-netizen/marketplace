@@ -1,0 +1,184 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}Заказы - Панель продавца{% endblock %}
+
+{% block header_title %}
+<h1>Заказы</h1>
+{% endblock %}
+
+{% block content %}
+<div class="seller-page-header">
+    <div class="header-info">
+        <span class="orders-count">Всего: {{ pagination.total }} заказов</span>
+    </div>
+</div>
+
+{# Фильтры #}
+<div class="seller-filters">
+    <form method="GET" class="filter-form filter-form-orders">
+        <div class="filter-group-inline">
+            <label for="status">Статус:</label>
+            <select id="status" name="status" class="filter-select">
+                <option value="" {% if not current_status or current_status == 'actual' %}selected{% endif %}>Актуальные</option>
+                <option value="pending" {% if current_status == 'pending' %}selected{% endif %}>Ожидает оформления</option>
+                <option value="processing" {% if current_status == 'processing' %}selected{% endif %}>В обработке</option>
+                <option value="shipped" {% if current_status == 'shipped' %}selected{% endif %}>Отправлен</option>
+                <option value="delivered" {% if current_status == 'delivered' %}selected{% endif %}>Доставлен</option>
+                <option value="canceled" {% if current_status == 'canceled' %}selected{% endif %}>Отменён</option>
+            </select>
+        </div>
+
+        <div class="filter-group-inline">
+            <label for="from_date">Дата от:</label>
+            <input type="date" id="from_date" name="from_date" value="{{ from_date }}">
+        </div>
+
+        <div class="filter-group-inline">
+            <label for="to_date">Дата до:</label>
+            <input type="date" id="to_date" name="to_date" value="{{ to_date }}">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Применить</button>
+        <a href="{{ url_for('seller.orders') }}" class="btn btn-secondary">Сброс</a>
+    </form>
+
+    {% if from_date or to_date %}
+    <div class="filter-active-hint">
+        <i class="bi bi-calendar-range"></i>
+        Фильтр по датам:
+        {% if from_date %}с <b>{{ from_date }}</b>{% endif %}
+        {% if from_date and to_date %}&nbsp;—&nbsp;{% endif %}
+        {% if to_date %}по <b>{{ to_date }}</b>{% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{# Список заказов #}
+<div class="orders-list">
+    {% for order in orders %}
+    <div class="order-card">
+        <div class="order-header">
+            <div class="order-id">
+                <a href="{{ url_for('seller.order_detail', order_id=order.id) }}">
+                    Заказ #{{ order.id }}
+                </a>
+            </div>
+            <div class="order-date">
+                {{ order.created_at.strftime('%d.%m.%Y') }} в {{ order.created_at.strftime('%H:%M') }}
+            </div>
+            <span class="status-badge status-{{ order.status }}">
+                {{ order.status_display }}
+            </span>
+        </div>
+        
+        <div class="order-body">
+            <div class="order-items">
+                {% for item in order.items %}
+                <div class="order-item">
+                    <div class="item-image">
+                        {% if item.product.main_photo %}
+                        <img src="{{ url_for('static', filename='uploads/products/' + item.product.main_photo.path) }}" 
+                             alt="{{ item.product.name }}">
+                        {% else %}
+                        <div class="no-image">Нет фото</div>
+                        {% endif %}
+                    </div>
+                    <div class="item-details">
+                        <a href="{{ url_for('seller.product_edit', product_id=item.product_id) }}" class="item-name">
+                            {{ item.product.name }}
+                        </a>
+                        <div class="item-quantity">× {{ item.quantity }}</div>
+                    </div>
+                    {% set item_bonus_share = 0 %}
+                    {% if order.bonus_used and order.bonus_used > 0 and order.total_price and order.total_price > 0 %}
+                        {% set item_bonus_share = (item.total_price / order.total_price) * order.bonus_used %}
+                    {% endif %}
+                    {% set item_paid = item.total_price - item_bonus_share %}
+                    <div class="item-price">
+                        {{ '%.2f'|format(item_paid) }} ₽
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="order-footer">
+                <div class="order-total">
+                    <span class="total-label">Итого:</span>
+                    <span class="total-value">{{ order.grand_total }} ₽</span>
+                </div>
+                <div class="order-actions">
+                    <a href="{{ url_for('seller.order_detail', order_id=order.id) }}" 
+                       class="btn btn-secondary">
+                        Подробнее
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-inbox" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i>
+        <p>
+            {% if current_status %}
+            Заказы с таким статусом не найдены
+            {% else %}
+            Пока нет заказов
+            {% endif %}
+        </p>
+    </div>
+    {% endfor %}
+</div>
+
+{# Пагинация #}
+{% if pagination and pagination.pages > 1 %}
+<div class="seller-pagination">
+    {% if pagination.has_prev %}
+    <a href="{{ url_for('seller.orders', page=pagination.prev_num, status=current_status, from_date=from_date, to_date=to_date) }}"
+       class="btn btn-secondary">← Назад</a>
+    {% endif %}
+    
+    <span class="pagination-info">
+        Страница {{ pagination.page }} из {{ pagination.pages }}
+    </span>
+    
+    {% if pagination.has_next %}
+    <a href="{{ url_for('seller.orders', page=pagination.next_num, status=current_status, from_date=from_date, to_date=to_date) }}"
+       class="btn btn-secondary">Вперёд →</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.filter-form-orders {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.filter-form-orders .filter-group-inline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.filter-form-orders input[type="date"] {
+    padding: 8px 10px;
+    border: 1px solid var(--border-color, #e5e5e5);
+    border-radius: var(--radius-md, 8px);
+    font-size: 14px;
+    background: var(--bg-primary, #fff);
+}
+
+.filter-active-hint {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-secondary, #6b7280);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+</style>
+{% endblock %}

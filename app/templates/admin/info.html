@@ -1,0 +1,105 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Информация - Админ-панель{% endblock %}
+
+{% block header_title %}Информация{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+{% include "components/info_section.html" with context %}
+
+{# Модалка добавления новости #}
+<div class="modal fade" id="addInfoPostModal" tabindex="-1" aria-labelledby="addInfoPostModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin.info', sort=sort) }}" class="admin-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addInfoPostModalLabel">
+                        <i class="bi bi-plus-lg"></i> Добавить новость
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="post-title">Заголовок *</label>
+                        <input type="text" id="post-title" name="title" required
+                               class="form-input" placeholder="Например: Запуск новой акции">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="post-body">Текст</label>
+                        <textarea id="post-body" name="body" rows="6"
+                                  class="form-input"
+                                  placeholder="Текст новости. Можно использовать базовый HTML."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="post-media-type">Тип медиа</label>
+                        <select id="post-media-type" name="media_type" class="form-select">
+                            <option value="">Без медиа</option>
+                            <option value="image">Картинка</option>
+                            <option value="video">Видео</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="post-media-url">Ссылка на медиа (URL)</label>
+                        <input type="text" id="post-media-url" name="media_url"
+                               class="form-input"
+                               placeholder="https://... или /static/uploads/...">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="post-audience">Кому показывать</label>
+                        <select id="post-audience" name="audience" class="form-select">
+                            <option value="all">Всем (и админу, и продавцу)</option>
+                            <option value="admin">Только админу</option>
+                            <option value="seller">Только продавцу</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="post-tag">Тег (опц.)</label>
+                        <input type="text" id="post-tag" name="tag" maxlength="50"
+                               class="form-input" placeholder="Например: Обновление, Акция, Важно"
+                               list="existing-tags">
+                        <small class="form-hint">Короткая метка — отображается плашкой рядом с заголовком. Можно выбрать из существующих или ввести новую.</small>
+                        <datalist id="existing-tags">
+                            {% for t in existing_tags or [] %}
+                            <option value="{{ t }}"></option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="post-sort-date">Дата сортировки (опц.)</label>
+                        <input type="datetime-local" id="post-sort-date" name="sort_date"
+                               class="form-input">
+                        <small class="form-hint">Если пусто — используется текущее время.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Опубликовать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/info.css') }}">
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Вход - Маркетплейс{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="auth-container">
+            <div class="auth-card">
+                <h1>Вход</h1>
+                <p class="auth-subtitle">Войдите в свой аккаунт покупателя</p>
+                
+                <form method="POST" class="auth-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    
+                    <div class="form-group">
+                        <label for="login">Логин или Email</label>
+                        <input type="text" id="login" name="login" required
+                               placeholder="Введите логин или email">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Пароль</label>
+                        <input type="password" id="password" name="password" required
+                               placeholder="Введите пароль">
+                    </div>
+                    
+                    <div class="form-options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="remember">
+                            <span>Запомнить меня</span>
+                        </label>
+                        <a href="#" class="forgot-link">Забыли пароль?</a>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block">
+                        Войти
+                    </button>
+                </form>
+                
+                <div class="auth-footer">
+                    <p>Нет аккаунта? <a href="{{ url_for('auth.signup') }}">Зарегистрироваться</a></p>
+                </div>
+                
+                <div class="auth-divider">
+                    <span>или</span>
+                </div>
+                
+                <div class="seller-link">
+                    <p>Вы продавец? <a href="{{ url_for('auth.seller_login') }}">Войти как продавец</a></p>
+                </div>
+            </div>
+        </div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}

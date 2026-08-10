@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}Оплата заказа - {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    .payment-page {
+        padding: 40px 0;
+        min-height: 60vh;
+    }
+    
+    .payment-card {
+        max-width: 500px;
+        margin: 0 auto;
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 16px;
+        padding: 32px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    
+    .payment-header {
+        text-align: center;
+        margin-bottom: 32px;
+    }
+    
+    .payment-header .icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+    }
+    
+    .payment-header h1 {
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+    
+    .payment-header p {
+        color: #666;
+        font-size: 15px;
+    }
+    
+    .order-summary {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+    
+    .order-summary-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 15px;
+    }
+    
+    .order-summary-row:last-child {
+        margin-bottom: 0;
+        padding-top: 12px;
+        border-top: 1px solid #e5e5e5;
+        font-weight: 600;
+        font-size: 18px;
+    }
+    
+    .payment-methods {
+        margin-bottom: 24px;
+    }
+    
+    .payment-methods h3 {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 12px;
+    }
+    
+    .payment-method {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        background: #f8f9fa;
+        border: 2px solid #e5e5e5;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .payment-method:hover {
+        border-color: #0d6efd;
+    }
+    
+    .payment-method.selected {
+        border-color: #0d6efd;
+        background: #f0f7ff;
+    }
+    
+    .payment-method input[type="radio"] {
+        margin: 0;
+    }
+    
+    .payment-method-icon {
+        font-size: 24px;
+    }
+    
+    .payment-method-info strong {
+        display: block;
+        font-size: 15px;
+    }
+    
+    .payment-method-info small {
+        color: #666;
+    }
+    
+    .btn-pay {
+        width: 100%;
+        padding: 16px;
+        font-size: 18px;
+        font-weight: 600;
+    }
+    
+    .btn-skip {
+        display: block;
+        text-align: center;
+        margin-top: 16px;
+        color: #666;
+        text-decoration: none;
+        font-size: 14px;
+    }
+    
+    .btn-skip:hover {
+        color: #0d6efd;
+    }
+    
+    .payment-success {
+        text-align: center;
+    }
+    
+    .payment-success .success-icon {
+        font-size: 72px;
+        color: #22c55e;
+        margin-bottom: 16px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container payment-page">
+    <div class="payment-card">
+        {% if payment_status == 'success' %}
+        <div class="payment-success">
+            <div class="success-icon">✓</div>
+            <h1>Оплата успешна!</h1>
+            <p>Ваш заказ оплачен и находится в обработке.</p>
+            <a href="{{ url_for('main.profile_orders') }}" class="btn btn-primary btn-pay">
+                Перейти к заказам
+            </a>
+        </div>
+        {% else %}
+        <div class="payment-header">
+            <div class="icon">💳</div>
+            <h1>Оплата заказа</h1>
+            <p>Выберите способ оплаты и подтвердите платёж</p>
+        </div>
+        
+        <div class="order-summary">
+            <div class="order-summary-row">
+                <span>Номер заказа</span>
+                <span>{{ order_number }}</span>
+            </div>
+            <div class="order-summary-row">
+                <span>Товары</span>
+                <span>{{ items_count }} шт.</span>
+            </div>
+            <div class="order-summary-row">
+                <span>Доставка</span>
+                <span>{{ delivery_price }} ₽</span>
+            </div>
+            <div class="order-summary-row">
+                <span>К оплате</span>
+                <span>{{ total_price }} ₽</span>
+            </div>
+        </div>
+        
+        <form method="POST" action="{{ url_for('main.payment_process') }}" id="payment-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+            <input type="hidden" name="order_id" value="{{ order_id }}">
+            
+            <div class="payment-methods">
+                <h3>Способ оплаты</h3>
+                
+                <div class="payment-method selected">
+                    <input type="radio" name="payment_method" value="card" id="pm-card" checked>
+                    <span class="payment-method-icon">💳</span>
+                    <div class="payment-method-info">
+                        <strong>Банковская карта</strong>
+                        <small>Visa, MasterCard, МИР</small>
+                    </div>
+                </div>
+                
+                <div class="payment-method">
+                    <input type="radio" name="payment_method" value="sbp" id="pm-sbp">
+                    <span class="payment-method-icon">🏦</span>
+                    <div class="payment-method-info">
+                        <strong>СБП</strong>
+                        <small>Мгновенная оплата через Сбербанк</small>
+                    </div>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-success btn-pay">
+                Оплатить {{ total_price }} ₽
+            </button>
+            
+            <a href="{{ url_for('main.profile_orders') }}" class="btn-skip">
+                Пропустить и перейти к заказам
+            </a>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Выбор способа оплаты
+    var paymentMethods = document.querySelectorAll('.payment-method');
+    paymentMethods.forEach(function(method) {
+        method.addEventListener('click', function() {
+            paymentMethods.forEach(function(m) {
+                m.classList.remove('selected');
+            });
+            this.classList.add('selected');
+            var radio = this.querySelector('input[type="radio"]');
+            radio.checked = true;
+        });
+    });
+});
+</script>
+{% endblock %}

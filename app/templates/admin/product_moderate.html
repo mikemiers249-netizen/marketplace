@@ -1,0 +1,505 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Модерация товара - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>Модерация товара</h1>
+    <div class="header-actions">
+        <a href="{{ url_for('admin.products_moderation') }}" class="btn btn-secondary">
+            ← Назад к списку
+        </a>
+    </div>
+</div>
+
+<div class="product-moderation-layout">
+    {# Информация о товаре #}
+    <div class="product-details-card">
+        <div class="product-images">
+            <div class="main-image" id="main-image-container">
+                {% if product.main_photo %}
+                <img src="{{ url_for('static', filename='uploads/products/' + product.main_photo.path) }}" 
+                     alt="{{ product.name }}" id="main-img">
+                {% else %}
+                <div class="no-image">Нет фото</div>
+                {% endif %}
+            </div>
+            {% if product.photos.count() > 1 %}
+            <div class="additional-images">
+                {% for photo in product.photos.all() %}
+                {% if not photo.is_main %}
+                <div class="thumb" onclick="showImage('{{ url_for('static', filename='uploads/products/' + photo.path) }}')">
+                    <img src="{{ url_for('static', filename='uploads/products/' + photo.path) }}" alt="">
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="product-info">
+            <h2 class="product-name">{{ product.name }}</h2>
+            
+            <div class="info-row">
+                <span class="label">Артикул:</span>
+                <span class="value">{{ product.article }}</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Цена:</span>
+                <span class="value price">{{ format_price(product.price) }}</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Категория:</span>
+                <span class="value category-path">
+                    {% set parents = product.category.all_parents %}
+                    {% for parent in parents %}
+                    {{ parent.name }} →
+                    {% endfor %}
+                    {{ product.category.name }}
+                </span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Продавец:</span>
+                <span class="value">{{ product.seller.store_name }}</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Остаток:</span>
+                <span class="value">{{ product.stock_quantity }} шт.</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Статус:</span>
+                <span class="status-badge status-{{ product.status }}">
+                    {% if product.status == 'on_moderation' %}На проверке
+                    {% elif product.status == 'approved' %}Одобрен
+                    {% elif product.status == 'rejected' %}Отклонён
+                    {% endif %}
+                </span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Создан:</span>
+                <span class="value">{{ product.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+            </div>
+            
+            {% if product.description %}
+            <div class="product-description">
+                <h3>Описание</h3>
+                <p>{{ product.description }}</p>
+            </div>
+            {% endif %}
+            
+            {# Параметры товара - включая параметры всех родительских категорий #}
+            {% set all_params = product.category.get_all_parameters() %}
+            {% set product_param_ids = product.parameters.all()|map(attribute='parameter_id')|list %}
+            {% if all_params|length > 0 %}
+            <div class="product-parameters">
+                <h3>Параметры</h3>
+                <table>
+                    {% for param in all_params %}
+                    {% set param_value = product.parameters.filter_by(parameter_id=param.id).first() %}
+                    <tr>
+                        <td class="param-name">{{ param.name }}</td>
+                        <td class="param-value">
+                            {% if param_value %}
+                                {% if param.type in ['boolean'] %}
+                                    {% if param_value.value == 'true' or param_value.value == true %}Да
+                                    {% else %}Нет{% endif %}
+                                {% else %}
+                                    {{ param_value.value }}
+                                {% endif %}
+                            {% else %}
+                            <span class="no-value">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    {# Действия #}
+    <div class="moderation-actions-sidebar">
+        <div class="action-card">
+            <h3>Решение по модерации</h3>
+            
+            {% if product.status == 'on_moderation' %}
+            <div class="action-item">
+                <form method="POST" action="{{ url_for('admin.product_approve', product_id=product.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-success btn-block">
+                        Одобрить
+                    </button>
+                </form>
+            </div>
+            
+            <div class="action-item">
+                <form method="POST" action="{{ url_for('admin.product_reject', product_id=product.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-danger btn-block">
+                        Отклонить
+                    </button>
+                    <textarea name="remark" placeholder="Причина отклонения" rows="2" class="reject-reason"></textarea>
+                </form>
+            </div>
+            {% elif product.status == 'rejected' %}
+            <div class="action-item">
+                <form method="POST" action="{{ url_for('admin.product_approve', product_id=product.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-success btn-block">
+                        Одобрить
+                    </button>
+                </form>
+            </div>
+            {% elif product.status == 'approved' %}
+            <div class="action-item">
+                <form method="POST" action="{{ url_for('admin.product_reject', product_id=product.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-danger btn-block">
+                        Отклонить
+                    </button>
+                    <textarea name="remark" placeholder="Причина отклонения" rows="2" class="reject-reason"></textarea>
+                </form>
+            </div>
+            {% endif %}
+            
+            <div class="action-item">
+                <a href="{{ url_for('seller.product_edit', product_id=product.id) }}" 
+                   class="btn btn-secondary btn-block" target="_blank">
+                    Редактировать
+                </a>
+            </div>
+        </div>
+        
+        <div class="seller-info-card">
+            <h3>Информация о продавце</h3>
+            <div class="info-row">
+                <span class="label">Магазин:</span>
+                <span class="value">{{ product.seller.store_name }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Email:</span>
+                <span class="value">{{ product.seller.email }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Телефон:</span>
+                <span class="value">{{ product.seller.phone or 'Не указан' }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showImage(src) {
+    var mainImg = document.getElementById('main-img');
+    if (mainImg) {
+        mainImg.src = src;
+    }
+}
+</script>
+
+<style>
+.product-moderation-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 20px;
+    align-items: start;
+}
+
+.product-details-card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 24px;
+}
+
+.product-images {
+    margin-bottom: 24px;
+}
+
+.main-image {
+    width: 100%;
+    max-width: 500px;
+    height: 500px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-secondary);
+    margin: 0 auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.main-image img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.main-image .no-image {
+    width: 100%;
+    height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-light);
+}
+
+.additional-images {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.additional-images .thumb {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 2px solid transparent;
+}
+
+.additional-images .thumb:hover {
+    transform: scale(1.05);
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-md);
+}
+
+.additional-images .thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.product-details-card .product-name {
+    margin: 0 0 20px;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+    align-items: center;
+}
+
+.info-row .label {
+    color: var(--text-secondary);
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.info-row .value {
+    color: var(--text-primary);
+    font-weight: 600;
+    text-align: right;
+    word-break: break-word;
+}
+
+.info-row .value.category-path {
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.info-row .value.price {
+    font-size: 20px;
+    color: var(--text-primary);
+}
+
+.product-description {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+}
+
+.product-description h3 {
+    margin: 0 0 12px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.product-description p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.product-parameters {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+}
+
+.product-parameters h3 {
+    margin: 0 0 12px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.product-parameters table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.product-parameters td {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.product-parameters .param-name {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.product-parameters .param-value {
+    color: var(--text-primary);
+    font-weight: 600;
+    text-align: right;
+}
+
+.product-parameters .no-value {
+    color: var(--text-light);
+    font-style: italic;
+}
+
+.moderation-actions-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: sticky;
+    top: 10px;
+}
+
+.action-card, .seller-info-card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 16px;
+}
+
+.action-card h3, .seller-info-card h3 {
+    margin: 0 0 16px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.action-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.action-item {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.action-item form {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin: 0;
+}
+
+.action-item:last-child {
+    margin-bottom: 0;
+}
+
+.action-item .btn {
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    display: block;
+    text-align: center;
+    text-decoration: none;
+    box-sizing: border-box;
+}
+
+.reject-reason {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 13px;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.action-item .btn-success {
+    background: #22c55e;
+    color: white;
+}
+
+.action-item .btn-success:hover {
+    background: #16a34a;
+}
+
+.action-item .btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.action-item .btn-danger:hover {
+    background: #dc2626;
+}
+
+.action-item .btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+.action-item .btn-secondary:hover {
+    background: #e5e7eb;
+}
+
+.reject-reason {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-top: 8px;
+    min-height: 50px;
+    resize: vertical;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+    .product-moderation-layout {
+        grid-template-columns: 1fr;
+    }
+    
+    .moderation-actions-sidebar {
+        position: static;
+        order: -1;
+    }
+    
+    .main-image {
+        height: 350px;
+    }
+}
+</style>
+{% endblock %}

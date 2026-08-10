@@ -1,0 +1,48 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Новая служба доставки - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>Новая служба доставки</h1>
+    <a href="{{ url_for('admin.deliveries') }}" class="btn btn-secondary">Назад к списку</a>
+</div>
+
+<div class="admin-form-container">
+    <form method="POST" action="{{ url_for('admin.delivery_create') }}" class="admin-form" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="form-group">
+            <label for="name">Название службы *</label>
+            <input type="text" id="name" name="name" required
+                   class="form-input" placeholder="Например: СДЭК">
+        </div>
+
+        <div class="form-group">
+            <label for="code">Код службы *</label>
+            <input type="text" id="code" name="code" required
+                   class="form-input" placeholder="Например: cdek"
+                   pattern="[a-z_]+"
+                   title="Только строчные буквы и подчёркивания">
+            <span class="form-help">Уникальный идентификатор на латинице</span>
+        </div>
+
+        <div class="form-group">
+            <label for="logo">Логотип службы</label>
+            <input type="file" id="logo" name="logo" accept="image/*" class="form-input">
+            <span class="form-help">Рекомендуемый размер: до 200x100 пикселей. Форматы: PNG, JPG, GIF, WebP</span>
+        </div>
+
+        <div class="form-group">
+            <label for="api_module">Модуль API</label>
+            <input type="text" id="api_module" name="api_module"
+                   class="form-input" placeholder="Например: app.delivery.cdek">
+            <span class="form-help">Python модуль для работы с API (необязательно)</span>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Добавить службу</button>
+            <a href="{{ url_for('admin.deliveries') }}" class="btn btn-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

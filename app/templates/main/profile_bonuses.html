@@ -1,0 +1,193 @@
+{# Фрагмент "Бонусы" внутри общего дашборда. #}
+{# Подключается через {% include %} из profile.html. #}
+
+<h2>Бонусы</h2>
+<p class="profile-section-sub">
+    Баллы, начисленные магазинами за ваши заказы. Тратятся только у того магазина, где начислены.
+</p>
+
+{% if not loyalty_enabled %}
+<div class="profile-empty-state">
+    <div class="profile-empty-icon">🎁</div>
+    <h3>Программа лояльности отключена</h3>
+    <p>Администратор временно приостановил начисление и списание бонусов.</p>
+</div>
+{% else %}
+
+<div class="bonus-tiles" id="bonus-tiles">
+    {% if balances %}
+        {% for b in balances %}
+        <a class="bonus-tile" href="{{ url_for('main.seller_store', seller_slug=b.store_slug) if b.store_slug else '#' }}">
+            <div class="bonus-tile-logo">
+                {% if b.store_logo %}
+                    <img src="{{ url_for('static', filename=b.store_logo) }}" alt="{{ b.store_name }}">
+                {% else %}
+                    <span class="bonus-tile-logo-fallback">{{ (b.store_name or '?')[:1] }}</span>
+                {% endif %}
+            </div>
+            <div class="bonus-tile-body">
+                <div class="bonus-tile-name">{{ b.store_name }}</div>
+                <div class="bonus-tile-value">
+                    {{ '%.2f'|format(b.balance) }}
+                    <span class="bonus-tile-cur">баллов</span>
+                </div>
+                <div class="bonus-tile-hint">1 балл = 1 ₽ при оплате</div>
+            </div>
+        </a>
+        {% endfor %}
+    {% else %}
+    <div class="profile-empty-state" style="grid-column: 1 / -1;">
+        <div class="profile-empty-icon">💰</div>
+        <h3>Баллов пока нет</h3>
+        <p>Подтвердите получение заказа — и в этом разделе появятся начисления от магазинов.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if history %}
+<div class="bonus-history">
+    <h3>История операций</h3>
+    <div class="bonus-history-list">
+        {% for h in history %}
+        <div class="bonus-history-item bonus-history-{{ h.type }}">
+            <div class="bonus-history-icon">
+                {% if h.type == 'accrued' %}<i class="bi bi-plus-circle"></i>
+                {% elif h.type == 'spent' %}<i class="bi bi-dash-circle"></i>
+                {% elif h.type == 'reversed' %}<i class="bi bi-arrow-counterclockwise"></i>
+                {% else %}<i class="bi bi-circle"></i>{% endif %}
+            </div>
+            <div class="bonus-history-body">
+                <div class="bonus-history-title">
+                    {% if h.type == 'accrued' %}Начисление
+                    {% elif h.type == 'spent' %}Списание
+                    {% elif h.type == 'reversed' %}Возврат
+                    {% else %}{{ h.type }}{% endif %}
+                    {% if h.seller %} · {{ h.seller.store_name }}{% endif %}
+                </div>
+                <div class="bonus-history-reason">{{ h.reason or '—' }}</div>
+                <div class="bonus-history-date">{{ h.timestamp.strftime('%d.%m.%Y %H:%M') if h.timestamp else '' }}</div>
+            </div>
+            <div class="bonus-history-amount">
+                {{ '%+0.2f'|format(h.amount) }} <span>баллов</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% if history_total > history|length %}
+    <div class="bonus-history-more">Показано последние {{ history|length }} из {{ history_total }}</div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% endif %}
+
+<style>
+    .profile-section-sub {
+        color: #6b7280;
+        font-size: 14px;
+        margin: -16px 0 24px;
+    }
+
+    .profile-empty-state {
+        padding: 48px 20px;
+        text-align: center;
+        color: #6b7280;
+    }
+    .profile-empty-state h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+        margin: 0 0 8px;
+    }
+    .profile-empty-state p {
+        margin: 0;
+        font-size: 14px;
+    }
+    .profile-empty-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
+
+    .bonus-tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 14px;
+        margin-top: 8px;
+    }
+    .bonus-tile {
+        display: flex;
+        gap: 14px;
+        padding: 16px;
+        background: linear-gradient(135deg, #fff 0%, #f0f4ff 100%);
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        text-decoration: none;
+        color: inherit;
+        transition: transform .15s, box-shadow .15s, border-color .15s;
+    }
+    .bonus-tile:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 22px rgba(74, 108, 247, 0.15);
+        border-color: #c7d2fe;
+    }
+    .bonus-tile-logo {
+        width: 56px; height: 56px;
+        border-radius: 12px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .bonus-tile-logo img { width: 100%; height: 100%; object-fit: cover; }
+    .bonus-tile-logo-fallback {
+        font-size: 22px; font-weight: 700; color: #4a6cf7;
+    }
+    .bonus-tile-body { min-width: 0; flex: 1; }
+    .bonus-tile-name {
+        font-size: 14px; color: #6b7280;
+        margin-bottom: 4px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .bonus-tile-value {
+        font-size: 22px; font-weight: 700; color: #1f2937;
+        line-height: 1.1;
+    }
+    .bonus-tile-cur { font-size: 12px; color: #6b7280; font-weight: 500; margin-left: 4px; }
+    .bonus-tile-hint { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+
+    .bonus-history { margin-top: 32px; }
+    .bonus-history h3 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0 0 12px;
+        color: #1f2937;
+    }
+    .bonus-history-list { display: flex; flex-direction: column; gap: 8px; }
+    .bonus-history-item {
+        display: grid;
+        grid-template-columns: 36px 1fr auto;
+        gap: 12px;
+        padding: 12px 16px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        align-items: center;
+    }
+    .bonus-history-icon { font-size: 22px; line-height: 1; text-align: center; }
+    .bonus-history-accrued .bonus-history-icon { color: #16a34a; }
+    .bonus-history-spent .bonus-history-icon { color: #dc2626; }
+    .bonus-history-reversed .bonus-history-icon { color: #6b7280; }
+    .bonus-history-title { font-size: 14px; font-weight: 600; color: #1f2937; }
+    .bonus-history-reason { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .bonus-history-date { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .bonus-history-amount { font-size: 15px; font-weight: 700; }
+    .bonus-history-amount span { font-size: 11px; color: #6b7280; font-weight: 500; }
+    .bonus-history-accrued .bonus-history-amount { color: #16a34a; }
+    .bonus-history-spent .bonus-history-amount { color: #dc2626; }
+    .bonus-history-reversed .bonus-history-amount { color: #6b7280; }
+    .bonus-history-more {
+        text-align: center; font-size: 12px; color: #6b7280; margin-top: 8px;
+    }
+</style>

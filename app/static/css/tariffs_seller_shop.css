@@ -1,0 +1,396 @@
+/* Стили раздела «Магазин тарифов» в кабинете продавца: плашки + модалка оплаты. */
+
+/* Сетка плашек тарифов */
+.tariff-shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px;
+    align-items: stretch;
+}
+
+.tariff-plan-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px 18px 16px;
+    background: #fff;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: var(--radius-md, 10px);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.04));
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+.tariff-plan-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    border-color: var(--primary-color, #6366f1);
+}
+
+.tariff-plan-card-head {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--border-color, #e5e7eb);
+}
+.tariff-plan-card-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary, #1f2937);
+}
+.tariff-plan-card-price {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+.tariff-plan-card-price strong {
+    font-size: 22px;
+    color: var(--primary-color, #6366f1);
+}
+.tariff-plan-card-period {
+    color: var(--text-secondary, #6b7280);
+    font-size: 14px;
+}
+
+.tariff-plan-card-body {
+    flex: 1 1 auto;
+    color: var(--text-secondary, #4b5563);
+    font-size: 14px;
+    line-height: 1.45;
+}
+.tariff-plan-card-body p {
+    margin: 0;
+}
+
+.tariff-plan-card-foot {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.tariff-plan-buy-btn {
+    width: 100%;
+}
+
+/* Бейдж статуса (на вкладке «Мои тарифы») */
+.tariff-status {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #fff;
+}
+.tariff-status-active   { background: #10b981; }
+.tariff-status-paused   { background: #f59e0b; }
+.tariff-status-disabled { background: #ef4444; }
+
+/* Описание тарифа в строке «Мои тарифы» */
+.tariff-plan-desc {
+    margin-top: 4px;
+    color: var(--text-secondary, #6b7280);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* Inline-форма для кнопки «Продлить» */
+.tariff-inline-form {
+    margin: 0;
+    display: inline-block;
+}
+
+/* ===== Модалка оплаты ===== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+}
+.modal-overlay[hidden] {
+    display: none;
+}
+.modal-open {
+    overflow: hidden;
+}
+
+.modal-window {
+    position: relative;
+    background: #fff;
+    border-radius: var(--radius-md, 12px);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+    max-width: 480px;
+    width: 100%;
+    padding: 24px 24px 20px;
+    animation: modal-pop 0.18s ease-out;
+}
+@keyframes modal-pop {
+    from { transform: translateY(8px) scale(0.98); opacity: 0; }
+    to   { transform: translateY(0)   scale(1);    opacity: 1; }
+}
+
+.modal-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary, #6b7280);
+    cursor: pointer;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+}
+.modal-close:hover {
+    background: var(--bg-secondary, #f3f4f6);
+    color: var(--text-primary, #1f2937);
+}
+
+.modal-title {
+    margin: 0 0 14px;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary, #1f2937);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.modal-body {
+    margin-bottom: 18px;
+    color: var(--text-primary, #1f2937);
+}
+.modal-plan-name {
+    margin: 0 0 6px;
+    font-size: 16px;
+}
+.modal-plan-desc {
+    margin: 0 0 12px;
+    color: var(--text-secondary, #6b7280);
+    font-size: 13px;
+    line-height: 1.45;
+}
+.modal-plan-meta {
+    list-style: none;
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    background: var(--bg-secondary, #f9fafb);
+    border-radius: var(--radius-sm, 6px);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 14px;
+}
+.modal-plan-meta li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.modal-plan-meta i {
+    color: var(--primary-color, #6366f1);
+}
+.modal-payment-hint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-light, #9ca3af);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.modal-actions .btn {
+    min-width: 110px;
+}
+
+/* ===== Баннер глобальных правил площадки ===== */
+.tariff-global-banner {
+    margin: 16px 0 24px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #eef2ff 0%, #ecfeff 100%);
+    border: 1px solid #c7d2fe;
+    border-radius: 10px;
+}
+.tariff-global-banner-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #4338ca;
+    font-size: 15px;
+    margin-bottom: 6px;
+}
+.tariff-global-banner-head i {
+    font-size: 18px;
+}
+.tariff-global-banner-hint {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.5;
+}
+.tariff-global-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.tariff-global-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #dbeafe;
+    font-size: 14px;
+}
+.tariff-global-desc {
+    flex: 1 1 100%;
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+.tariff-global-period {
+    font-size: 12px;
+    color: #0e7490;
+    background: #ecfeff;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+/* ===== Плашка «Текущий тариф» (paid / grace / locked / global) ===== */
+.tariff-current-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 18px 0 22px;
+    padding: 16px 18px;
+    border-radius: 10px;
+    border-left: 4px solid #6366f1;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.tariff-current-card--ok {
+    border-left-color: #16a34a;
+    background: #f0fdf4;
+}
+.tariff-current-card--warn {
+    border-left-color: #f59e0b;
+    background: #fffbeb;
+}
+.tariff-current-card--danger {
+    border-left-color: #dc2626;
+    background: #fef2f2;
+}
+.tariff-current-card--info {
+    border-left-color: #0ea5e9;
+    background: #f0f9ff;
+}
+.tariff-current-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+}
+.tariff-current-card-head i {
+    font-size: 18px;
+}
+.tariff-current-card-status {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475569;
+    background: rgba(255, 255, 255, 0.6);
+    padding: 2px 10px;
+    border-radius: 999px;
+}
+.tariff-current-card-body {
+    font-size: 14px;
+    color: #1e293b;
+    line-height: 1.5;
+}
+.tariff-current-card-warn {
+    font-size: 13px;
+    color: #92400e;
+    background: rgba(245, 158, 11, 0.12);
+    padding: 6px 10px;
+    border-radius: 6px;
+}
+.tariff-current-card-hint {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: #475569;
+    line-height: 1.45;
+}
+.tariff-current-card-rules {
+    margin: 0 0 4px 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.tariff-current-card-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* ===== Баннер на всех страницах seller ЛК ===== */
+.tariff-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 18px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    border-left: 4px solid #6366f1;
+    background: #f0f9ff;
+}
+.tariff-banner i {
+    font-size: 20px;
+    flex: 0 0 auto;
+}
+.tariff-banner-text {
+    flex: 1 1 auto;
+    line-height: 1.4;
+}
+.tariff-banner-action {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+.tariff-banner--info {
+    border-left-color: #0ea5e9;
+    background: #e0f2fe;
+}
+.tariff-banner--warn {
+    border-left-color: #f59e0b;
+    background: #fef3c7;
+}
+.tariff-banner--danger {
+    border-left-color: #dc2626;
+    background: #fee2e2;
+    color: #7f1d1d;
+}
+.tariff-banner--danger .tariff-banner-text {
+    color: #7f1d1d;
+}
+

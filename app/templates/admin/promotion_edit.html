@@ -1,0 +1,172 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Редактирование акции - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>Редактирование акции</h1>
+    <a href="{{ url_for('admin.promotions') }}" class="btn btn-secondary">Назад к списку</a>
+</div>
+
+<div class="admin-form-container">
+    <form method="POST" action="{{ url_for('admin.promotion_update', promotion_id=promotion.id) }}" class="admin-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="form-group">
+            <label for="name">Название акции *</label>
+            <input type="text" id="name" name="name" required
+                   class="form-input" placeholder="Введите название акции"
+                   value="{{ promotion.name }}">
+        </div>
+
+        <div class="form-group">
+            <label for="scheme">Схема акции *</label>
+            <select id="scheme" name="scheme" required class="form-select">
+                <option value="">Выберите схему</option>
+                <option value="second_with_discount" {% if promotion.scheme == 'second_with_discount' %}selected{% endif %}>Купи один — получи скидку (каждый второй со скидкой по минимальной цене)</option>
+                <option value="one_plus_one" {% if promotion.scheme == 'one_plus_one' %}selected{% endif %}>1+1 (купи один — получи второй со скидкой 99%)</option>
+                <option value="two_plus_one" {% if promotion.scheme == 'two_plus_one' %}selected{% endif %}>2+1 (купи два — получи третий со скидкой 99%)</option>
+                <option value="three_plus_one" {% if promotion.scheme == 'three_plus_one' %}selected{% endif %}>3+1 (купи три — получи четвёртый со скидкой 99%)</option>
+                <option value="discount" {% if promotion.scheme == 'discount' %}selected{% endif %}>Процентная скидка</option>
+                {% if promotion.scheme in ('1+1', '2+1', '3+1') %}
+                    {# Legacy fallback: если в БД остались записи со старыми кодами, чтобы редактирование не падало. #}
+                    <option value="{{ promotion.scheme }}" selected hidden>{{ promotion.scheme }} (старая схема)</option>
+                {% endif %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="discount_percent">Скидка (%)</label>
+            <input type="number" id="discount_percent" name="discount_percent"
+                   class="form-input" placeholder="0" min="0" max="100"
+                   value="{{ promotion.discount_percent if promotion.discount_percent is not none else '' }}">
+            <span class="form-help" id="discount-help">Процент скидки. Для схемы «Купи один — получи скидку» можно оставить пустым — тогда продавец задаст свой при подключении. Для схем «1+1», «2+1» и «3+1» поле автоматически предустанавливается на 99% (можно изменить).</span>
+        </div>
+
+        <div class="form-group">
+            <label for="min_product_price">Минимальная цена товара в акции, ₽</label>
+            <input type="number" id="min_product_price" name="min_product_price"
+                   class="form-input" placeholder="без ограничений" min="0" step="0.01"
+                   value="{{ promotion.min_product_price if promotion.min_product_price is not none else '' }}">
+            <span class="form-help" id="min-price-help">Используется для схем с выбором товаров (1+1, 2+1, 3+1, Процентная скидка). Продавец не сможет добавить в акцию товар дешевле указанной суммы. Если пусто — ограничения нет.</span>
+        </div>
+
+        <div class="form-group form-check">
+            <input type="checkbox" id="is_template" name="is_template" value="1" class="form-check-input"
+                   {% if promotion.is_template %}checked{% endif %}>
+            <label for="is_template" class="form-check-label">
+                Сделать шаблоном для продавцов
+                <span class="form-help d-block">Если включено — продавцы смогут подключить эту акцию к себе (со своим процентом скидки, если шаблонный пуст). Используется для схем типа «Купи один — получи скидку», «1+1», «2+1», «3+1» и для шаблона «Процентная скидка».</span>
+            </label>
+        </div>
+
+        <div class="form-group form-check" id="discount-template-note" style="display:none;">
+            <div class="alert alert-info small mb-0">
+                <i class="bi bi-info-circle"></i>
+                Для схем «Процентная скидка», «1+1», «2+1» и «3+1» признак «шаблон» обязателен — продавцы должны иметь возможность подключить акцию и выбрать свои товары.
+            </div>
+        </div>
+
+        <div class="form-group form-check" id="apply-same-discount-group" style="display:none;">
+            <input type="checkbox" id="apply_same_discount" name="apply_same_discount" value="1" class="form-check-input"
+                   {% if promotion.apply_same_discount %}checked{% endif %}>
+            <label for="apply_same_discount" class="form-check-label">
+                Одинаковая скидка на все товары акции
+                <span class="form-help d-block">Режим по умолчанию. Продавец при подключении может переопределить: выбрать либо общую скидку на все товары, либо индивидуальную скидку для каждого товара.</span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label for="status">Статус акции</label>
+            <select id="status" name="status" class="form-select">
+                <option value="draft" {% if promotion.status == 'draft' %}selected{% endif %}>Черновик</option>
+                <option value="forming" {% if promotion.status == 'forming' %}selected{% endif %}>Формируется (приостановлена)</option>
+                <option value="active" {% if promotion.status == 'active' %}selected{% endif %}>Активна</option>
+                <option value="completed" {% if promotion.status == 'completed' %}selected{% endif %}>Завершена</option>
+            </select>
+            <span class="form-help">Изменение статуса повлияет на то, действует ли акция у продавцов.</span>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="start_date">Дата начала</label>
+                <input type="date" id="start_date" name="start_date"
+                       class="form-input"
+                       value="{{ promotion.start_date.strftime('%Y-%m-%d') if promotion.start_date else '' }}">
+                <span class="form-help">Необязательно. Если не указана — действует сразу.</span>
+            </div>
+            <div class="form-group">
+                <label for="end_date">Дата окончания</label>
+                <input type="date" id="end_date" name="end_date"
+                       class="form-input"
+                       value="{{ promotion.end_date.strftime('%Y-%m-%d') if promotion.end_date else '' }}">
+                <span class="form-help">Необязательно. Если не указана — без срока окончания.</span>
+            </div>
+        </div>
+        <p class="form-help" style="margin-top:-8px;">
+            Если обе даты пустые — акция бессрочная (неограниченный срок действия).
+        </p>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+            <a href="{{ url_for('admin.promotions') }}" class="btn btn-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+
+<script>
+(function () {
+    var scheme = document.getElementById('scheme');
+    var isTemplate = document.getElementById('is_template');
+    var group = document.getElementById('apply-same-discount-group');
+    var note = document.getElementById('discount-template-note');
+    var discount = document.getElementById('discount_percent');
+    var minPrice = document.getElementById('min_product_price');
+    var minPriceHelp = document.getElementById('min-price-help');
+    if (!scheme) return;
+
+    // Запоминаем, редактировал ли пользователь поле скидки вручную.
+    // Нужно, чтобы не затирать значение при первом переключении схемы.
+    var userEditedDiscount = false;
+    if (discount) {
+        discount.addEventListener('input', function () { userEditedDiscount = true; });
+    }
+
+    function refresh() {
+        var val = scheme.value;
+        var isDiscount = val === 'discount';
+        var isOnePlusOne = val === 'one_plus_one';
+        var isTwoPlusOne = val === 'two_plus_one';
+        var isThreePlusOne = val === 'three_plus_one';
+        var isNPlusOne = isOnePlusOne || isTwoPlusOne || isThreePlusOne;
+        var isTemplateScheme = isDiscount || isNPlusOne;
+
+        if (group) group.style.display = (isDiscount && isTemplate && isTemplate.checked) ? '' : 'none';
+        if (note) note.style.display = isTemplateScheme ? '' : 'none';
+
+        if (isTemplateScheme) {
+            isTemplate.checked = true;
+            isTemplate.disabled = true;
+        } else if (isTemplate) {
+            isTemplate.disabled = false;
+        }
+
+        if (isNPlusOne) {
+            if (discount && (!userEditedDiscount || !discount.value || discount.value === '0')) {
+                discount.value = 99;
+            }
+            if (minPriceHelp) {
+                var np1Label = isOnePlusOne ? '1+1' : (isTwoPlusOne ? '2+1' : '3+1');
+                minPriceHelp.innerHTML = 'Используется для «' + np1Label + '». Продавец не сможет добавить в акцию товар дешевле указанной суммы. Если пусто — ограничения нет.';
+            }
+        } else if (isDiscount) {
+            if (minPriceHelp) {
+                minPriceHelp.innerHTML = 'Используется для схем с выбором товаров. Продавец не сможет добавить в акцию товар дешевле указанной суммы. Если пусто — ограничения нет.';
+            }
+        }
+    }
+    scheme.addEventListener('change', refresh);
+    if (isTemplate) isTemplate.addEventListener('change', refresh);
+    refresh();
+})();
+</script>
+{% endblock %}

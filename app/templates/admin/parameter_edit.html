@@ -1,0 +1,161 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Редактирование параметра - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>Редактирование параметра</h1>
+    <a href="{{ url_for('admin.parameters') }}" class="btn btn-secondary">Назад к списку</a>
+</div>
+
+<div class="admin-form-container">
+    <form method="POST" action="{{ url_for('admin.parameter_update', param_id=parameter.id) }}" class="admin-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        
+        <div class="form-group">
+            <label for="name">Название параметра *</label>
+            <input type="text" id="name" name="name" required
+                   class="form-input" value="{{ parameter.name or '' }}"
+                   placeholder="Например: Размер">
+        </div>
+
+        <div class="form-group">
+            <label for="type">Тип значения *</label>
+            <select id="type" name="type" required class="form-select">
+                <option value="string" {% if parameter.type == 'string' %}selected{% endif %}>Строка</option>
+                <option value="integer" {% if parameter.type == 'integer' %}selected{% endif %}>Число</option>
+                <option value="float" {% if parameter.type == 'float' %}selected{% endif %}>Дробное число</option>
+                <option value="boolean" {% if parameter.type == 'boolean' %}selected{% endif %}>Да/Нет</option>
+                <option value="select" {% if parameter.type == 'select' %}selected{% endif %}>Выбор из списка</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="predefined_values">Предопределённые значения</label>
+            <input type="text" id="predefined_values" name="predefined_values"
+                   class="form-input" 
+                   value="{{ parameter.predefined_values|join(', ') if parameter.predefined_values else '' }}"
+                   placeholder="XS, S, M, L, XL">
+            <span class="form-help">Через запятую (для типа "Выбор из списка")</span>
+        </div>
+
+        <div class="form-row">
+            <div class="form-checkbox">
+                <input type="checkbox" id="is_composite" name="is_composite"
+                       {% if parameter.is_composite %}checked{% endif %}>
+                <label for="is_composite">Составной параметр</label>
+            </div>
+            <div class="form-checkbox">
+                <input type="checkbox" id="is_multiple" name="is_multiple"
+                       {% if parameter.is_multiple %}checked{% endif %}>
+                <label for="is_multiple">Множественное значение</label>
+            </div>
+            <div class="form-checkbox">
+                <input type="checkbox" id="is_input" name="is_input"
+                       {% if parameter.is_input %}checked{% endif %}>
+                <label for="is_input">Можно вводить вручную</label>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+            <a href="{{ url_for('admin.parameters') }}" class="btn btn-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-row {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+.form-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-checkbox input {
+    width: 18px;
+    height: 18px;
+}
+
+.form-checkbox label {
+    font-size: 14px;
+    color: #333;
+    cursor: pointer;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+    outline: none;
+    border-color: #4a6cf7;
+}
+
+.form-help {
+    display: block;
+    margin-top: 6px;
+    font-size: 13px;
+    color: #888;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.btn-primary {
+    background: #4a6cf7;
+    color: #fff;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn-primary:hover {
+    background: #3a5ce5;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: #fff;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+</style>
+{% endblock %}

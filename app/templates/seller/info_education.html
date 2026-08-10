@@ -1,0 +1,89 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}{{ title }} - Панель продавца{% endblock %}
+
+{% block header_title %}{{ title }}{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="info-page info-page-detail">
+    <a class="info-back-link" href="{{ url_for('seller.info') }}">
+        <i class="bi bi-arrow-left"></i> Назад к информации
+    </a>
+
+    <div class="edu-list-head">
+        <h2 class="edu-list-title">
+            <i class="bi {{ tile.icon }}"></i>
+            Учебные материалы
+        </h2>
+    </div>
+
+    {# Фильтр по тегам — тот же паттерн, что и в новостях #}
+    {% if all_tags %}
+    <div class="edu-tag-filter">
+        <span class="edu-tag-filter-label">
+            <i class="bi bi-tags"></i> Тег:
+        </span>
+        <a href="{{ url_for('seller.info_education') }}"
+           class="info-tag-chip {% if not active_tag %}active{% endif %}">
+            Все
+        </a>
+        {% for t, slug in all_tags %}
+        <a href="{{ url_for('seller.info_education', tag=slug) }}"
+           class="info-tag-chip info-tag-color-{{ loop.index0 % 8 }} {% if active_tag == t %}active{% endif %}">
+            {{ t }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if materials %}
+        <div class="edu-grid">
+            {% for m in materials %}
+            {% set cover = m.cover_url or '' %}
+            {# Локальный путь вида 'uploads/...' → /static/uploads/...;
+               внешний URL (http/https) оставляем как есть. #}
+            {% if cover and not (cover.startswith('http://') or cover.startswith('https://') or cover.startswith('/')) %}
+                {% set cover_url_abs = url_for('static', filename=cover) %}
+            {% else %}
+                {% set cover_url_abs = cover %}
+            {% endif %}
+            <a class="edu-card {% if not cover %}edu-card--no-cover{% endif %}"
+               href="{{ url_for('seller.edu_view', material_id=m.id) }}"
+               {% if cover %}style="background-image: url('{{ cover_url_abs|e }}');"{% endif %}>
+                <div class="edu-card-overlay">
+                    <h3 class="edu-card-title">{{ m.title }}</h3>
+                    {% if m.tag %}
+                    <span class="info-tag-chip info-tag-color-{{ loop.index0 % 8 }} edu-card-tag">
+                        <i class="bi bi-tag-fill"></i> {{ m.tag }}
+                    </span>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="edu-empty">
+            <i class="bi bi-inbox"></i>
+            {% if active_tag %}
+            <p>Нет материалов с тегом «{{ active_tag }}».</p>
+            {% else %}
+            <p>Учебных материалов пока нет.</p>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/info.css') }}">
+{% endblock %}

@@ -1,0 +1,243 @@
+<div class="section-header">
+    <h2>Мои отзывы</h2>
+</div>
+
+{% if reviews %}
+<div class="reviews-table-wrapper">
+    <table class="reviews-table">
+        <thead>
+            <tr>
+                <th class="col-product">Товар</th>
+                <th class="col-text">Отзыв</th>
+                <th class="col-rating">Оценка</th>
+                <th class="col-date">Дата</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in reviews %}
+            <tr class="review-row" data-review-id="{{ r.id }}">
+                <td class="col-product">
+                    <a class="review-product"
+                       href="{{ url_for('main.product', product_id=r.product.id) }}">
+                        {% set photo = r.product.main_photo %}
+                        {% if photo %}
+                        <img class="review-product-photo"
+                             src="{{ url_for('static', filename='uploads/products/' ~ photo.path) }}"
+                             alt="{{ r.product.name }}">
+                        {% else %}
+                        <span class="review-product-photo no-photo">Нет фото</span>
+                        {% endif %}
+                        <span class="review-product-name">{{ r.product.name }}</span>
+                    </a>
+                </td>
+                <td class="col-text">
+                    {% if r.text and r.text.strip() %}
+                        <div class="review-text">{{ r.text }}</div>
+                    {% else %}
+                        <div class="review-text review-text-empty">&nbsp;</div>
+                    {% endif %}
+                </td>
+                <td class="col-rating">
+                    {% set rating_int = r.rating|round(0, 'floor')|int %}
+                    <span class="review-stars" title="{{ r.rating }} из 5">
+                        <span class="stars-filled">{{ '★' * rating_int }}</span><span class="stars-empty">{{ '☆' * (5 - rating_int) }}</span>
+                    </span>
+                </td>
+                <td class="col-date">
+                    <span class="review-date">{{ r.created_at.strftime('%d.%m.%Y') }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">💬</div>
+    <h3>Пока нет отзывов</h3>
+    <p>Здесь появятся ваши отзывы на купленные товары после прохождения модерации</p>
+    <a href="{{ url_for('main.profile', section='purchases') }}" class="btn btn-primary">Перейти к покупкам</a>
+</div>
+{% endif %}
+
+<style>
+.section-header {
+    margin-bottom: 20px;
+}
+.section-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: #333;
+}
+
+.reviews-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.reviews-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.reviews-table thead th {
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #6b7280;
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.reviews-table tbody td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: middle;
+    font-size: 14px;
+    color: #333;
+}
+
+.reviews-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.reviews-table tbody tr:hover {
+    background: #fafbfc;
+}
+
+/* Колонка "Товар": миниатюра + название, обе кликабельны */
+.reviews-table .col-product  { width: 32%; }
+.reviews-table .col-text     { width: 42%; }
+.reviews-table .col-rating   { width: 12%; }
+.reviews-table .col-date     { width: 14%; }
+
+.review-product {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: #1f2937;
+    min-width: 0;
+}
+.review-product:hover .review-product-name {
+    color: #0d6efd;
+}
+
+.review-product-photo {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #f5f5f5;
+    flex-shrink: 0;
+    border: 1px solid #eee;
+}
+.review-product-photo.no-photo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #999;
+}
+
+.review-product-name {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.3;
+    color: inherit;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+/* Текст отзыва */
+.review-text {
+    line-height: 1.5;
+    color: #333;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+.review-text-empty {
+    color: transparent;
+    user-select: none;
+}
+
+/* Звёзды */
+.review-stars {
+    font-size: 16px;
+    letter-spacing: 1px;
+    line-height: 1;
+    white-space: nowrap;
+}
+.review-stars .stars-filled { color: #f59e0b; }
+.review-stars .stars-empty  { color: #e5e7eb; }
+
+/* Дата */
+.review-date {
+    font-size: 13px;
+    color: #6b7280;
+    white-space: nowrap;
+}
+
+/* Empty state (как в profile_favorite) */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+}
+.empty-state .empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+}
+.empty-state h3 {
+    margin: 0 0 8px;
+    color: #333;
+}
+.empty-state p {
+    color: #666;
+    margin: 0 0 24px;
+}
+
+/* Адаптив: на узких экранах таблица превращается в "карточки" */
+@media (max-width: 767px) {
+    .reviews-table thead { display: none; }
+    .reviews-table, .reviews-table tbody, .reviews-table tr, .reviews-table td {
+        display: block;
+        width: 100%;
+    }
+    .reviews-table tr {
+        border-bottom: 8px solid #f5f5f5;
+        padding: 4px 0;
+    }
+    .reviews-table tbody td {
+        border-bottom: 1px solid #f0f0f0;
+        padding: 10px 16px;
+    }
+    .reviews-table .col-product,
+    .reviews-table .col-text,
+    .reviews-table .col-rating,
+    .reviews-table .col-date {
+        width: auto;
+    }
+    .reviews-table .col-rating,
+    .reviews-table .col-date {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .reviews-table .col-rating::before { content: 'Оценка'; color: #6b7280; font-size: 12px; }
+    .reviews-table .col-date::before   { content: 'Дата';   color: #6b7280; font-size: 12px; }
+}
+</style>

@@ -1,0 +1,64 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ material.title }} - Админ-панель{% endblock %}
+
+{% block header_title %}{{ material.title }}{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="info-page info-page-detail">
+    <a class="info-back-link" href="{{ url_for('admin.info_education') }}">
+        <i class="bi bi-arrow-left"></i> Обратно к учебным материалам
+    </a>
+
+    <article class="edu-view">
+        <header class="edu-view-head">
+            <h1 class="edu-view-title">{{ material.title }}</h1>
+            <div class="edu-view-meta">
+                {% if material.tag %}
+                <a class="info-tag-chip info-tag-color-0"
+                   href="{{ url_for('admin.info_education', tag=active_tag_slug) }}">
+                    <i class="bi bi-tag-fill"></i> {{ material.tag }}
+                </a>
+                {% endif %}
+                <span class="edu-view-date">
+                    <i class="bi bi-calendar3"></i>
+                    {{ material.created_at.strftime('%d.%m.%Y') if material.created_at else '' }}
+                </span>
+            </div>
+            <div class="edu-view-actions">
+                <a href="{{ url_for('admin.edu_edit', material_id=material.id) }}"
+                   class="btn btn-secondary btn-sm">
+                    <i class="bi bi-pencil"></i> Изменить
+                </a>
+                <form method="POST"
+                      action="{{ url_for('admin.edu_delete', material_id=material.id) }}"
+                      onsubmit="return confirm('Удалить материал «{{ material.title|e }}»?');"
+                      class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-secondary btn-sm">
+                        <i class="bi bi-trash"></i> Удалить
+                    </button>
+                </form>
+            </div>
+        </header>
+
+        <div class="edu-view-body">
+            {{ material.body|safe if material.body else '<p class="text-muted"><em>Содержимое пока не заполнено.</em></p>' }}
+        </div>
+    </article>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/info.css') }}">
+{% endblock %}

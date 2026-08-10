@@ -1,0 +1,566 @@
+{# Общий блок «Траектория развития проекта».
+   Ожидаемые переменные:
+     can_manage           — bool, true только в админке
+     roadmap_events       — список RoadmapEvent
+     roadmap_categories   — [{code,label,color}, ...] — для легенды/модалки
+#}
+
+{# URL-ы для админа (создание/редактирование/удаление/JSON-лента) #}
+{% if can_manage %}
+    {% set rm_url_create  = url_for('admin.roadmap_create') %}
+    {% set rm_url_update  = 'admin.roadmap_update' %}
+    {% set rm_url_delete  = 'admin.roadmap_delete' %}
+    {% set rm_events_json = url_for('admin.roadmap_events_json') %}
+{% else %}
+    {% set rm_url_create  = '' %}
+    {% set rm_url_update  = '' %}
+    {% set rm_url_delete  = '' %}
+    {% set rm_events_json = url_for('seller.roadmap_events_json') %}
+{% endif %}
+
+{# Заголовок + кнопка «Добавить» (только у админа) #}
+<div class="roadmap-head">
+    <h3 class="roadmap-head-title">
+        <i class="bi bi-calendar-event"></i>
+        Календарь событий проекта
+    </h3>
+    {% if can_manage %}
+    <button type="button"
+            class="btn btn-primary btn-sm"
+            data-bs-toggle="modal"
+            data-bs-target="#roadmapEventModal"
+            id="openRoadmapCreateBtn">
+        <i class="bi bi-plus-lg"></i> Добавить событие
+    </button>
+    {% endif %}
+</div>
+
+{# Легенда категорий — общая для админа и продавца #}
+{% if roadmap_categories %}
+<div class="roadmap-legend">
+    {% for c in roadmap_categories %}
+    <span class="roadmap-legend-item">
+        <span class="roadmap-legend-dot" style="background:{{ c.color }}"></span>
+        {{ c.label }}
+    </span>
+    {% endfor %}
+</div>
+{% endif %}
+
+{# Сам календарь FullCalendar #}
+<div id="roadmapCalendar" class="roadmap-calendar"></div>
+
+{# ============================================================
+   Горизонтальная временная шкала событий
+   - прокручивается колёсиком мыши и drag-скроллом
+   - клик по точке → выделяет её и заполняет панель деталей ниже
+   - позиции точек считаются в PX (не в %), чтобы между точками
+     всегда был минимальный шаг, и прокрутка работала даже когда
+     событий мало или они сгруппированы по датам.
+   ============================================================ #}
+{% set sorted_events = roadmap_events|sort(attribute='event_date') %}
+{% set ev_count = sorted_events|length %}
+{# Минимальный шаг между точками (px) и отступы по краям — чтобы шкала
+   всегда была шире обёртки и колёсико/драг могли что-то прокрутить. #}
+{% set track_step = 90 %}
+{% set track_pad  = 60 %}
+{% if ev_count > 0 %}
+    {% set track_min_width = track_pad * 2 + (ev_count - 1) * track_step %}
+{% else %}
+    {% set track_min_width = 0 %}
+{% endif %}
+
+<div class="roadmap-track-wrap"
+     id="roadmapTrackWrap"
+     tabindex="0"
+     aria-label="Горизонтальная шкала событий. Используйте колёсико мыши для прокрутки.">
+    <div class="roadmap-track-axis" id="roadmapTrackAxis" aria-hidden="true"
+         style="width: {{ track_min_width }}px;">
+        {% if sorted_events %}
+            {% if ev_count > 1 %}
+                <span class="roadmap-track-axis-label" style="left:0%;">{{ sorted_events[0].event_date.strftime('%d.%m.%Y') }}</span>
+                <span class="roadmap-track-axis-label" style="left:100%; transform: translateX(-100%);">{{ sorted_events[-1].event_date.strftime('%d.%m.%Y') }}</span>
+            {% else %}
+                <span class="roadmap-track-axis-label" style="left:0%;">{{ sorted_events[0].event_date.strftime('%d.%m.%Y') }}</span>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="roadmap-track" id="roadmapTrack" style="width: {{ track_min_width }}px;">
+        <div class="roadmap-track-line" aria-hidden="true"></div>
+
+        {% if sorted_events %}
+            {% for ev in sorted_events %}
+                {% set pos_px = track_pad + loop.index0 * track_step %}
+                <button type="button"
+                        class="roadmap-track-point roadmap-track-point-cat-{{ ev.category }}"
+                        data-event-id="{{ ev.id }}"
+                        data-event-title="{{ ev.title|e }}"
+                        data-event-date="{{ ev.event_date.isoformat() if ev.event_date else '' }}"
+                        data-event-date-label="{{ ev.event_date.strftime('%d.%m.%Y') if ev.event_date else '—' }}"
+                        data-event-category="{{ ev.category }}"
+                        data-event-audience="{{ ev.audience }}"
+                        style="left: {{ pos_px }}px;"
+                        aria-label="{{ ev.event_date.strftime('%d.%m.%Y') if ev.event_date else '' }} — {{ ev.title|e }}">
+                    <span class="roadmap-track-dot"></span>
+                    <span class="roadmap-track-tip">{{ ev.title }}</span>
+                </button>
+
+                {# Описание хранится рядом, в скрытом блоке — безопасно от HTML-атрибутов #}
+                {% set cat_match = roadmap_categories|selectattr('code', 'equalto', ev.category)|first %}
+                <script type="application/json"
+                        class="roadmap-event-payload"
+                        data-event-id="{{ ev.id }}">{
+  "id": {{ ev.id }},
+  "title": {{ ev.title|tojson }},
+  "date": {{ ev.event_date.isoformat()|tojson if ev.event_date else 'null' }},
+  "dateLabel": {{ ev.event_date.strftime('%d.%m.%Y')|tojson if ev.event_date else 'null' }},
+  "category": {{ ev.category|tojson }},
+  "categoryLabel": {{ (cat_match.label if cat_match else ev.category)|tojson }},
+  "audience": {{ ev.audience|tojson }},
+  "description": {{ ev.description|tojson if ev.description else 'null' }}
+}</script>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    {% if not sorted_events %}
+    <div class="roadmap-track-empty">
+        <i class="bi bi-inbox"></i>
+        <p>Событий пока нет.</p>
+    </div>
+    {% endif %}
+</div>
+
+{# ============================================================
+   Панель деталей выбранного события (под шкалой)
+   ============================================================ #}
+<div class="roadmap-detail" id="roadmapDetail" aria-live="polite">
+    <div class="roadmap-detail-empty" id="roadmapDetailEmpty">
+        <i class="bi bi-cursor"></i>
+        <p>Выберите событие на шкале или в календаре, чтобы посмотреть подробности.</p>
+    </div>
+
+    <article class="roadmap-detail-card" id="roadmapDetailCard" hidden>
+        <header class="roadmap-detail-head">
+            <div class="roadmap-detail-head-main">
+                <span class="roadmap-detail-date" id="roadmapDetailDate"></span>
+                <span class="roadmap-detail-cat" id="roadmapDetailCat"></span>
+            </div>
+            <h3 class="roadmap-detail-title" id="roadmapDetailTitle"></h3>
+        </header>
+
+        <div class="roadmap-detail-body" id="roadmapDetailBody"></div>
+
+        {% if can_manage %}
+        <footer class="roadmap-detail-actions" id="roadmapDetailActions">
+            <button type="button"
+                    class="btn btn-secondary btn-sm"
+                    id="roadmapDetailEditBtn">
+                <i class="bi bi-pencil"></i> Изменить
+            </button>
+            <form method="POST"
+                  action="{{ url_for('admin.roadmap_delete', event_id=0) }}"
+                  id="roadmapDetailDeleteForm"
+                  onsubmit="return confirm('Удалить выбранное событие?');"
+                  class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    <i class="bi bi-trash"></i> Удалить
+                </button>
+            </form>
+        </footer>
+        {% endif %}
+    </article>
+</div>
+
+{# Модалка создания/редактирования (рендерится только в админке) #}
+{% if can_manage %}
+<div class="modal fade" id="roadmapEventModal" tabindex="-1"
+     aria-labelledby="roadmapEventModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST"
+                  action="{{ rm_url_create }}"
+                  id="roadmapEventForm"
+                  class="admin-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="roadmapEventModalLabel">
+                        <i class="bi bi-plus-lg"></i>
+                        <span id="roadmapModalTitle">Добавить событие</span>
+                    </h5>
+                    <button type="button" class="btn-close"
+                            data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="rm-title">Заголовок *</label>
+                        <input type="text" id="rm-title" name="title" required
+                               class="form-input"
+                               placeholder="Например: Запуск модуля аналитики">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rm-event-date">Дата события *</label>
+                        <input type="date" id="rm-event-date" name="event_date" required
+                               class="form-input">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rm-category">Категория</label>
+                        <select id="rm-category" name="category" class="form-select">
+                            {% for c in roadmap_categories %}
+                            <option value="{{ c.code }}">{{ c.label }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-hint">
+                            Определяет цвет маркера на календаре и шкале.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rm-audience">Кому показывать</label>
+                        <select id="rm-audience" name="audience" class="form-select">
+                            <option value="all">Всем (и админу, и продавцу)</option>
+                            <option value="admin">Только админу</option>
+                            <option value="seller">Только продавцу</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rm-description">Описание</label>
+                        <textarea id="rm-description" name="description" rows="6"
+                                  class="form-input"
+                                  placeholder="Подробности события. Можно использовать базовый HTML."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary"
+                            data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary" id="roadmapModalSubmit">
+                        <i class="bi bi-check-lg"></i> Сохранить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# FullCalendar (CDN) + наша обвязка #}
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+
+<script>
+(function () {
+    'use strict';
+
+    var eventsJsonUrl = {{ rm_events_json|tojson }};
+    var canManage = {{ (can_manage|default(false))|tojson }};
+    var updateUrlTemplate = {{ url_for('admin.roadmap_update', event_id=0)|tojson }};
+    var deleteUrlTemplate = {{ url_for('admin.roadmap_delete', event_id=0)|tojson }};
+
+    // ---------- Сбор данных событий из <script type="application/json"> ----------
+    var eventsById = {};
+    document.querySelectorAll('.roadmap-event-payload').forEach(function (s) {
+        try {
+            var data = JSON.parse(s.textContent);
+            eventsById[String(data.id)] = data;
+        } catch (e) { /* ignore */ }
+    });
+
+    // ---------- Горизонтальная шкала: колесико мыши + drag-scroll ----------
+    var trackWrap = document.getElementById('roadmapTrackWrap');
+    if (trackWrap) {
+        // Превращаем вертикальную прокрутку колёсика в горизонтальную,
+        // пока курсор над шкалой. Не даём странице прыгать вверх/вниз.
+        trackWrap.addEventListener('wheel', function (e) {
+            // Берём дельту по обеим осям — на тачпадах часто идёт deltaX
+            var delta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+            if (delta === 0) return;
+            e.preventDefault();
+            var max = trackWrap.scrollWidth - trackWrap.clientWidth;
+            if (max <= 0) return; // контент умещается — прокручивать нечего
+            var next = trackWrap.scrollLeft + delta;
+            if (next >= max - 1) {
+                // Упёрлись вправо — прыгаем в начало («бесконечно вперёд»)
+                trackWrap.scrollLeft = 0;
+            } else if (next <= 0) {
+                // Упёрлись влево — прыгаем в конец («бесконечно назад»)
+                trackWrap.scrollLeft = max;
+            } else {
+                trackWrap.scrollLeft = next;
+            }
+        }, { passive: false });
+
+        // Drag-scroll: зажал ЛКМ и потащил.
+        var dragging = false;
+        var startX = 0;
+        var startScroll = 0;
+        trackWrap.addEventListener('mousedown', function (e) {
+            // Не начинаем drag, если кликнули по точке события.
+            if (e.target.closest('.roadmap-track-point')) return;
+            dragging = true;
+            startX = e.pageX;
+            startScroll = trackWrap.scrollLeft;
+            trackWrap.classList.add('roadmap-track-dragging');
+        });
+        window.addEventListener('mouseup', function () {
+            if (dragging) {
+                dragging = false;
+                trackWrap.classList.remove('roadmap-track-dragging');
+            }
+        });
+        window.addEventListener('mousemove', function (e) {
+            if (!dragging) return;
+            var dx = e.pageX - startX;
+            trackWrap.scrollLeft = startScroll - dx;
+        });
+    }
+
+    // ---------- Клик по точке на шкале → выделение + панель деталей ----------
+    var detailEmpty  = document.getElementById('roadmapDetailEmpty');
+    var detailCard   = document.getElementById('roadmapDetailCard');
+    var detailDate   = document.getElementById('roadmapDetailDate');
+    var detailCat    = document.getElementById('roadmapDetailCat');
+    var detailTitle  = document.getElementById('roadmapDetailTitle');
+    var detailBody   = document.getElementById('roadmapDetailBody');
+    var detailDeleteForm = document.getElementById('roadmapDetailDeleteForm');
+    var detailEditBtn    = document.getElementById('roadmapDetailEditBtn');
+
+    function selectEventById(id) {
+        var data = eventsById[String(id)];
+        // Fallback: если по id в payload-карте не нашли (например, id
+        // пришёл как число, а в JSON-payload был null, или событие
+        // динамическое без payload) — собираем данные прямо из
+        // кнопки на шкале по data-атрибутам.
+        if (!data) {
+            var btn = document.querySelector(
+                '.roadmap-track-point[data-event-id="' + id + '"]'
+            );
+            if (btn) {
+                data = {
+                    id: id,
+                    title: btn.getAttribute('data-event-title') || '',
+                    date: btn.getAttribute('data-event-date') || null,
+                    dateLabel: btn.getAttribute('data-event-date-label') || '—',
+                    category: btn.getAttribute('data-event-category') || '',
+                    categoryLabel: btn.getAttribute('data-event-category') || '',
+                    description: null,
+                };
+            }
+        }
+        if (!data) return;
+        // Подсветка точки
+        document.querySelectorAll('.roadmap-track-point').forEach(function (b) {
+            b.classList.toggle(
+                'roadmap-track-point-active',
+                String(b.getAttribute('data-event-id')) === String(id)
+            );
+        });
+        // Прокрутить точку в зону видимости, если она за краем.
+        // Делаем это вручную, чтобы не дёргать страницу
+        // (scrollIntoView у дочернего элемента иногда прокручивает window).
+        var btn = document.querySelector(
+            '.roadmap-track-point[data-event-id="' + id + '"]'
+        );
+        if (btn && trackWrap) {
+            var wrapRect = trackWrap.getBoundingClientRect();
+            var btnRect  = btn.getBoundingClientRect();
+            if (btnRect.left < wrapRect.left || btnRect.right > wrapRect.right) {
+                var delta = (btnRect.left + btnRect.right) / 2
+                          - (wrapRect.left + wrapRect.right) / 2;
+                trackWrap.scrollLeft += delta;
+            }
+        }
+        // Заполнить панель
+        if (detailEmpty) detailEmpty.hidden = true;
+        if (detailCard)  detailCard.hidden  = false;
+        if (detailDate)  detailDate.textContent  = data.dateLabel || '—';
+        if (detailCat) {
+            detailCat.textContent = data.categoryLabel || data.category || '';
+            detailCat.className = 'roadmap-detail-cat roadmap-cat-' + (data.category || '');
+        }
+        if (detailTitle) detailTitle.textContent = data.title || '';
+        if (detailBody) {
+            detailBody.innerHTML = data.description
+                ? data.description
+                : '<p class="text-muted mb-0"><em>Описание не заполнено.</em></p>';
+        }
+        // Кнопки админа
+        if (canManage && detailDeleteForm) {
+            detailDeleteForm.setAttribute(
+                'action',
+                deleteUrlTemplate.replace('/0/', '/' + id + '/')
+            );
+        }
+        if (canManage && detailEditBtn) {
+            detailEditBtn.setAttribute('data-active-event-id', id);
+        }
+    }
+
+    document.querySelectorAll('.roadmap-track-point').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            selectEventById(btn.getAttribute('data-event-id'));
+        });
+    });
+
+    // ---------- FullCalendar ----------
+    var calendarEl = document.getElementById('roadmapCalendar');
+    if (calendarEl && window.FullCalendar) {
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'ru',
+            firstDay: 1,
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,listMonth'
+            },
+            buttonText: {
+                today: 'Сегодня',
+                month: 'Месяц',
+                list: 'Список'
+            },
+            events: eventsJsonUrl,
+            height: 520,
+            dayMaxEventRows: 3,
+            // В FullCalendar v6 клик по событию по умолчанию активен, но
+            // для надёжности можно явно проставить css-курсор и пометить
+            // каждое событие кликабельным через eventDidMount.
+            eventDidMount: function (info) {
+                info.el.style.cursor = 'pointer';
+                // Подсказка: id в JS-объекте события
+                info.el.setAttribute('data-fc-event-id', String(info.event.id || ''));
+            },
+            eventClick: function (info) {
+                // Клик по событию в календаре → выделяем точку на шкале
+                // и подгружаем описание в панель деталей.
+                info.jsEvent.preventDefault();
+                var ev = info.event;
+                var ep = ev.extendedProps || {};
+
+                // Локальная Y-M-D дата клика — корректно в любом часовом поясе.
+                // FullCalendar для allDay-события даёт ev.start в локальной
+                // полуночи, поэтому getFullYear/Month/Date не «уезжают».
+                var localYMD = '';
+                if (ev.start) {
+                    var y = ev.start.getFullYear();
+                    var m = ev.start.getMonth() + 1;
+                    var d = ev.start.getDate();
+                    localYMD = y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+                }
+
+                // 1) extendedProps.id — числовой id с бэка, всегда приходит.
+                if (ep.id != null && eventsById[String(ep.id)]) {
+                    selectEventById(ep.id);
+                    return;
+                }
+                // 2) ev.id — обычно строка (мы отдаём str(id)); на всякий случай.
+                if (ev.id != null && ev.id !== '' && eventsById[String(ev.id)]) {
+                    selectEventById(ev.id);
+                    return;
+                }
+                // 3) Fallback: title + локальная дата.
+                var matchId = null;
+                for (var k in eventsById) {
+                    var ed = eventsById[k];
+                    if (ed.title === ev.title && ed.date === localYMD) {
+                        matchId = ed.id;
+                        break;
+                    }
+                }
+                if (matchId != null) {
+                    selectEventById(matchId);
+                    return;
+                }
+
+                // 4) Совсем не нашли — покажем хоть что-то, чтобы было видно, что клик сработал.
+                console.warn('[roadmap] event not matched', {
+                    id: ev.id, epId: ep.id, title: ev.title, localYMD: localYMD
+                });
+                if (detailEmpty) detailEmpty.hidden = true;
+                if (detailCard)  detailCard.hidden  = false;
+                if (detailDate)  detailDate.textContent  = localYMD
+                    ? localYMD.split('-').reverse().join('.')
+                    : '—';
+                if (detailTitle) detailTitle.textContent = ev.title || '';
+                if (detailBody)  detailBody.innerHTML =
+                    '<p class="text-muted mb-0"><em>Описание не заполнено или не сопоставлено.</em></p>';
+                if (detailCat) {
+                    var cat = ep.category || '';
+                    detailCat.textContent = ep.categoryLabel || cat || '';
+                    detailCat.className = 'roadmap-detail-cat roadmap-cat-' + cat;
+                }
+            }
+        });
+        calendar.render();
+    }
+
+    // ---------- Модалка: создание / редактирование ----------
+    var modalEl = document.getElementById('roadmapEventModal');
+    if (!modalEl) return;  // для продавца модалки нет — выходим
+
+    var form         = document.getElementById('roadmapEventForm');
+    var modalTitle   = document.getElementById('roadmapModalTitle');
+    var submitBtn    = document.getElementById('roadmapModalSubmit');
+    var fTitle       = document.getElementById('rm-title');
+    var fDate        = document.getElementById('rm-event-date');
+    var fCategory    = document.getElementById('rm-category');
+    var fAudience    = document.getElementById('rm-audience');
+    var fDescription = document.getElementById('rm-description');
+
+    function resetForm() {
+        form.reset();
+        form.setAttribute('action', {{ rm_url_create|tojson }});
+        modalTitle.textContent = 'Добавить событие';
+        submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Сохранить';
+        // По умолчанию — сегодняшняя дата
+        var today = new Date();
+        fDate.value = today.toISOString().slice(0, 10);
+        fCategory.value = 'event';
+        fAudience.value = 'all';
+    }
+
+    // Кнопка «Добавить событие» — сбрасывает форму в режим создания
+    var openCreateBtn = document.getElementById('openRoadmapCreateBtn');
+    if (openCreateBtn) {
+        openCreateBtn.addEventListener('click', resetForm);
+    }
+    // При открытии модалки любым способом — если форма пустая, поставим сегодня
+    modalEl.addEventListener('show.bs.modal', function () {
+        if (!fDate.value) {
+            var today = new Date();
+            fDate.value = today.toISOString().slice(0, 10);
+        }
+    });
+
+    // Кнопка «Изменить» в панели деталей — переключает модалку в режим правки
+    if (detailEditBtn) {
+        detailEditBtn.addEventListener('click', function () {
+            var id = detailEditBtn.getAttribute('data-active-event-id');
+            if (!id) return;
+            var data = eventsById[String(id)];
+            if (!data) return;
+            form.setAttribute(
+                'action',
+                updateUrlTemplate.replace('/0/', '/' + id + '/')
+            );
+            fTitle.value       = data.title || '';
+            fDate.value        = data.date || '';
+            fCategory.value    = data.category || 'event';
+            fAudience.value    = data.audience || 'all';
+            fDescription.value = data.description || '';
+
+            modalTitle.textContent = 'Редактировать событие';
+            submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Сохранить изменения';
+
+            var bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            bsModal.show();
+        });
+    }
+})();
+</script>

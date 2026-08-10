@@ -1,0 +1,430 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Новая категория - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>Новая категория</h1>
+    <a href="{{ url_for('admin.categories') }}" class="btn btn-secondary">Назад к списку</a>
+</div>
+
+{% if breadcrumb %}
+<div class="admin-breadcrumb">
+    <a href="{{ url_for('admin.categories') }}">Категории</a>
+    {% for item in breadcrumb %}
+    <span class="breadcrumb-separator">›</span>
+    <span>{{ item.name }}</span>
+    {% endfor %}
+    <span class="breadcrumb-action">→ Добавление подкатегории</span>
+</div>
+{% endif %}
+
+<div class="admin-form-container">
+    <form method="POST" action="{{ url_for('admin.category_create') }}" class="admin-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        
+        <div class="form-group">
+            <label for="name">Название категории *</label>
+            <input type="text" id="name" name="name" required
+                   class="form-input" placeholder="Введите название">
+        </div>
+
+        <div class="form-group">
+            <label for="parent_id">Родительская категория</label>
+            <select id="parent_id" name="parent_id" class="form-select">
+                <option value="">Без родительской категории (категория верхнего уровня)</option>
+                {% for category in all_categories %}
+                <option value="{{ category.id }}" {% if parent_id and parent_id == category.id %}selected{% endif %}>
+                    {{ category.name }}
+                </option>
+                {% endfor %}
+            </select>
+            <span class="form-help">Выберите родительскую категорию для создания подкатегории любого уровня вложенности</span>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Описание</label>
+            <textarea id="description" name="description" rows="3"
+                      class="form-textarea" placeholder="Описание категории"></textarea>
+        </div>
+
+        <!-- Параметры категории -->
+        <div class="form-group">
+            <label>Параметры категории</label>
+            <div class="parameters-info">
+                <p class="help-text">
+                    Выберите параметры для этой категории. 
+                    {% if inherited_params %}
+                    <strong>Внимание:</strong> {{ inherited_params|length }} параметр(ов) будет унаследовано от родительской категории и автоматически применено ко всем дочерним категориям.
+                    {% else %}
+                    Унаследованные параметры от родительских категорий будут автоматически распространены на дочерние категории.
+                    {% endif %}
+                </p>
+            </div>
+            
+            <!-- Унаследованные параметры (только для чтения) -->
+            {% if inherited_params %}
+            <div class="inherited-params-section">
+                <h4>Унаследованные параметры (от родительских категорий)</h4>
+                <div class="params-list inherited">
+                    {% for param in inherited_params %}
+                    <div class="param-item inherited">
+                        <input type="checkbox" checked disabled>
+                        <span class="param-name">{{ param.name }}</span>
+                        <span class="param-badge inherited-badge">Унаследовано</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Собственные параметры -->
+            <div class="own-params-section">
+                <h4>Собственные параметры категории</h4>
+                <div id="params-container">
+                    <!-- Параметры будут добавлены здесь динамически -->
+                </div>
+                <button type="button" class="btn btn-sm btn-outline" onclick="addParamField()">
+                    + Добавить параметр
+                </button>
+            </div>
+            
+            <!-- Скрытое поле для передачи выбранных параметров -->
+            <input type="hidden" name="parameters" id="selected-parameters" value="">
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Создать категорию</button>
+            <a href="{{ url_for('admin.categories') }}" class="btn btn-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+
+<script>
+// Доступные параметры
+const availableParameters = [
+    {% for param in all_parameters %}
+    { id: {{ param.id }}, name: {{ param.name|tojson }} }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+// Унаследованные параметры (нельзя убрать)
+const inheritedParamIds = [
+    {% for param in inherited_params %}
+    {{ param.id }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+let paramCounter = 0;
+
+function addParamField(paramId = '') {
+    paramCounter++;
+    const container = document.getElementById('params-container');
+    const div = document.createElement('div');
+    div.className = 'param-select-row';
+    div.id = 'param-row-' + paramCounter;
+    
+    let optionsHtml = '<option value="">Выберите параметр</option>';
+    // При инициализации (paramId не пустой) показываем все параметры
+    // При добавлении нового поля фильтруем уже выбранные
+    const isInitializing = paramId !== '';
+    const selectedIds = isInitializing ? [] : getSelectedParamIds();
+    
+    availableParameters.forEach(param => {
+        const isInherited = inheritedParamIds.includes(param.id);
+        // При инициализации показываем все не-унаследованные параметры
+        // При добавлении нового - скрываем уже выбранные
+        const isSelected = selectedIds.includes(param.id) || paramId == param.id;
+        
+        if (!isInherited) {
+            if (isInitializing || !isSelected) {
+                optionsHtml += `<option value="${param.id}" ${paramId == param.id ? 'selected' : ''}>${param.name}</option>`;
+            }
+        }
+    });
+    
+    div.innerHTML = `
+        <select class="param-select" onchange="updateSelectedParams()">
+            ${optionsHtml}
+        </select>
+        <button type="button" class="btn-remove-param" onclick="removeParamField(${paramCounter})" title="Удалить">×</button>
+    `;
+    
+    container.appendChild(div);
+    updateSelectedParams();
+}
+
+function removeParamField(rowId) {
+    const row = document.getElementById('param-row-' + rowId);
+    if (row) {
+        row.remove();
+        updateSelectedParams();
+    }
+}
+
+function getSelectedParamIds() {
+    const selects = document.querySelectorAll('.param-select');
+    const ids = [];
+    selects.forEach(select => {
+        if (select.value) {
+            ids.push(parseInt(select.value));
+        }
+    });
+    return ids;
+}
+
+function updateSelectedParams() {
+    const ids = getSelectedParamIds();
+    document.getElementById('selected-parameters').value = ids.join(',');
+    
+    // Обновляем options во всех select, чтобы исключить уже выбранные
+    const selects = document.querySelectorAll('.param-select');
+    selects.forEach(select => {
+        const currentValue = select.value;
+        const selectedIds = getSelectedParamIds();
+        
+        let optionsHtml = '<option value="">Выберите параметр</option>';
+        availableParameters.forEach(param => {
+            const isInherited = inheritedParamIds.includes(param.id);
+            const isSelected = selectedIds.includes(param.id) && param.id != currentValue;
+            if (!isInherited && !isSelected) {
+                optionsHtml += `<option value="${param.id}" ${currentValue == param.id ? 'selected' : ''}>${param.name}</option>`;
+            }
+        });
+        select.innerHTML = optionsHtml;
+    });
+}
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', function() {
+    // Добавляем одну пустую строку для выбора параметров
+    addParamField();
+});
+</script>
+
+<style>
+.parameters-info {
+    background: #f8f9fa;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.help-text {
+    margin: 0;
+    font-size: 14px;
+    color: #555;
+}
+
+.inherited-params-section {
+    margin-bottom: 20px;
+}
+
+.inherited-params-section h4 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    color: #666;
+}
+
+.params-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.param-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+}
+
+.param-item.inherited {
+    background: #f0f0f0;
+    border-color: #ccc;
+}
+
+.param-item input[type="checkbox"] {
+    margin: 0;
+}
+
+.param-name {
+    font-size: 14px;
+    color: #333;
+}
+
+.param-badge {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.inherited-badge {
+    background: #e9ecef;
+    color: #666;
+}
+
+.own-params-section h4 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    color: #666;
+}
+
+#params-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.param-select-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.param-select {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+}
+
+.btn-remove-param {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: #dc3545;
+    color: #fff;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-remove-param:hover {
+    background: #c82333;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid #ddd;
+    color: #555;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btn-outline:hover {
+    background: #f5f5f5;
+    border-color: #ccc;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+    outline: none;
+    border-color: #4a6cf7;
+}
+
+.form-help {
+    display: block;
+    margin-top: 6px;
+    font-size: 13px;
+    color: #888;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.btn-primary {
+    background: #4a6cf7;
+    color: #fff;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn-primary:hover {
+    background: #3a5ce5;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: #fff;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+.admin-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: #f0f4ff;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.admin-breadcrumb a {
+    color: #4a6cf7;
+    text-decoration: none;
+}
+
+.admin-breadcrumb a:hover {
+    text-decoration: underline;
+}
+
+.breadcrumb-separator {
+    color: #999;
+}
+
+.breadcrumb-action {
+    color: #666;
+    margin-left: auto;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,1309 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Сообщения - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="messages-page">
+<div class="admin-page-header">
+    <div class="header-tabs">
+        <a href="{{ url_for('admin.messages', tab='buyers') }}" class="tab-btn {% if tab == 'buyers' or not tab %}active{% endif %}" data-tab="buyers">
+            Покупатели
+            {% if unread_buyers > 0 %}
+            <span class="tab-badge">{{ unread_buyers }}</span>
+            {% endif %}
+        </a>
+        <a href="{{ url_for('admin.messages', tab='sellers') }}" class="tab-btn {% if tab == 'sellers' %}active{% endif %}" data-tab="sellers">
+            Продавцы
+            {% if unread_sellers > 0 %}
+            <span class="tab-badge">{{ unread_sellers }}</span>
+            {% endif %}
+        </a>
+    </div>
+    
+    <div class="search-user-container" id="searchContainer">
+        <div class="search-wrapper">
+            <input type="text" id="userSearch" class="user-search-input" placeholder="Поиск по email, имени, телефону..." autocomplete="off">
+            <div class="search-dropdown" id="searchDropdown"></div>
+        </div>
+        <button type="button" id="startChatBtn" class="btn btn-primary" disabled>Начать переписку</button>
+    </div>
+</div>
+
+<div class="messages-container">
+    <div class="messages-sidebar">
+        <div class="sidebar-header">
+            <h3>Диалоги</h3>
+        </div>
+        <div class="dialogs-list">
+            {% for dialog in dialogs %}
+            <a href="{{ url_for('admin.messages', tab=tab) if dialog.partner_id == 0 else url_for('admin.messages', tab=tab, dialog_id=dialog.partner_id) }}" 
+               class="dialog-item {% if current_dialog and current_dialog.id == dialog.partner_id %}active{% endif %}">
+                <div class="dialog-avatar">
+                    {% if dialog.avatar %}
+                    <img src="{{ url_for('static', filename='uploads/sellers/' + dialog.avatar) }}" alt="" class="dialog-avatar-img">
+                    {% else %}
+                    <div class="avatar-placeholder">
+                        {% if dialog.partner_type == 'buyer' %}👤{% else %}🏪{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="dialog-info">
+                    <span class="dialog-name">{{ dialog.name }}</span>
+                    <span class="dialog-preview">{{ dialog.last_message or 'Нет сообщений' }}</span>
+                </div>
+                {% if dialog.unread_count > 0 %}
+                <span class="unread-badge">{{ dialog.unread_count }}</span>
+                {% endif %}
+            </a>
+            {% else %}
+            <div class="empty-dialogs">
+                <p>Нет диалогов</p>
+                <p class="empty-hint">Диалоги появятся после обращений</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="messages-content">
+        {% if current_dialog %}
+        <div class="messages-header">
+            <div class="messages-header-inner">
+                {% if current_dialog.avatar %}
+                <img src="{{ url_for('static', filename='uploads/sellers/' + current_dialog.avatar) }}"
+                     alt="" class="messages-header-avatar">
+                {% else %}
+                <div class="messages-header-avatar-placeholder">
+                    {% if current_dialog.partner_type == 'buyer' %}👤{% else %}🏪{% endif %}
+                </div>
+                {% endif %}
+                <h3>{{ current_dialog.name }}</h3>
+            </div>
+        </div>
+        
+        <div class="messages-list" id="messagesList">
+            {% for message in messages %}
+            <div class="message {% if message.sender_type == 'admin' %}message-out{% else %}message-in{% endif %}" data-message-id="{{ message.id }}">
+                <div class="message-content">
+                    {% if message.image_path %}
+                    <div class="message-attachment message-image">
+                        <a href="{{ url_for('static', filename=message.image_path) }}" target="_blank">
+                            <img src="{{ url_for('static', filename=message.image_path) }}" alt="Изображение">
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if message.file_path %}
+                    <div class="message-attachment message-file">
+                        <a href="{{ url_for('static', filename=message.file_path) }}" target="_blank" class="file-link">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2h-2.5a.5.5 0 0 1-.5-.5v-.5H4z"/>
+                                <path d="M4.5 1.5A.5.5 0 0 1 5 1h4.793L10.293 1.5A.5.5 0 0 1 11 2H5a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 0-.5-.5H5a.5.5 0 0 0-.5.5v.5H4a.5.5 0 0 0-.5.5v-.5z"/>
+                            </svg>
+                            <span>PDF документ</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if message.text %}
+                    <p>{{ message.text }}</p>
+                    {% endif %}
+                    <span class="message-time">{{ message.timestamp.strftime('%d.%m.%Y %H:%M') }}</span>
+                </div>
+            </div>
+            {% else %}
+            <div class="no-messages">
+                <p>Нет сообщений в этом диалоге</p>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="messages-input">
+            <form method="POST" action="{{ url_for('admin.send_message') }}" id="messageForm" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="partner_type" value="{{ tab }}">
+                <input type="hidden" name="partner_id" value="{{ current_dialog.id }}">
+                <input type="hidden" name="tab" value="{{ tab }}">
+                <input type="hidden" name="image_path" id="imagePathInput" value="">
+                <input type="hidden" name="file_path" id="filePathInput" value="">
+                <div class="attachment-preview" id="attachmentPreview"></div>
+                <div class="input-row">
+                    <label class="attach-btn" title="Прикрепить файл">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
+                            <path d="M2.002 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4.5a.5.5 0 0 1-.5-.5V5.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5V15a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2h-4.5a.5.5 0 0 0-.5.5v.5a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5V2z"/>
+                        </svg>
+                        <input type="file" id="fileInput" accept="image/*,.pdf" style="display:none">
+                    </label>
+                    <textarea name="text" placeholder="Введите сообщение..." class="message-textarea" rows="2"></textarea>
+                    <button type="submit" class="btn btn-primary">Отправить</button>
+                </div>
+            </form>
+        </div>
+        {% else %}
+        <div class="no-dialog-selected">
+            <div class="empty-state">
+                <div class="empty-icon">💬</div>
+                <h3>Выберите диалог</h3>
+                <p>Выберите диалог из списка слева для просмотра сообщений</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.messages-page {
+    height: calc(100vh - 120px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.messages-container {
+    display: flex;
+    gap: 20px;
+    height: 100%;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+
+.messages-sidebar {
+    width: 320px;
+    border-right: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    background: #fafafa;
+    min-height: 0;
+}
+
+.messages-sidebar .sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    flex-shrink: 0;
+}
+
+.dialogs-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.messages-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.messages-header {
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    flex-shrink: 0;
+}
+
+.messages-list {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Стили для табов */
+.header-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.tab-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    color: #666;
+    background: #f0f0f0;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tab-btn:hover {
+    background: #e0e0e0;
+}
+
+.tab-btn.active {
+    background: #007bff;
+    color: white;
+}
+
+.tab-badge {
+    background: #ff4757;
+    color: white;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+}
+
+/* Стили для sidebar */
+.messages-sidebar .sidebar-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.dialog-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    text-decoration: none;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s;
+}
+
+.dialog-item:hover {
+    background-color: #f0f0f0;
+}
+
+.dialog-item.active {
+    background-color: #e8f4ff;
+}
+
+.dialog-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.dialog-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-placeholder {
+    font-size: 20px;
+    color: #666;
+}
+
+.dialog-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dialog-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.dialog-preview {
+    font-size: 13px;
+    color: #888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.unread-badge {
+    background: #ff4757;
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.empty-dialogs {
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.empty-dialogs p {
+    margin: 0;
+    color: #888;
+    font-size: 14px;
+}
+
+.empty-hint {
+    margin-top: 8px !important;
+    font-size: 12px !important;
+    color: #aaa !important;
+}
+
+.messages-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.messages-header-inner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.messages-header-avatar,
+.messages-header-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.messages-header-avatar {
+    object-fit: cover;
+}
+
+.messages-header-avatar-placeholder {
+    background: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+    color: #333;
+}
+
+.message {
+    max-width: 70%;
+    display: flex;
+}
+
+.message-in {
+    align-self: flex-start;
+}
+
+.message-out {
+    align-self: flex-end;
+}
+
+.message-content {
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: #f0f0f0;
+}
+
+.message-in .message-content {
+    background: #f0f0f0;
+    border-bottom-left-radius: 4px;
+}
+
+.message-out .message-content {
+    background: #007bff;
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.message-content p {
+    margin: 0 0 4px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.message-time {
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.no-messages {
+    text-align: center;
+    padding: 40px;
+    color: #888;
+}
+
+.no-dialog-selected {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+}
+
+.empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.empty-state h3 {
+    margin: 0 0 8px;
+    font-size: 20px;
+    color: #333;
+}
+
+.empty-state p {
+    margin: 0;
+    color: #888;
+    font-size: 14px;
+}
+
+.messages-input {
+    padding: 20px;
+    border-top: 1px solid #eee;
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-shrink: 0;
+    background: #fff;
+}
+
+.messages-input form {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    align-items: flex-end;
+}
+
+.message-textarea {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    resize: none;
+    font-family: inherit;
+}
+
+.message-textarea:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+.search-user-container {
+    display: none;
+    gap: 12px;
+    align-items: flex-start;
+    margin-top: 16px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.search-user-container.visible {
+    display: flex;
+}
+
+.search-wrapper {
+    position: relative;
+    flex: 1;
+    max-width: 400px;
+}
+
+.user-search-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.user-search-input:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+.search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 100;
+    display: none;
+}
+
+.search-dropdown.show {
+    display: block;
+}
+
+.search-result-item {
+    padding: 12px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s;
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-item:hover,
+.search-result-item.selected {
+    background-color: #e8f4ff;
+}
+
+.search-result-item .user-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.search-result-item .user-info {
+    font-size: 12px;
+    color: #888;
+    margin-top: 2px;
+}
+
+.search-no-results {
+    padding: 16px;
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+}
+
+#startChatBtn {
+    padding: 10px 20px;
+    white-space: nowrap;
+}
+
+/* Attachment styles */
+.messages-input {
+    padding: 16px 20px;
+    border-top: 1px solid #eee;
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-shrink: 0;
+    background: #fff;
+    flex-direction: column;
+}
+
+.messages-input form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+}
+
+.messages-input .input-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    width: 100%;
+}
+
+.message-textarea {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    resize: none;
+    font-family: inherit;
+}
+
+.message-textarea:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+.attach-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #666;
+}
+
+.attach-btn:hover {
+    background: #e9ecef;
+    border-color: #007bff;
+    color: #007bff;
+}
+
+.attachment-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    min-height: 60px;
+}
+
+.attachment-preview:empty {
+    display: none;
+}
+
+.attachment-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    gap: 8px;
+}
+
+.attachment-item img {
+    max-width: 60px;
+    max-height: 60px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.attachment-item .file-icon {
+    color: #dc3545;
+}
+
+.attachment-item .file-name {
+    font-size: 13px;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attachment-item .remove-btn {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #dc3545;
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    line-height: 1;
+}
+
+/* Message attachments */
+.message-attachment {
+    margin-bottom: 8px;
+}
+
+.message-image img {
+    max-width: 300px;
+    max-height: 200px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.message-file .file-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    color: #333;
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.message-file .file-link:hover {
+    background: #e9ecef;
+    border-color: #007bff;
+    color: #007bff;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchContainer = document.getElementById('searchContainer');
+    const userSearch = document.getElementById('userSearch');
+    const searchDropdown = document.getElementById('searchDropdown');
+    const startChatBtn = document.getElementById('startChatBtn');
+    
+    let selectedUser = null;
+    let searchTimeout = null;
+    let currentTab = '{{ tab }}' || 'buyers';
+    
+    // Определяем текущую вкладку при загрузке
+    function updateCurrentTab() {
+        const activeTab = document.querySelector('.tab-btn.active');
+        if (activeTab) {
+            currentTab = activeTab.dataset.tab || 'buyers';
+        }
+        
+        // Показываем/скрываем контейнер поиска
+        if (currentTab === 'buyers' || currentTab === 'sellers') {
+            searchContainer.classList.add('visible');
+        } else {
+            searchContainer.classList.remove('visible');
+        }
+    }
+    
+    updateCurrentTab();
+    
+    // Обработчик клика на вкладки
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            // Если есть выбранный пользователь, сбрасываем
+            selectedUser = null;
+            startChatBtn.disabled = true;
+            userSearch.value = '';
+            searchDropdown.classList.remove('show');
+            
+            // Обновляем текущую вкладку после перехода
+            setTimeout(() => {
+                updateCurrentTab();
+}, 100);
+        });
+    });
+    
+    // Поиск при вводе
+    userSearch.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
+        
+        if (query.length < 2) {
+            searchDropdown.classList.remove('show');
+            return;
+        }
+        
+        searchTimeout = setTimeout(() => {
+            performSearch(query);
+        }, 300);
+    });
+    
+    // Выполнение поиска
+    function performSearch(query) {
+        fetch(`/main_admin/api/search-users?query=${encodeURIComponent(query)}&type=${currentTab}`)
+            .then(response => response.json())
+            .then(data => {
+                showResults(data.users || []);
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+                searchDropdown.classList.remove('show');
+            });
+    }
+    
+    // Показ результатов
+    function showResults(users) {
+        if (users.length === 0) {
+            searchDropdown.innerHTML = '<div class="search-no-results">Ничего не найдено</div>';
+            searchDropdown.classList.add('show');
+            return;
+        }
+        
+        searchDropdown.innerHTML = users.map(user => `
+            <div class="search-result-item" data-id="${user.id}" data-type="${user.type}" data-name="${user.name}">
+                <div class="user-name">${user.name}</div>
+                <div class="user-info">${user.email}${user.phone ? ' • ' + user.phone : ''}</div>
+            </div>
+        `).join('');
+        
+        searchDropdown.classList.add('show');
+        
+        // Обработчики клика на результаты
+        document.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('click', function() {
+                selectUser(this);
+            });
+        });
+    }
+    
+    // Выбор пользователя
+    function selectUser(item) {
+        // Убираем подсветку с других элементов
+        document.querySelectorAll('.search-result-item').forEach(el => el.classList.remove('selected'));
+        
+        // Добавляем подсветку выбранному
+        item.classList.add('selected');
+        
+        // Сохраняем данные выбранного пользователя
+        selectedUser = {
+            id: item.dataset.id,
+            type: item.dataset.type,
+            name: item.dataset.name
+        };
+        
+        // Обновляем поле ввода
+        userSearch.value = item.querySelector('.user-name').textContent;
+        
+        // Активируем кнопку
+        startChatBtn.disabled = false;
+        
+        // Скрываем dropdown
+        searchDropdown.classList.remove('show');
+    }
+    
+    // Закрытие dropdown при клике вне
+    document.addEventListener('click', function(e) {
+        if (!userSearch.contains(e.target) && !searchDropdown.contains(e.target)) {
+            searchDropdown.classList.remove('show');
+        }
+    });
+    
+    // Клик на поле ввода - показать последние результаты если есть
+    userSearch.addEventListener('focus', function() {
+        if (this.value.trim().length >= 2 && searchDropdown.children.length > 0) {
+            searchDropdown.classList.add('show');
+        }
+    });
+    
+    // Начало переписки
+    startChatBtn.addEventListener('click', function() {
+        if (!selectedUser) return;
+        
+        // Перенаправляем на страницу сообщений с выбранным диалогом
+        const url = `/main_admin/messages?tab=${currentTab}&dialog_id=${selectedUser.id}`;
+        window.location.href = url;
+    });
+    
+    // Обработка клавиш в поле поиска
+    userSearch.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && selectedUser) {
+            e.preventDefault();
+            startChatBtn.click();
+        }
+    });
+    
+    // === Динамическое обновление сообщений ===
+    let messagesPollInterval = null;
+    let conversationsPollInterval = null;
+    let lastMessageTimestamp = null;
+    
+    // Получаем последний timestamp сообщения
+    function getLastMessageTimestamp() {
+        const messagesList = document.getElementById('messagesList');
+        if (!messagesList) return null;
+        
+        const messages = messagesList.querySelectorAll('.message');
+        if (messages.length > 0) {
+            const lastMsg = messages[messages.length - 1];
+            const timeEl = lastMsg.querySelector('.message-time');
+            if (timeEl) {
+                const timeStr = timeEl.textContent.trim();
+                // Парсим дату из формата DD.MM.YYYY HH:MM
+                const parts = timeStr.match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})/);
+                if (parts) {
+                    const date = new Date(parts[3], parts[2] - 1, parts[1], parts[4], parts[5]);
+                    // Возвращаем в ISO формате с Z для UTC
+                    return date.toISOString();
+                }
+            }
+            // Пробуем получить из data атрибута
+            const lastMsgId = lastMsg.getAttribute('data-message-id');
+            if (lastMsgId) {
+                // Сохраняем ID последнего сообщения для проверки
+                window.lastMessageId = parseInt(lastMsgId);
+            }
+        }
+        return null;
+    }
+    
+    // Функция обновления списка диалогов
+    function updateConversations() {
+        fetch(`/main_admin/api/conversations?tab=${currentTab}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.conversations) {
+                    updateConversationsList(data.conversations);
+                }
+            })
+            .catch(error => console.error('Error updating conversations:', error));
+    }
+    
+    // Обновление списка диалогов в DOM
+    function updateConversationsList(conversations) {
+        const dialogsList = document.querySelector('.dialogs-list');
+        if (!dialogsList) return;
+        
+        // Текущий URL для определения активного диалога
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentDialogId = parseInt(urlParams.get('dialog_id')) || 0;
+        
+        let html = '';
+        conversations.forEach(dialog => {
+            const isActive = currentDialogId === dialog.id;
+            const avatarIcon = dialog.partner_type === 'buyer' ? '👤' : '🏪';
+            const preview = dialog.last_message || 'Нет сообщений';
+            
+            html += `
+                <a href="${dialog.id === 0 ? '/main_admin/messages?tab=' + currentTab : '/main_admin/messages?tab=' + currentTab + '&dialog_id=' + dialog.id}" 
+                   class="dialog-item ${isActive ? 'active' : ''}">
+                    <div class="dialog-avatar">
+                        <div class="avatar-placeholder">${avatarIcon}</div>
+                    </div>
+                    <div class="dialog-info">
+                        <span class="dialog-name">${dialog.name}</span>
+                        <span class="dialog-preview">${preview}</span>
+                    </div>
+                    ${dialog.unread_count > 0 ? '<span class="unread-badge">' + dialog.unread_count + '</span>' : ''}
+                </a>
+            `;
+        });
+        
+        if (html === '') {
+            html = `
+                <div class="empty-dialogs">
+                    <p>Нет диалогов</p>
+                    <p class="empty-hint">Диалоги появятся после обращений</p>
+                </div>
+            `;
+        }
+        
+        dialogsList.innerHTML = html;
+    }
+    
+    // Функция получения новых сообщений
+    function fetchNewMessages() {
+        const messagesList = document.getElementById('messagesList');
+        if (!messagesList) return;
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const dialogId = urlParams.get('dialog_id');
+        const tab = currentTab;
+        
+        if (!dialogId || dialogId === '0') return;
+        
+        const partnerType = tab === 'sellers' ? 'seller' : 'buyer';
+        const timestamp = getLastMessageTimestamp();
+        
+        let url = `/main_admin/api/messages?partner_type=${partnerType}&partner_id=${dialogId}`;
+        if (timestamp) {
+            url += `&last_timestamp=${encodeURIComponent(timestamp)}`;
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.messages && data.messages.length > 0) {
+                    console.log('New messages received:', data.messages.length);
+                    appendNewMessages(data.messages);
+                }
+            })
+            .catch(error => console.error('Error fetching messages:', error));
+    }
+    
+    // Добавление новых сообщений в DOM
+    function appendNewMessages(messages) {
+        const messagesList = document.getElementById('messagesList');
+        if (!messagesList) return;
+        
+        let newMessagesAdded = false;
+        
+        messages.forEach(msg => {
+            // Проверяем по ID сообщения
+            if (msg.id) {
+                const existingMsg = document.querySelector(`[data-message-id="${msg.id}"]`);
+                if (existingMsg) return;
+            }
+            
+            const isOutgoing = msg.sender_type === 'admin';
+            let timeStr = '';
+            if (msg.timestamp) {
+                try {
+                    const date = new Date(msg.timestamp);
+                    timeStr = formatMessageTime(date);
+                } catch (e) {
+                    timeStr = '';
+                }
+            }
+            
+            // Формируем HTML для вложений
+            let attachmentsHtml = '';
+            if (msg.image_path) {
+                attachmentsHtml += `
+                    <div class="message-attachment message-image">
+                        <a href="/static/${msg.image_path}" target="_blank">
+                            <img src="/static/${msg.image_path}" alt="Изображение">
+                        </a>
+                    </div>
+                `;
+            }
+            if (msg.file_path) {
+                attachmentsHtml += `
+                    <div class="message-attachment message-file">
+                        <a href="/static/${msg.file_path}" target="_blank" class="file-link">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2h-2.5a.5.5 0 0 1-.5-.5v-.5H4z"/>
+                                <path d="M4.5 1.5A.5.5 0 0 1 5 1h4.793L10.293 1.5A.5.5 0 0 1 11 2H5a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 0-.5-.5H5a.5.5 0 0 0-.5.5v.5H4a.5.5 0 0 0-.5.5v-.5z"/>
+                            </svg>
+                            <span>PDF документ</span>
+                        </a>
+                    </div>
+                `;
+            }
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${isOutgoing ? 'message-out' : 'message-in'}`;
+            msgDiv.setAttribute('data-message-id', msg.id);
+            msgDiv.innerHTML = `
+                <div class="message-content">
+                    ${attachmentsHtml}
+                    ${msg.text ? '<p>' + escapeHtml(msg.text) + '</p>' : ''}
+                    <span class="message-time">${timeStr}</span>
+                </div>
+            `;
+            
+            messagesList.appendChild(msgDiv);
+            newMessagesAdded = true;
+        });
+        
+        // Прокрутка вниз только если были добавлены новые сообщения
+        if (newMessagesAdded) {
+            messagesList.scrollTop = messagesList.scrollHeight;
+        }
+    }
+    
+    // Форматирование времени сообщения
+    function formatMessageTime(date) {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${day}.${month}.${year} ${hours}:${minutes}`;
+    }
+    
+    // Экранирование HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Запуск polling
+    function startPolling() {
+        // Останавливаем существующие интервалы
+        if (messagesPollInterval) clearInterval(messagesPollInterval);
+        if (conversationsPollInterval) clearInterval(conversationsPollInterval);
+        
+        // Обновляем текущий диалог
+        const urlParams = new URLSearchParams(window.location.search);
+        const dialogId = urlParams.get('dialog_id');
+        
+        if (dialogId && dialogId !== '0') {
+            // Обновляем сообщения каждые 3 секунды
+            messagesPollInterval = setInterval(fetchNewMessages, 3000);
+        }
+        
+        // Обновляем список диалогов каждые 5 секунд
+        conversationsPollInterval = setInterval(updateConversations, 5000);
+    }
+    
+    // Отслеживаем изменение URL (при переходе между диалогами)
+    let lastUrl = window.location.href;
+    new MutationObserver(() => {
+        if (window.location.href !== lastUrl) {
+            lastUrl = window.location.href;
+            startPolling();
+        }
+    }).observe(document.body, { childList: true, subtree: true });
+    
+    // Запускаем polling при загрузке
+    startPolling();
+    
+    // === Функционал загрузки файлов ===
+    const fileInput = document.getElementById('fileInput');
+    const imagePathInput = document.getElementById('imagePathInput');
+    const filePathInput = document.getElementById('filePathInput');
+    const attachmentPreview = document.getElementById('attachmentPreview');
+    const msgForm = document.getElementById('messageForm');
+    
+    let pendingImage = null;
+    let pendingFile = null;
+    
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            // Проверяем тип файла
+            const isImage = file.type.startsWith('image/');
+            const isPdf = file.type === 'application/pdf';
+            
+            if (!isImage && !isPdf) {
+                alert('Разрешены только изображения и PDF файлы');
+                fileInput.value = '';
+                return;
+            }
+            
+            // Проверяем размер
+            if (file.size > 10 * 1024 * 1024) {
+                alert('Файл слишком большой (максимум 10 МБ)');
+                fileInput.value = '';
+                return;
+            }
+            
+            // Загружаем файл на сервер
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            fetch('/main_admin/api/upload-message-file', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.is_image) {
+                        pendingImage = data;
+                        imagePathInput.value = data.path;
+                        addAttachmentPreview(data, 'image');
+                    } else {
+                        pendingFile = data;
+                        filePathInput.value = data.path;
+                        addAttachmentPreview(data, 'pdf');
+                    }
+                } else {
+                    alert(data.error || 'Ошибка загрузки файла');
+                }
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                alert('Ошибка загрузки файла');
+            });
+            
+            // Очищаем input
+            fileInput.value = '';
+        });
+    }
+    
+    function addAttachmentPreview(data, type) {
+        const div = document.createElement('div');
+        div.className = 'attachment-item';
+        div.dataset.path = data.path;
+        div.dataset.type = type;
+        
+        if (type === 'image') {
+            div.innerHTML = `
+                <img src="{{ url_for('static', filename='') }}${data.path}" alt="Preview">
+                <span class="file-name">${data.filename}</span>
+                <button type="button" class="remove-btn" onclick="removeAttachment(this)">×</button>
+            `;
+        } else {
+            div.innerHTML = `
+                <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2h-2.5a.5.5 0 0 1-.5-.5v-.5H4z"/>
+                    <path d="M4.5 1.5A.5.5 0 0 1 5 1h4.793L10.293 1.5A.5.5 0 0 1 11 2H5a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 0-.5-.5H5a.5.5 0 0 0-.5.5v.5H4a.5.5 0 0 0-.5.5v-.5z"/>
+                </svg>
+                <spanclass="file-name">${data.filename}</span>
+                <button type="button" class="remove-btn" onclick="removeAttachment(this)">×</button>
+            `;
+        }
+        
+        attachmentPreview.appendChild(div);
+    }
+    
+    window.removeAttachment = function(btn) {
+        const item = btn.closest('.attachment-item');
+        const path = item.dataset.path;
+        const type = item.dataset.type;
+        
+        if (type === 'image') {
+            pendingImage = null;
+            imagePathInput.value = '';
+        } else {
+            pendingFile = null;
+            filePathInput.value = '';
+        }
+        
+        item.remove();
+    };
+    
+    // Обновляем обработчик отправки формы
+    if (msgForm) {
+        msgForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const textarea = this.querySelector('textarea');
+            const text = textarea.value.trim();
+            const imagePath = imagePathInput.value;
+            const filePath = filePathInput.value;
+            
+            if (!text && !imagePath && !filePath) {
+                alert('Добавьте текст или вложение');
+                return;
+            }
+            
+            const submitBtn = this.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Отправка...';
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: new FormData(this)
+            })
+            .then(response => {
+                if (response.ok) {
+                    textarea.value = '';
+                    imagePathInput.value = '';
+                    filePathInput.value = '';
+                    pendingImage = null;
+                    pendingFile = null;
+                    attachmentPreview.innerHTML = '';
+                    setTimeout(fetchNewMessages, 100);
+                } else {
+                    alert('Ошибка отправки сообщения');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Ошибка отправки сообщения');
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Отправить';
+            });
+        });
+    }
+});
+</script>
+
+<script>
+// Автопрокрутка к последним сообщениям при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    const messagesList = document.getElementById('messagesList');
+    if (messagesList) {
+        messagesList.scrollTop = messagesList.scrollHeight;
+    }
+});
+</script>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+<div class="section-header">
+    <h2>Избранное</h2>
+</div>
+
+<div class="products-grid products-grid-4" id="favorites-grid">
+    {% if products %}
+        {% for product in products %}
+            {% set in_favorite = true %}
+            {% include 'components/product_card.html' %}
+        {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">❤️</div>
+        <h3>Ваше избранное пусто</h3>
+        <p>Добавляйте товары, чтобы не потерять их</p>
+        <a href="{{ url_for('main.index') }}" class="btn btn-primary">Перейти в каталог</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.section-header {
+    margin-bottom: 20px;
+}
+
+.section-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: #333;
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.empty-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+.empty-state h3 {
+    margin: 0 0 8px;
+    color: #333;
+}
+
+.empty-state p {
+    color: #888;
+    margin: 0 0 24px;
+}
+
+/* Расширить карточки на всю ширину */
+#favorites-grid {
+    width: 100%;
+}
+</style>

@@ -1,0 +1,235 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}Доставка{% endblock %}
+
+{% block header_title %}
+<h1>Настройки доставки</h1>
+{% endblock %}
+
+{% block content %}
+<div class="delivery-page">
+    <form method="POST" action="{{ url_for('seller.delivery_save') }}" id="deliveryForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="selected_services" id="selectedServices" value="">
+        
+        <div class="delivery-section">
+            <div class="section-header">
+                <h2>Службы доставки</h2>
+                <p class="section-description">Выберите службы доставки для ваших товаров</p>
+            </div>
+            
+            {% if available_services %}
+            <div class="services-grid">
+                {% for service in available_services %}
+                {% set is_selected = service.id in active_delivery_ids %}
+                <div class="service-card" data-service-id="{{ service.id }}" data-is-selected="{{ 'true' if is_selected else 'false' }}">
+                    <div class="service-logo">
+                        {% if service.logo_path %}
+                        <img src="{{ url_for('static', filename=service.logo_path) }}" alt="{{ service.name }}">
+                        {% else %}
+                        <div class="service-logo-placeholder">
+                            <i class="bi bi-truck"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="service-name">{{ service.name }}</div>
+                    <button type="button" class="service-toggle-btn {% if is_selected %}active{% endif %}" onclick="toggleService({{ service.id }})">
+                        {% if is_selected %}
+                        <span class="btn-text">Убрать</span>
+                        {% else %}
+                        <span class="btn-text">Добавить</span>
+                        {% endif %}
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>Нет доступных служб доставки</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="delivery-actions">
+            <button type="submit" class="btn btn-primary btn-save">
+                <i class="bi bi-check-lg"></i> Сохранить
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+// Отслеживаем выбранные службы
+let selectedServices = new Set();
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.service-card[data-is-selected="true"]').forEach(function(card) {
+        selectedServices.add(parseInt(card.dataset.serviceId));
+    });
+    updateHiddenInput();
+});
+
+function toggleService(serviceId) {
+    const card = document.querySelector(`.service-card[data-service-id="${serviceId}"]`);
+    const btn = card.querySelector('.service-toggle-btn');
+    const btnText = btn.querySelector('.btn-text');
+    
+    if (selectedServices.has(serviceId)) {
+        selectedServices.delete(serviceId);
+        card.dataset.isSelected = 'false';
+        btn.classList.remove('active');
+        btnText.textContent = 'Добавить';
+    } else {
+        selectedServices.add(serviceId);
+        card.dataset.isSelected = 'true';
+        btn.classList.add('active');
+        btnText.textContent = 'Убрать';
+    }
+    
+    updateHiddenInput();
+}
+
+function updateHiddenInput() {
+    document.getElementById('selectedServices').value = JSON.stringify(Array.from(selectedServices));
+}
+</script>
+
+<style>
+.delivery-page {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.delivery-section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+}
+
+.section-header {
+    margin-bottom: 25px;
+}
+
+.section-header h2 {
+    margin: 0 0 8px 0;
+    color: #333;
+    font-size: 22px;
+}
+
+.section-description {
+    color: #666;
+    margin: 0;
+    font-size: 14px;
+}
+
+.services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.service-card {
+    background: #f8f9fa;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    padding: 25px 20px;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.service-card:hover {
+    border-color: #e0e0e0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.service-logo {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.service-logo img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.service-logo-placeholder {
+    width: 100%;
+    height: 100%;
+    background: #e9ecef;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.service-logo-placeholder i {
+    font-size: 36px;
+    color: #adb5bd;
+}
+
+.service-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.service-toggle-btn {
+    width: 100%;
+    padding: 12px 20px;
+    border: 2px solid #6c757d;
+    background: transparent;
+    color: #6c757d;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.service-toggle-btn:hover {
+    background: #f0f0f0;
+}
+
+.service-toggle-btn.active {
+    background: #28a745;
+    border-color: #28a745;
+    color: white;
+}
+
+.service-toggle-btn.active:hover {
+    background: #218838;
+    border-color: #218838;
+}
+
+.delivery-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding: 20px 0;
+}
+
+.btn-save {
+    padding: 14px 40px;
+    font-size: 16px;
+    border-radius: 8px;
+}
+
+.btn-save i {
+    margin-right: 8px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+}
+</style>
+{% endblock %}

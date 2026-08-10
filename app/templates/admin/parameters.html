@@ -1,0 +1,301 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Параметры - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>Параметры товаров</h1>
+    <div class="header-actions">
+        <a href="{{ url_for('admin.parameter_new') }}" class="btn btn-primary">
+            + Добавить параметр
+        </a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="parameters-container">
+    {% for category_name, parameters in parameters_by_category.items() %}
+    <div class="parameters-group">
+        <h3 class="group-title">{{ category_name }}</h3>
+        
+        <div class="parameters-list">
+            {% for param in parameters %}
+            <div class="parameter-card">
+                <div class="parameter-info">
+                    <h4>{{ param.name }}</h4>
+                    <code class="parameter-code">{{ param.code }}</code>
+                    <span class="parameter-type">
+                        {% if param.type == 'string' %}Строка
+                        {% elif param.type == 'integer' %}Число
+                        {% elif param.type == 'float' %}Дробное число
+                        {% elif param.type == 'boolean' %}Да/Нет
+                        {% elif param.type == 'select' %}Выбор из списка
+                        {% else %}{{ param.type }}
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <div class="parameter-values">
+                    {% if param.predefined_values %}
+                    <div class="values-preview">
+                        {% set values = param.predefined_values if param.predefined_values is iterable and param.predefined_values is not string else [] %}
+                        {% for value in values[:5] %}
+                        <span class="value-tag">{{ value }}</span>
+                        {% endfor %}
+                        {% if values|length > 5 %}
+                        <span class="values-more">+{{ values|length - 5 }}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="parameter-flags">
+                    {% if param.is_composite %}
+                    <span class="flag" title="Составной">Составной</span>
+                    {% endif %}
+                    {% if param.is_multiple %}
+                    <span class="flag" title="Множественное значение">Множеств.</span>
+                    {% endif %}
+                    {% if param.is_input %}
+                    <span class="flag" title="Можно вводить вручную">Ручной ввод</span>
+                    {% endif %}
+                </div>
+                
+                <div class="parameter-actions">
+                    <a href="{{ url_for('admin.parameter_edit', param_id=param.id) }}" 
+                       class="btn btn-sm btn-secondary">Изменить</a>
+                    <form method="POST" action="{{ url_for('admin.parameter_delete', param_id=param.id) }}"
+                          onsubmit="return confirm('Удалить параметр?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state-container">
+        <div class="empty-state">
+            <div class="empty-icon">📋</div>
+            <h3>Нет параметров</h3>
+            <p>Добавьте параметры для фильтрации и характеристик товаров</p>
+            <a href="{{ url_for('admin.parameter_new') }}" class="btn btn-primary">
+                Добавить параметр
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="admin-info-box">
+    <h4>Типы параметров</h4>
+    <ul>
+        <li><strong>Строка</strong> - любое текстовое значение</li>
+        <li><strong>Число</strong> - целое число</li>
+        <li><strong>Дробное число</strong> - число с плавающей точкой</li>
+        <li><strong>Да/Нет</strong> - булево значение</li>
+        <li><strong>Выбор из списка</strong> - выбор из предустановленных значений</li>
+    </ul>
+</div>
+
+<style>
+.parameters-container {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.parameters-group {
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.parameters-group:last-child {
+    border-bottom: none;
+}
+
+.group-title {
+    margin: 0 0 16px;
+    font-size: 18px;
+    color: #333;
+}
+
+.parameters-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.parameter-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    flex-wrap: wrap;
+}
+
+.parameter-info {
+    flex: 1;
+    min-width: 200px;
+}
+
+.parameter-info h4 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    color: #333;
+}
+
+.parameter-code {
+    display: inline-block;
+    background: #e9ecef;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #666;
+    margin-right: 8px;
+}
+
+.parameter-type {
+    display: inline-block;
+    background: #d1e7dd;
+    color: #0a3622;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+.parameter-values {
+    min-width: 150px;
+}
+
+.values-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.value-tag {
+    display: inline-block;
+    background: #e9ecef;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #495057;
+}
+
+.values-more {
+    display: inline-block;
+    background: #cff4fc;
+    color: #055160;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+.parameter-flags {
+    display: flex;
+    gap: 6px;
+}
+
+.flag {
+    display: inline-block;
+    background: #fff3cd;
+    color: #664d03;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+.parameter-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 4px;
+    text-decoration: none;
+    display: inline-block;
+    cursor: pointer;
+    border: none;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: #fff;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+.empty-state-container {
+    padding: 60px 20px;
+}
+
+.empty-state {
+    text-align: center;
+}
+
+.empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.empty-state h3 {
+    margin: 0 0 8px;
+    color: #333;
+}
+
+.empty-state p {
+    color: #666;
+    margin: 0 0 20px;
+}
+
+.admin-info-box {
+    margin-top: 24px;
+    padding: 20px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.admin-info-box h4 {
+    margin: 0 0 12px;
+    color: #333;
+}
+
+.admin-info-box ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.admin-info-box li {
+    margin-bottom: 6px;
+    color: #666;
+}
+</style>
+{% endblock %}

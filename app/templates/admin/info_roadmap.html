@@ -1,0 +1,30 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ title }} - Админ-панель{% endblock %}
+
+{% block header_title %}{{ title }}{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="info-page info-page-detail">
+    <a class="info-back-link" href="{{ url_for('admin.info') }}">
+        <i class="bi bi-arrow-left"></i> Назад к информации
+    </a>
+
+    {# Полноценный блок «Траектория развития»: календарь + лента + модалка. #}
+    {% include "components/roadmap_section.html" with context %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/info.css') }}">
+{% endblock %}

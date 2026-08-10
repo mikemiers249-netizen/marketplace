@@ -1,0 +1,163 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Акции - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>Акции и скидки</h1>
+    <div class="header-actions">
+        <a href="{{ url_for('admin.promotion_new') }}" class="btn btn-primary">
+            + Создать акцию
+        </a>
+    </div>
+</div>
+
+<div class="admin-tabs">
+    <a href="{{ url_for('admin.promotions', status='active') }}"
+       class="tab {% if status == 'active' %}active{% endif %}">
+        Активные
+    </a>
+    <a href="{{ url_for('admin.promotions', status='scheduled') }}"
+       class="tab {% if status == 'scheduled' %}active{% endif %}">
+        Запланированные
+    </a>
+    <a href="{{ url_for('admin.promotions', status='paused') }}"
+       class="tab {% if status == 'paused' %}active{% endif %}">
+        Приостановленные
+    </a>
+    <a href="{{ url_for('admin.promotions', status='ended') }}"
+       class="tab {% if status == 'ended' %}active{% endif %}">
+        Завершённые
+    </a>
+    <a href="{{ url_for('admin.promotions') }}"
+       class="tab {% if not status %}active{% endif %}">
+        Все
+    </a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="promotions-grid">
+    {% for promotion in promotions %}
+    <div class="promotion-card">
+        <div class="promotion-card-header">
+            <h3 class="promotion-card-title">{{ promotion.name }}</h3>
+            <span class="status-badge status-{{ promotion.status }}">
+                {{ promotion.status_display }}
+            </span>
+        </div>
+
+        <div class="promotion-card-body">
+            <div class="promotion-card-discount">
+                {% if promotion.scheme == 'second_with_discount' %}
+                    <span class="discount-value">{{ promotion.discount_percent or '—' }}%</span>
+                    <span class="discount-label">на каждый второй товар</span>
+                {% elif promotion.scheme == 'one_plus_one' %}
+                    <span class="discount-value">{{ promotion.discount_percent or 99 }}%</span>
+                    <span class="discount-label">1+1 (второй со скидкой)</span>
+                {% elif promotion.scheme == 'discount' %}
+                    {% if promotion.is_template %}
+                        <span class="discount-value">{{ promotion.discount_percent if promotion.discount_percent is not none else '—' }}{% if promotion.discount_percent is not none %}%{% endif %}</span>
+                        <span class="discount-label">{% if promotion.discount_percent is none %}продавец задаст сам{% else %}шаблонная скидка{% endif %}</span>
+                    {% else %}
+                        <span class="discount-value">{{ promotion.discount_percent or 0 }}%</span>
+                        <span class="discount-label">скидка</span>
+                    {% endif %}
+                {% elif promotion.scheme in ['1+1', '2+1', '3+1'] %}
+                    <span class="discount-value">{{ promotion.scheme }}</span>
+                    <span class="discount-label">N+1</span>
+                {% elif promotion.scheme == 'gift' %}
+                    <span class="discount-value">🎁</span>
+                    <span class="discount-label">подарок</span>
+                {% else %}
+                    <span class="discount-value">—</span>
+                    <span class="discount-label">без скидки</span>
+                {% endif %}
+            </div>
+
+            <div class="promotion-card-details">
+                <p class="promotion-type">
+                    <span class="detail-label">Схема:</span>
+                    {% if promotion.scheme == 'second_with_discount' %}
+                        Купи один — получи скидку
+                    {% elif promotion.scheme == 'one_plus_one' %}
+                        1+1 (купи один — получи второй со скидкой 99%)
+                    {% elif promotion.scheme == 'discount' %}
+                        Процентная скидка
+                    {% elif promotion.scheme in ['1+1', '2+1', '3+1'] %}
+                        N+1
+                    {% elif promotion.scheme == 'gift' %}
+                        Подарок
+                    {% else %}
+                        {{ promotion.scheme }}
+                    {% endif %}
+                </p>
+                <p class="promotion-dates">
+                    <span class="detail-label">Период:</span>
+                    {% if promotion.start_date or promotion.end_date %}
+                        {% if promotion.start_date %}{{ promotion.start_date.strftime('%d.%m.%Y') }}{% else %}…{% endif %}
+                        –
+                        {% if promotion.end_date %}{{ promotion.end_date.strftime('%d.%m.%Y') }}{% else %}…{% endif %}
+                    {% else %}
+                        Бессрочно
+                    {% endif %}
+                </p>
+                {% if promotion.is_template %}
+                <p class="promotion-template">
+                    <span class="badge badge-template">Шаблон</span>
+                    <span class="text-muted">— продавцы могут подключать к себе</span>
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="promotion-card-actions">
+            <a href="{{ url_for('admin.promotion_edit', promotion_id=promotion.id) }}"
+               class="btn btn-secondary btn-sm">
+                ✏️ Изменить
+            </a>
+            <form method="POST"
+                  action="{{ url_for('admin.promotion_delete', promotion_id=promotion.id) }}"
+                  class="promotion-delete-form"
+                  onsubmit="return confirm('Удалить акцию «{{ promotion.name|e }}»?{% if promotion.is_template %} Все подключения у продавцов будут сняты.{% endif %}');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-danger btn-sm">
+                    🗑 Удалить
+                </button>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state-container">
+        <div class="empty-state">
+            <div class="empty-icon">🏷️</div>
+            <h3>Нет акций</h3>
+            <p>
+                {% if status %}
+                Нет акций с таким статусом
+                {% else %}
+                Создайте первую акцию для привлечения покупателей
+                {% endif %}
+            </p>
+            <a href="{{ url_for('admin.promotion_new') }}" class="btn btn-primary">
+                Создать акцию
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if pagination and pagination.pages > 1 %}
+<div class="admin-pagination">
+    {{ pagination.links }}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,157 @@
+{# Общий блок раздела «Информация».
+   Ожидаемые переменные:
+     tiles            — dict с тремя плашками (roadmap / tariffs / education)
+     posts            — список InfoPost
+     sort             — 'new' | 'old'
+     can_manage       — bool, true только в админке
+     tags             — (опц.) список тегов, доступных для фильтра (продавец)
+     active_tag       — (опц.) имя текущего выбранного тега (оригинал)
+     active_tag_slug  — (опц.) slug текущего выбранного тега (из URL)
+#}
+<div class="info-page">
+    {# Плашки — три заголовка-ссылки на отдельные страницы.
+       Сам контент (календарь, лента, текст тарифов/обучения) вынесен
+       на /main_admin/info/<key>. #}
+    <div class="info-tiles">
+        {% for key, tile in tiles.items() %}
+        <div class="info-tile" id="info-tile-{{ key }}">
+            {# Ссылка строится через именованный url_for нужного блюпринта,
+               а не через request.path.rsplit(...) — иначе на странице
+               /main_admin/info склейка даёт /main_admin/<key> и все
+               три плитки уходят в 404. #}
+            {% if can_manage %}
+                {% set tile_endpoint = 'admin.info_' ~ key %}
+            {% else %}
+                {% set tile_endpoint = 'seller.info_' ~ key %}
+            {% endif %}
+            <a class="info-tile-link"
+               href="{{ url_for(tile_endpoint) }}{% if sort and sort != 'new' %}?sort={{ sort }}{% endif %}">
+                <span class="info-tile-icon"><i class="bi {{ tile.icon }}"></i></span>
+                <h3 class="info-tile-title">{{ tile.title }}</h3>
+                <i class="bi bi-arrow-up-right info-tile-arrow" aria-hidden="true"></i>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+
+    {# Панель сортировки + фильтры по тегам #}
+    <div class="info-filters">
+        <div class="info-sort">
+            <span class="info-sort-label">Сортировка по дате:</span>
+            <div class="info-sort-buttons">
+                <a href="{{ request.path }}?sort=new{% if active_tag_slug %}&tag={{ active_tag_slug }}{% endif %}"
+                   class="info-sort-btn {% if sort == 'new' %}active{% endif %}">
+                    <i class="bi bi-sort-down"></i> Сначала новые
+                </a>
+                <a href="{{ request.path }}?sort=old{% if active_tag_slug %}&tag={{ active_tag_slug }}{% endif %}"
+                   class="info-sort-btn {% if sort == 'old' %}active{% endif %}">
+                    <i class="bi bi-sort-up"></i> Сначала старые
+                </a>
+            </div>
+        </div>
+
+        {% if tags %}
+        <div class="info-tag-filter">
+            <span class="info-tag-filter-label">
+                <i class="bi bi-tags"></i> Тег:
+            </span>
+            <div class="info-tag-list">
+                <a href="{{ request.path }}?sort={{ sort }}"
+                   class="info-tag-chip {% if not active_tag %}active{% endif %}">
+                    Все
+                </a>
+                {% for t in tags %}
+                <a href="{{ request.path }}?sort={{ sort }}&tag={{ t|tag_slug }}"
+                   class="info-tag-chip info-tag-color-{{ loop.index0 % 8 }} {% if active_tag == t %}active{% endif %}">
+                    {{ t }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# Новости #}
+    <div class="info-news">
+        <h2 class="info-news-title">
+            <i class="bi bi-newspaper"></i> Новости
+            {% if active_tag %}
+            <span class="info-news-filter-info">
+                — фильтр по тегу «{{ active_tag }}»
+                <a href="{{ request.path }}?sort={{ sort }}" class="info-news-filter-clear" title="Сбросить">
+                    <i class="bi bi-x-circle"></i>
+                </a>
+            </span>
+            {% endif %}
+        </h2>
+
+        {% if posts %}
+            <div class="info-news-list">
+                {% for post in posts %}
+                <article class="info-news-item">
+                    <header class="info-news-head">
+                        <div class="info-news-head-main">
+                            <h3 class="info-news-h">{{ post.title }}</h3>
+                            {% if post.tag %}
+                            <span class="info-tag-chip info-tag-color-{{ tag_color_index(post.tag) }} info-news-tag">
+                                <i class="bi bi-tag-fill"></i> {{ post.tag }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        <span class="info-news-date">
+                            {{ post.sort_date.strftime('%d.%m.%Y %H:%M') if post.sort_date else '' }}
+                        </span>
+                    </header>
+
+                    {% if post.media_type == 'image' and post.media_url %}
+                    <div class="info-news-media">
+                        <img src="{{ post.media_url }}" alt="{{ post.title }}" loading="lazy">
+                    </div>
+                    {% elif post.media_type == 'video' and post.media_url %}
+                    <div class="info-news-media">
+                        <video src="{{ post.media_url }}" controls preload="metadata"></video>
+                    </div>
+                    {% endif %}
+
+                    {% if post.body %}
+                    <div class="info-news-body">
+                        {{ post.body|safe }}
+                    </div>
+                    {% endif %}
+
+                    {% if can_manage %}
+                    <footer class="info-news-actions">
+                        <form method="POST"
+                              action="{{ url_for('admin.info_delete', post_id=post.id, sort=sort) }}"
+                              onsubmit="return confirm('Удалить новость «{{ post.title|e }}»?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn btn-secondary btn-sm">
+                                <i class="bi bi-trash"></i> Удалить
+                            </button>
+                        </form>
+                    </footer>
+                    {% endif %}
+                </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="info-news-empty">
+                <i class="bi bi-inbox"></i>
+                {% if active_tag %}
+                <p>Нет новостей с тегом «{{ active_tag }}».</p>
+                {% else %}
+                <p>Пока нет новостей.</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    {# Кнопка «Добавить новость» (только в админке) — внизу под лентой #}
+    {% if can_manage %}
+    <div class="info-add">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addInfoPostModal">
+            <i class="bi bi-plus-lg"></i> Добавить новость
+        </button>
+    </div>
+    {% endif %}
+</div>

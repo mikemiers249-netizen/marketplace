@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+
+{% block title %}Оформление заказа - {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+<style>
+    .checkout-page {
+        padding: 30px 0;
+    }
+    
+    .checkout-container {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 24px;
+        align-items: start;
+    }
+    
+    @media (max-width: 991px) {
+        .checkout-container {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    /* Checkout Items */
+    .checkout-items {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .checkout-items h2 {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 16px;
+    }
+    
+    .checkout-item {
+        display: grid;
+        grid-template-columns: 100px 1fr auto auto;
+        gap: 16px;
+        align-items: center;
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 16px;
+    }
+    
+    @media (max-width: 767px) {
+        .checkout-item {
+            grid-template-columns: 80px 1fr;
+            grid-template-rows: auto auto auto;
+        }
+        
+        .checkout-item-quantity,
+        .checkout-item-total {
+            grid-column: 2;
+        }
+    }
+    
+    .checkout-item-image {
+        width: 100px;
+        height: 100px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #f5f5f5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .checkout-item-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .checkout-item-image .no-image {
+        color: #999;
+        font-size: 12px;
+    }
+    
+    .checkout-item-details {
+        min-width: 0;
+    }
+    
+    .checkout-item-name {
+        font-size: 16px;
+        font-weight: 500;
+        color: #333;
+        text-decoration: none;
+        display: block;
+        margin-bottom: 4px;
+    }
+    
+    .checkout-item-name:hover {
+        color: #0d6efd;
+    }
+    
+    .checkout-item-seller {
+        font-size: 13px;
+        color: #666;
+        margin-bottom: 8px;
+    }
+    
+    .checkout-item-price {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    
+    .checkout-item-price .old-price {
+        font-size: 14px;
+        color: #999;
+        text-decoration: line-through;
+    }
+    
+    .checkout-item-price .current-price {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .checkout-item-price .discount-badge {
+        background: #dc3545;
+        color: #fff;
+        font-size: 12px;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+    
+    .checkout-item-quantity {
+        font-size: 14px;
+        color: #666;
+    }
+    
+    .checkout-item-total {
+        text-align: right;
+        min-width: 80px;
+    }
+    
+    .checkout-item-total .total-price {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    /* Checkout Sections */
+    .checkout-section {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 24px;
+        margin-top: 24px;
+    }
+    
+    .checkout-section h2 {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    /* Delivery Profiles */
+    .delivery-profiles {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .delivery-profile-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 16px;
+        background: #f8f9fa;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .delivery-profile-option:hover {
+        border-color: #0d6efd;
+    }
+    
+    .delivery-profile-option input[type="radio"] {
+        margin-top: 4px;
+    }
+    
+    .delivery-profile-option label {
+        flex: 1;
+        cursor: pointer;
+    }
+    
+    .delivery-profile-option strong {
+        display: block;
+        margin-bottom: 4px;
+    }
+    
+    .delivery-profile-option p {
+        margin: 0;
+        font-size: 13px;
+        color: #666;
+    }
+    
+    .no-delivery {
+        text-align: center;
+        padding: 24px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    
+    .no-delivery p {
+        margin-bottom: 16px;
+        color: #666;
+    }
+    
+    /* Payment Options */
+    .payment-options {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .payment-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 16px;
+        background: #f8f9fa;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+    }
+    
+    .payment-option input[type="radio"] {
+        margin-top: 4px;
+    }
+    
+    .payment-option label {
+        flex: 1;
+        cursor: pointer;
+    }
+    
+    .payment-option strong {
+        display: block;
+        margin-bottom: 4px;
+    }
+    
+    .payment-option p {
+        margin: 0;
+        font-size: 13px;
+        color: #666;
+    }
+    
+    /* Summary Block */
+    .checkout-summary {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 24px;
+        position: sticky;
+        top: 20px;
+    }
+    
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        font-size: 15px;
+    }
+    
+    .summary-row .label {
+        color: #666;
+    }
+    
+    .summary-row .value {
+        font-weight: 500;
+        color: #333;
+    }
+    
+    .summary-row.total {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #eee;
+        font-size: 18px;
+    }
+    
+    .summary-row.total .label {
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .summary-row.total .value {
+        font-size: 22px;
+        font-weight: 700;
+        color: #333;
+    }
+    
+    /* Checkout Button */
+    .btn-checkout {
+        width: 100%;
+        padding: 14px 24px;
+        font-size: 16px;
+        font-weight: 600;
+        margin-top: 20px;
+    }
+    
+    /* Empty State */
+    .checkout-empty {
+        text-align: center;
+        padding: 60px 20px;
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e5e5e5;
+    }
+    
+    .checkout-empty .empty-icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+    }
+    
+    .checkout-empty h2 {
+        font-size: 24px;
+        margin-bottom: 8px;
+    }
+    
+    .checkout-empty p {
+        color: #666;
+        margin-bottom: 24px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container checkout-page">
+    <div class="page-header">
+        <h1>Оформление заказа</h1>
+    </div>
+    
+    {% if cart_items %}
+    <div class="checkout-container">
+        <form method="POST" action="{{ url_for('main.order_create') }}" id="checkout-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+            {% if delivery_info %}
+            <script>
+                // Сохраняем delivery_info в переменную для JavaScript
+                var orderDeliveryInfo = {{ delivery_info|tojson|safe }};
+            </script>
+            {% endif %}
+            
+            {# Список товаров #}
+            <div class="checkout-items">
+                <h2>Товары в заказе</h2>
+                {% for item in cart_items %}
+                <div class="checkout-item">
+                    <div class="checkout-item-image">
+                        {% if item.product.main_photo %}
+                        <img src="{{ url_for('static', filename='uploads/products/' + item.product.main_photo.path) }}" 
+                             alt="{{ item.product.name }}">
+                        {% else %}
+                        <div class="no-image">Нет фото</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="checkout-item-details">
+                        <a href="{{ url_for('main.product', product_id=item.product_id) }}" class="checkout-item-name">
+                            {{ item.product.name }}
+                        </a>
+                        <div class="checkout-item-seller">
+                            Продавец: {{ item.product.seller.store_name if item.product.seller else 'Неизвестно' }}
+                        </div>
+                        <div class="checkout-item-price">
+                            {% if item.product.current_discount > 0 %}
+                            <span class="old-price">{{ item.product.price }} ₽</span>
+                            <span class="current-price">{{ item.product.price * (1 - item.product.current_discount / 100) | round(2) }} ₽</span>
+                            <span class="discount-badge">-{{ item.product.current_discount }}%</span>
+                            {% else %}
+                            <span class="current-price">{{ item.product.price }} ₽</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="checkout-item-quantity">
+                        × {{ item.quantity }}
+                    </div>
+                    
+                    <div class="checkout-item-total">
+                        <span class="total-price">{{ item.total_price }} ₽</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            {# Выбор адреса доставки #}
+            <div class="checkout-section">
+                <h2>Адрес доставки</h2>
+                
+                {% if delivery_info %}
+                {# Показываем выбранные ПВЗ из корзины #}
+                <div class="delivery-profiles">
+                    {% for di in delivery_info %}
+                    <div class="delivery-profile-option">
+                        <input type="radio" name="delivery_profile_id" 
+                               value="{{ di.seller_id }}" 
+                               id="profile-{{ di.seller_id }}"
+                               checked>
+                        <label for="profile-{{ di.seller_id }}">
+                            <strong>СДЭК - ПВЗ</strong>
+                            <p>{{ di.pvz_code }}</p>
+                            <p class="text-success">Стоимость доставки: {{ di.cost }} ₽</p>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% elif delivery_profiles %}
+                <div class="delivery-profiles">
+                    {% for profile in delivery_profiles %}
+                    <div class="delivery-profile-option">
+                        <input type="radio" name="delivery_profile_id" 
+                               value="{{ profile.id }}" 
+                               id="profile-{{ profile.id }}"
+                               {% if loop.first %}checked{% endif %}>
+                        <label for="profile-{{ profile.id }}">
+                            <strong>{{ profile.delivery_service.name if profile.delivery_service else 'Служба доставки' }}</strong>
+                            {% if profile.pvz_address %}
+                            <p>{{ profile.pvz_address }}</p>
+                            {% elif profile.address %}
+                            <p>{{ profile.address }}</p>
+                            {% endif %}
+                            {% if profile.recipient_name %}
+                            <p>Получатель: {{ profile.recipient_name }}, тел: {{ profile.phone }}</p>
+                            {% endif %}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="no-delivery">
+                    <p>Адрес доставки не указан</p>
+                    <a href="{{ url_for('main.profile') }}#delivery" class="btn btn-secondary">
+                        Добавить адрес доставки
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            
+            {# Способ оплаты #}
+            <div class="checkout-section">
+                <h2>Способ оплаты</h2>
+                <div class="payment-options">
+                    <div class="payment-option">
+                        <input type="radio" name="payment_method" value="card_online" id="payment-card" checked>
+                        <label for="payment-card">
+                            <strong>Онлайн оплата картой</strong>
+                            <p>Безналичная оплата через платежный шлюз</p>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            {# Итого #}
+            <div class="checkout-summary">
+                <div class="summary-row">
+                    <span>Товары ({{ cart_items|length }})</span>
+                    <span>{{ cart_total.subtotal }} ₽</span>
+                </div>
+                {% if delivery_total > 0 %}
+                <div class="summary-row">
+                    <span>Доставка</span>
+                    <span>{{ delivery_total }} ₽</span>
+                </div>
+                <div class="summary-row total">
+                    <span>К оплате</span>
+                    <span>{{ cart_total.subtotal + delivery_total }} ₽</span>
+                </div>
+                {% elif delivery_info %}
+                {# Если есть delivery_info но delivery_total = 0 - вычисляем #}
+                {% set calculated_delivery = delivery_info|sum(attribute='cost') %}
+                {% if calculated_delivery > 0 %}
+                <div class="summary-row">
+                    <span>Доставка</span>
+                    <span>{{ calculated_delivery }} ₽</span>
+                </div>
+                <div class="summary-row total">
+                    <span>К оплате</span>
+                    <span>{{ cart_total.subtotal + calculated_delivery }} ₽</span>
+                </div>
+                {% else %}
+                <div class="summary-row">
+                    <span>Доставка</span>
+                    <span>0 ₽</span>
+                </div>
+                <div class="summary-row total">
+                    <span>К оплате</span>
+                    <span>{{ cart_total.total }} ₽</span>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="summary-row">
+                    <span>Доставка</span>
+                    <span>0 ₽</span>
+                </div>
+                <div class="summary-row total">
+                    <span>К оплате</span>
+                    <span>{{ cart_total.total }} ₽</span>
+                </div>
+                {% endif %}
+            </div>
+            
+            {# Кнопка оформления #}
+            <div class="checkout-actions">
+                {% if delivery_info or delivery_profiles %}
+                <button type="submit" class="btn btn-checkout">
+                    Оформить заказ
+                </button>
+                {% else %}
+                <button type="button" class="btn btn-checkout" disabled>
+                    Рассчитайте доставку в корзине
+                </button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    
+    {% else %}
+    <div class="checkout-empty">
+        <div class="empty-icon">📦</div>
+        <h2>Корзина пуста</h2>
+        <p>Добавьте товары в корзину, чтобы оформить заказ</p>
+        <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+            Перейти к покупкам
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('checkout-form');
+    if (form && typeof orderDeliveryInfo !== 'undefined') {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Создаем скрытое поле с delivery_info
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'delivery_info';
+            input.value = JSON.stringify(orderDeliveryInfo);
+            form.appendChild(input);
+            
+            // Отправляем через AJAX
+            var formData = new FormData(form);
+            
+            fetch(form.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.redirect) {
+                    window.location.href = data.redirect;
+                } else {
+                    alert(data.error || 'Ошибка при оформлении заказа');
+                }
+            })
+            .catch(error => {
+                alert('Ошибка: ' + error);
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

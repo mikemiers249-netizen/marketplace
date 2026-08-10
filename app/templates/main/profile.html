@@ -1,0 +1,511 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Изолируем Bootstrap только для контента профиля */
+.profile-page *, .profile-page *::before, .profile-page *::after {
+    box-sizing: border-box;
+}
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+<style>
+    .profile-page {
+        padding: 0 20px 30px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    /* Компенсируем .main-content { padding: 30px 0 } до 15px сверху,
+       чтобы и сайдбар, и контент начинали на одной линии сразу под шапкой. */
+    .profile-page {
+        margin-top: -15px;
+    }
+    
+    .profile-header {
+        margin-bottom: 24px;
+    }
+    
+    .profile-header h1 {
+        font-size: 28px;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    .profile-wrapper {
+        display: grid;
+        grid-template-columns: 261px 1fr;
+        gap: 24px;
+        align-items: start;
+    }
+    
+    @media (max-width: 991px) {
+        .profile-wrapper {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    /* Sidebar */
+    .profile-sidebar {
+        position: sticky;
+        top: 100px;
+    }
+    
+    @media (max-width: 991px) {
+        .profile-sidebar {
+            position: static;
+        }
+    }
+    
+    .profile-user-card {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        margin-bottom: 16px;
+    }
+    
+    .user-avatar-large {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+    }
+    
+    .avatar-initials {
+        font-size: 32px;
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .user-name {
+        font-size: 20px;
+        margin: 0 0 8px;
+        color: #333;
+    }
+    
+    .user-email {
+        color: #666;
+        font-size: 14px;
+        margin: 0 0 12px;
+    }
+    
+    .user-status {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    /* Navigation */
+    .profile-nav {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    
+    .profile-nav-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        color: #555;
+        text-decoration: none;
+        transition: all 0.2s;
+        border-left: 3px solid transparent;
+    }
+    
+    .profile-nav-link:hover {
+        background: #f8f9fa;
+        color: #333;
+    }
+    
+    .profile-nav-link.active {
+        background: #e7f1ff;
+        color: #0d6efd;
+        border-left-color: #0d6efd;
+    }
+
+    /* Подсветка пункта меню при наличии непрочитанных сообщений.
+       Красный акцент на иконке + тексте + бейдж с числом справа. */
+    .profile-nav-link.has-unread {
+        color: #dc3545;
+    }
+
+    .profile-nav-link.has-unread i {
+        color: #dc3545;
+    }
+
+    .profile-nav-link .unread-dot {
+        display: none;
+    }
+
+    .profile-nav-link.has-unread .unread-dot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        margin-left: auto;
+        border-radius: 10px;
+        background: #dc3545;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1;
+    }
+    
+    .profile-nav-link i {
+        font-size: 18px;
+    }
+    
+    /* Content Area */
+    .profile-content {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 24px;
+        min-height: 400px;
+        overflow: hidden;
+    }
+    
+    .profile-content h2 {
+        font-size: 22px;
+        margin: 0 0 24px;
+        color: #333;
+    }
+    
+    /* Settings Form */
+    .settings-form {
+        max-width: 500px;
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #444;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+    }
+    
+    .form-control:read-only {
+        background: #f5f5f5;
+        color: #666;
+    }
+    
+    textarea.form-control {
+        resize: vertical;
+    }
+    
+    .btn-primary {
+        background: #0d6efd;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .btn-primary:hover {
+        background: #0b5ed7;
+    }
+    
+    /* Orders Section */
+    .orders-section {
+        padding: 0;
+        background: transparent;
+        border: none;
+    }
+    
+    /* Messages */
+    .messages-section {
+        padding: 0;
+        background: transparent;
+        border: none;
+    }
+    
+    /* Favorite */
+    .favorite-section {
+        padding: 0;
+        background: transparent;
+        border: none;
+    }
+    
+    /* Addresses Section */
+    .addresses-form {
+        max-width: 800px;
+    }
+    
+    .delivery-services-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    
+    .delivery-service-card {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e5e5e5;
+    }
+    
+    .service-logo {
+        width: 80px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .service-logo img {
+        max-width: 100%;
+        max-height: 40px;
+        object-fit: contain;
+    }
+    
+    .service-logo-placeholder {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-weight: 600;
+        font-size: 18px;
+    }
+    
+    .service-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .service-name {
+        font-weight: 500;
+        color: #333;
+        font-size: 14px;
+    }
+    
+    .pvz-input {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+    
+    .pvz-input:focus {
+        outline: none;
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+    }
+    
+    .form-actions {
+        display: flex;
+        justify-content: flex-start;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+    <div class="profile-wrapper">
+        {# Sidebar #}
+        <aside class="profile-sidebar">
+            <div class="profile-user-card">
+                <div class="user-avatar-large">
+                    <span class="avatar-initials">{{ user.name[:1] if user.name else user.login[:1] }}</span>
+                </div>
+                <h3 class="user-name">{{ user.name or user.login }}</h3>
+                <p class="user-email">{{ user.email }}</p>
+                <span class="user-status">Покупатель</span>
+            </div>
+            
+            <nav class="profile-nav">
+                <a href="{{ url_for('main.profile', section='orders') }}"
+                   class="profile-nav-link {% if section == 'orders' %}active{% endif %}">
+                    <i class="bi bi-box-seam"></i>
+                    Мои заказы
+                </a>
+                {### <a href="{{ url_for('main.profile_delivery') }}"
+                   class="profile-nav-link {% if section == 'delivery' %}active{% endif %}">
+                    <i class="bi bi-truck"></i>
+                    Доставка
+                </a> ###}
+                <a href="{{ url_for('main.profile', section='favorite') }}"
+                   class="profile-nav-link {% if section == 'favorite' %}active{% endif %}">
+                    <i class="bi bi-heart"></i>
+                    Избранное
+                </a>
+                <a href="{{ url_for('main.profile', section='purchases') }}"
+                   class="profile-nav-link {% if section == 'purchases' %}active{% endif %}">
+                    <i class="bi bi-bag-check"></i>
+                    Мои покупки
+                </a>
+                <a href="{{ url_for('main.profile', section='reviews') }}"
+                   class="profile-nav-link {% if section == 'reviews' %}active{% endif %}">
+                    <i class="bi bi-chat-square-text"></i>
+                    Мои отзывы
+                </a>
+                {% if loyalty_enabled %}
+                <a href="{{ url_for('main.profile', section='bonuses') }}"
+                   class="profile-nav-link {% if section == 'bonuses' %}active{% endif %}">
+                    <i class="bi bi-coin"></i>
+                    Бонусы
+                </a>
+                {% endif %}
+                {% if promo_enabled %}
+                <a href="{{ url_for('main.profile', section='promos') }}"
+                   class="profile-nav-link {% if section == 'promos' %}active{% endif %}">
+                    <i class="bi bi-ticket-perforated"></i>
+                    Промокоды
+                </a>
+                {% endif %}
+                <a href="{{ url_for('main.profile', section='addresses') }}"
+                   class="profile-nav-link {% if section == 'addresses' %}active{% endif %}">
+                    <i class="bi bi-geo-alt"></i>
+                    Мои адреса
+                </a>
+                <a href="{{ url_for('main.profile', section='messages') }}"
+                   class="profile-nav-link {% if section == 'messages' %}active{% endif %}{% if unread_messages_count %} has-unread{% endif %}"
+                   {% if unread_messages_count %}style="color: #dc3545 !important;"{% endif %}>
+                    <i class="bi bi-chat-dots" {% if unread_messages_count %}style="color: #dc3545 !important;"{% endif %}></i>
+                    <span {% if unread_messages_count %}style="color: #dc3545 !important;"{% endif %}>Сообщения</span>
+                    {% if unread_messages_count %}
+                    <span class="unread-dot"
+                          title="{{ unread_messages_count }} непрочитанных сообщений"
+                          style="display: inline-flex !important;
+                                 align-items: center !important;
+                                 justify-content: center !important;
+                                 min-width: 20px !important;
+                                 height: 20px !important;
+                                 padding: 0 6px !important;
+                                 margin-left: auto !important;
+                                 border-radius: 10px !important;
+                                 background: #dc3545 !important;
+                                 color: #fff !important;
+                                 font-size: 11px !important;
+                                 font-weight: 600 !important;
+                                 line-height: 1 !important;">{{ unread_messages_count if unread_messages_count < 100 else '99+' }}</span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('main.profile', section='settings') }}"
+                   class="profile-nav-link {% if section == 'settings' %}active{% endif %}">
+                    <i class="bi bi-gear"></i>
+                    Настройки
+                </a>
+            </nav>
+        </aside>
+        
+        {# Main Content #}
+        <main class="profile-content">
+            {% if section == 'orders' %}
+                {% include "main/_orders_content.html" %}
+            {% elif section == 'favorite' %}
+                {% include "main/profile_favorite.html" %}
+            {% elif section == 'purchases' %}
+                {% include "main/profile_purchases.html" %}
+            {% elif section == 'reviews' %}
+                {% include "main/profile_reviews.html" %}
+            {% elif section == 'messages' %}
+                {% include "main/profile_messages.html" %}
+            {% elif section == 'bonuses' %}
+                {% include "main/profile_bonuses.html" %}
+            {% elif section == 'promos' %}
+                {% include "main/profile_promos.html" %}
+            {% elif section == 'settings' %}
+                <h2>Настройки профиля</h2>
+                <form method="POST" action="{{ url_for('main.profile_settings') }}" class="settings-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="form-group">
+                        <label for="name">Имя</label>
+                        <input type="text" id="name" name="name" value="{{ user.name or '' }}" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" value="{{ user.email }}" class="form-control" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Телефон</label>
+                        <input type="tel" id="phone" name="phone" value="{{ user.phone or '' }}" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="address">Адрес доставки</label>
+                        <textarea id="address" name="address" class="form-control" rows="3">{{ user.address or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                </form>
+            {% elif section == 'addresses' %}
+                <h2>Мои адреса</h2>
+                <form method="POST" action="{{ url_for('main.profile_addresses_save') }}" class="addresses-form" id="addresses-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="delivery-services-grid">
+                        {% for service in delivery_services %}
+                        <div class="delivery-service-card" data-service-id="{{ service.id }}">
+                            <div class="service-logo">
+                                {% if service.logo_path %}
+                                <img src="{{ url_for('static', filename=service.logo_path) }}" alt="{{ service.name }}">
+                                {% else %}
+                                <div class="service-logo-placeholder">{{ service.name[:1] }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="service-info">
+                                <div class="service-name">{{ service.name }}</div>
+                                <input type="hidden" name="service_id" value="{{ service.id }}">
+                                <input type="text" 
+                                       name="address_{{ service.id }}" 
+                                       class="form-control pvz-input" 
+                                       placeholder="Укажите адрес удобного для вас пункта выдачи"
+                                       value="{% if delivery_by_service.get(service.code) %}{{ delivery_by_service.get(service.code).pvz_address or '' }}{% endif %}">
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </form>
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}

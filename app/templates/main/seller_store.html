@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="seller-store-container">
+    {# Хлебные крошки #}
+    <div class="breadcrumbs">
+        <a href="{{ url_for('main.index') }}">Главная</a>
+        <span class="separator">/</span>
+        <span>{{ seller.store_name }}</span>
+    </div>
+
+    {# Информация о продавце #}
+    <div class="seller-header">
+        <div class="seller-info">
+            {% if seller.avatar %}
+            <img src="{{ url_for('static', filename='uploads/sellers/' + seller.avatar) }}" alt="{{ seller.store_name }}" class="seller-avatar">
+            {% else %}
+            <div class="seller-avatar-placeholder">
+                <span>{{ seller.store_name[:1].upper() }}</span>
+            </div>
+            {% endif %}
+            <div class="seller-details">
+                <h1>{{ seller.store_name }}</h1>
+                {% if seller.description %}
+                <p class="seller-description">{{ seller.description }}</p>
+                {% endif %}
+                <div class="seller-meta">
+                    {% if seller.city %}
+                    <span class="seller-location">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                        {{ seller.city }}
+                    </span>
+                    {% endif %}
+                    {% if seller.rating %}
+                    <span class="seller-rating">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        {{ seller.rating }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        {# Статистика продавца #}
+        <div class="seller-stats">
+            <div class="stat">
+                <span class="stat-value">{{ products|length }}</span>
+                <span class="stat-label">товаров</span>
+            </div>
+            {% if seller.created_at %}
+            <div class="stat">
+                <span class="stat-value">{{ ((now - seller.created_at).days // 30) + 1 }}</span>
+                <span class="stat-label">месяцев на маркете</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Фильтры и сортировка #}
+    <div class="catalog-toolbar">
+        <div class="sort-options">
+            <span class="sort-label">Сортировка:</span>
+            <a href="{{ url_for('main.seller_store', seller_slug=seller.store_slug, sort='new') }}" 
+               class="sort-link {% if request.args.get('sort') == 'new' or not request.args.get('sort') %}active{% endif %}">
+                Новинки
+            </a>
+            <a href="{{ url_for('main.seller_store', seller_slug=seller.store_slug, sort='price_asc') }}" 
+               class="sort-link {% if request.args.get('sort') == 'price_asc' %}active{% endif %}">
+                Цена ↑
+            </a>
+            <a href="{{ url_for('main.seller_store', seller_slug=seller.store_slug, sort='price_desc') }}" 
+               class="sort-link {% if request.args.get('sort') == 'price_desc' %}active{% endif %}">
+                Цена ↓
+            </a>
+            <a href="{{ url_for('main.seller_store', seller_slug=seller.store_slug, sort='popular') }}" 
+               class="sort-link {% if request.args.get('sort') == 'popular' %}active{% endif %}">
+                Популярные
+            </a>
+        </div>
+        <div class="results-count">
+            Найдено: {{ products|length }} товаров
+        </div>
+    </div>
+
+    {# Список товаров #}
+    {% if products %}
+    <div class="products-grid products-grid-5">
+        {% for product in products %}
+            {% include 'components/product_card.html' %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+        </svg>
+        <h3>В этом магазине пока нет товаров</h3>
+        <p>Продавец скоро добавит товары</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.seller-store-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.breadcrumbs {
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: #666;
+}
+
+.breadcrumbs a {
+    color: #0066cc;
+    text-decoration: none;
+}
+
+.breadcrumbs a:hover {
+    text-decoration: underline;
+}
+
+.breadcrumbs .separator {
+    margin: 0 8px;
+    color: #999;
+}
+
+/* Seller Header */
+.seller-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 24px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    margin-bottom: 24px;
+}
+
+.seller-info {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.seller-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 12px;
+    object-fit: cover;
+}
+
+.seller-avatar-placeholder {
+    width: 100px;
+    height: 100px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.seller-details h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    color: #333;
+}
+
+.seller-description {
+    color: #666;
+    font-size: 14px;
+    margin: 0 0 12px;
+    max-width: 500px;
+}
+
+.seller-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 14px;
+    color: #666;
+}
+
+.seller-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.seller-rating {
+    color: #f5a623;
+}
+
+.seller-stats {
+    display: flex;
+    gap: 32px;
+}
+
+.stat {
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+    color: #333;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #999;
+}
+
+/* Toolbar */
+.catalog-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.sort-options {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.sort-label {
+    font-size: 14px;
+    color: #666;
+    margin-right: 8px;
+}
+
+.sort-link {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #666;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.sort-link:hover {
+    background: #e9ecef;
+}
+
+.sort-link.active {
+    background: #0066cc;
+    color: #fff;
+}
+
+.results-count {
+    font-size: 14px;
+    color: #666;
+}
+
+/* Products Grid - uses shared .products-grid styles from main.css */
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+}
+
+.empty-state svg {
+    color: #ccc;
+    margin-bottom: 16px;
+}
+
+.empty-state h3 {
+    font-size: 18px;
+    margin: 0 0 8px;
+    color: #333;
+}
+
+.empty-state p {
+    margin: 0;
+    font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .seller-header {
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .seller-info {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    .seller-stats {
+        justify-content: center;
+    }
+    
+    .catalog-toolbar {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .products-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Добавление в корзину
+    document.querySelectorAll('.btn-add-cart').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const productId = this.dataset.productId;
+            fetch('/cart/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                },
+                body: JSON.stringify({ product_id: productId, quantity: 1 })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.textContent = 'Добавлено';
+                    this.style.background = '#27ae60';
+                    setTimeout(() => {
+                        this.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg> В корзину';
+                        this.style.background = '#0066cc';
+                    }, 1500);
+                    
+                    // Обновляем счетчик корзины
+                    const cartCount = document.querySelector('.cart-count');
+                    if (cartCount && data.cart_count !== undefined) {
+                        cartCount.textContent = data.cart_count;
+                    }
+                } else {
+alert(data.error || 'Ошибка при добавлении в корзину');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Произошла ошибка');
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

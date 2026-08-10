@@ -1,0 +1,276 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block header_title %}
+<h1>Товары в акции</h1>
+{% endblock %}
+
+{% block content %}
+<div class="promotion-products-page">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <a href="{{ url_for('seller.promotions') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> К списку акций
+        </a>
+    </div>
+
+    <div class="promotion-summary card mb-4">
+        <div class="card-body">
+            <h2 class="h5 mb-2">{{ promotion.name }}</h2>
+            <div class="d-flex flex-wrap gap-3 align-items-center text-muted small">
+                <span>
+                    {% if promotion.scheme == 'one_plus_one' %}
+                        <i class="bi bi-1-circle"></i> 1+1 — скидка:
+                        <strong class="text-danger">
+                            {{ link.override_discount_percent if link.override_discount_percent is not none else (promotion.discount_percent or 99) }}%
+                        </strong>
+                        <span class="badge bg-success-subtle text-success-emphasis ms-1">второй по минимальной цене</span>
+                    {% else %}
+                        <i class="bi bi-percent"></i> Скидка:
+                        {% if apply_same_discount %}
+                            <strong class="text-danger">
+                                {{ link.override_discount_percent if link.override_discount_percent is not none else (promotion.discount_percent or '—') }}%
+                            </strong>
+                            <span class="badge bg-light text-dark border ms-1">одинаковая</span>
+                        {% else %}
+                            <span class="badge bg-light text-dark border ms-1">индивидуальная</span>
+                        {% endif %}
+                    {% endif %}
+                </span>
+                <span><i class="bi bi-calendar-event"></i>
+                    {{ promotion.start_date.strftime('%d.%m.%Y') if promotion.start_date else 'сразу' }}
+                    —
+                    {{ promotion.end_date.strftime('%d.%m.%Y') if promotion.end_date else 'бессрочно' }}
+                </span>
+                {% if promotion.min_product_price is not none %}
+                <span>
+                    <i class="bi bi-cash-coin"></i> Мин. цена товара:
+                    <strong>{{ "{:,.2f}".format(promotion.min_product_price).replace(',', ' ') }} ₽</strong>
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# Настройки подключения — изменение режима скидки (только для discount) #}
+    {% if promotion.scheme == 'discount' %}
+    <div class="card mb-4">
+        <div class="card-body">
+            <h3 class="h6 mb-3"><i class="bi bi-gear"></i> Настройки акции</h3>
+            <form method="POST" action="{{ url_for('seller.update_template_settings', promotion_id=promotion.id) }}" class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label">Режим скидки</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="apply_same_discount" id="set_same_yes" value="1"
+                               {% if apply_same_discount %}checked{% endif %}>
+                        <label class="form-check-label" for="set_same_yes">Одинаковая на все товары</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="apply_same_discount" id="set_same_no" value="0"
+                               {% if not apply_same_discount %}checked{% endif %}>
+                        <label class="form-check-label" for="set_same_no">Индивидуальная для каждого товара</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label for="set_override" class="form-label">Общая скидка, %</label>
+                    <input type="number" min="1" max="100" step="1" class="form-control"
+                           id="set_override" name="override_discount_percent"
+                           value="{{ link.override_discount_percent if link.override_discount_percent is not none else (promotion.discount_percent or '') }}"
+                           placeholder="{% if promotion.discount_percent is not none %}{{ promotion.discount_percent }}{% else %}не задана{% endif %}">
+                    <div class="form-text">
+                        {% if promotion.discount_percent is not none %}
+                            Шаблонный процент админа: {{ promotion.discount_percent }}%. Можно переопределить.
+                        {% else %}
+                            Админ не задал общую скидку — укажите свою.
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-save"></i> Сохранить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info small mb-4">
+        <i class="bi bi-info-circle"></i>
+        У акции «1+1» скидка фиксирована администратором
+        (по умолчанию {{ promotion.discount_percent or 99 }}%) и действует на каждый второй
+        по наименьшей цене товар в корзине покупателя из выбранных вами ниже.
+    </div>
+    {% endif %}
+
+    {# Уже добавленные товары #}
+    <div class="card mb-4">
+        <div class="card-body">
+            <h3 class="h6 mb-3"><i class="bi bi-box-seam"></i> Товары в акции ({{ in_items|length }})</h3>
+            {% if in_items %}
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Товар</th>
+                                <th>Цена</th>
+                                <th>Скидка</th>
+                                <th class="text-end">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in in_items %}
+                                {% set product = entry.product %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            {% if product.image %}
+                                                <img src="{{ url_for('static', filename='uploads/' + product.image) }}"
+                                                     alt="{{ product.name }}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;">
+                                            {% else %}
+                                                <div style="width:40px;height:40px;background:#eee;border-radius:6px;display:flex;align-items:center;justify-content:center;">
+                                                    <i class="bi bi-image text-muted"></i>
+                                                </div>
+                                            {% endif %}
+                                            <span>{{ product.name }}</span>
+                                        </div>
+                                    </td>
+                                    <td>{{ "{:,.0f}".format(product.price).replace(',', ' ') }} ₽</td>
+                                    <td>
+                                        {% if promotion.scheme == 'one_plus_one' %}
+                                            <span class="text-danger fw-bold">
+                                                {{ link.override_discount_percent if link.override_discount_percent is not none else (promotion.discount_percent or 99) }}%
+                                            </span>
+                                            <span class="text-muted small">(1+1)</span>
+                                        {% elif apply_same_discount %}
+                                            <span class="text-danger fw-bold">
+                                                {{ link.override_discount_percent if link.override_discount_percent is not none else (promotion.discount_percent or '—') }}%
+                                            </span>
+                                            <span class="text-muted small">(общая)</span>
+                                        {% else %}
+                                            <form method="POST"
+                                                  action="{{ url_for('seller.template_promotion_update_product', promotion_id=promotion.id, product_id=product.id) }}"
+                                                  class="d-flex align-items-center gap-2">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                <input type="number" min="1" max="100" step="1"
+                                                       class="form-control form-control-sm" style="width:90px;"
+                                                       name="discount_percent"
+                                                       value="{{ entry.discount_percent if entry.discount_percent is not none else (link.override_discount_percent if link.override_discount_percent is not none else (promotion.discount_percent or '')) }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-save"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <form method="POST"
+                                              action="{{ url_for('seller.template_promotion_remove_product', promotion_id=promotion.id, product_id=product.id) }}"
+                                              onsubmit="return confirm('Удалить «{{ product.name|e }}» из акции?');"
+                                              class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-trash"></i> Удалить
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted mb-0">В акции пока нет товаров.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Кандидаты на добавление #}
+    <div class="card">
+        <div class="card-body">
+            <h3 class="h6 mb-3"><i class="bi bi-plus-circle"></i> Добавить товары</h3>
+            {% if candidates %}
+                {% if promotion.min_product_price is not none %}
+                <div class="alert alert-info small">
+                    <i class="bi bi-cash-coin"></i>
+                    В акцию можно добавить только товары с ценой не ниже
+                    <strong>{{ "{:,.2f}".format(promotion.min_product_price).replace(',', ' ') }} ₽</strong>.
+                    Более дешёвые товары будут автоматически пропущены.
+                </div>
+                {% endif %}
+                <form method="POST" action="{{ url_for('seller.template_promotion_add_product', promotion_id=promotion.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th style="width:32px;"></th>
+                                    <th>Товар</th>
+                                    <th>Цена</th>
+                                    {% if promotion.scheme == 'discount' and not apply_same_discount %}
+                                    <th style="width:160px;">Скидка, %</th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product in candidates %}
+                                    {% set below_min = promotion.min_product_price is not none and product.price < promotion.min_product_price %}
+                                    <tr {% if below_min %}class="text-muted"{% endif %}>
+                                        <td>
+                                            <input class="form-check-input" type="checkbox"
+                                                   name="product_id" value="{{ product.id }}"
+                                                   id="prod{{ product.id }}"
+                                                   {% if below_min %}disabled{% endif %}>
+                                        </td>
+                                        <td>
+                                            <label for="prod{{ product.id }}" class="d-flex align-items-center gap-2" style="cursor:pointer;">
+                                                {% if product.image %}
+                                                    <img src="{{ url_for('static', filename='uploads/' + product.image) }}"
+                                                         alt="{{ product.name }}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;">
+                                                {% else %}
+                                                    <div style="width:40px;height:40px;background:#eee;border-radius:6px;display:flex;align-items:center;justify-content:center;">
+                                                        <i class="bi bi-image text-muted"></i>
+                                                    </div>
+                                                {% endif %}
+                                                <span>{{ product.name }}{% if below_min %} <span class="badge bg-light text-dark border ms-1">ниже мин. цены</span>{% endif %}</span>
+                                            </label>
+                                        </td>
+                                        <td>{{ "{:,.0f}".format(product.price).replace(',', ' ') }} ₽</td>
+                                        {% if promotion.scheme == 'discount' and not apply_same_discount %}
+                                        <td>
+                                            <input type="number" min="1" max="100" step="1"
+                                                   class="form-control form-control-sm"
+                                                   name="discount_{{ product.id }}"
+                                                   placeholder="%"
+                                                   {% if below_min %}disabled{% endif %}>
+                                        </td>
+                                        {% endif %}
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Добавить выбранные
+                        </button>
+                    </div>
+                </form>
+            {% else %}
+                <p class="text-muted mb-0">Все ваши одобренные товары уже добавлены в акцию.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

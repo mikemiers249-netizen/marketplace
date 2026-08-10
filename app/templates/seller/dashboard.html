@@ -1,0 +1,179 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}Панель продавца{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h1>Добро пожаловать, {{ seller.store_name }}!</h1>
+    </div>
+    
+    {# Статистика #}
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="bi bi-box-seam"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ total_products }}</span>
+                <span class="stat-label">Всего товаров</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon success">
+                <i class="bi bi-check-circle"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ active_products }}</span>
+                <span class="stat-label">Активных товаров</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon warning">
+                <i class="bi bi-hourglass-split"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ pending_orders }}</span>
+                <span class="stat-label">Заказов в сборке</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon info">
+                <i class="bi bi-truck"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ shipped_orders }}</span>
+                <span class="stat-label">Отправлено</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon primary">
+                <i class="bi bi-calendar-week"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ weekly_orders }}</span>
+                <span class="stat-label">Заказов за неделю</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon success">
+                <i class="bi bi-currency-dollar"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ format_price(revenue) }}</span>
+                <span class="stat-label">Выручка за 30 дней</span>
+            </div>
+        </div>
+    </div>
+    
+    {# Недавние заказы #}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2>Последние заказы</h2>
+            <a href="{{ url_for('seller.orders') }}" class="btn btn-secondary">
+                Все заказы <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+        
+        {% if recent_orders %}
+        <div class="orders-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Номер</th>
+                        <th>Дата</th>
+                        <th>Товары</th>
+                        <th>Сумма</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in recent_orders %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('seller.order_detail', order_id=order.id) }}">
+                                {{ order.order_number }}
+                            </a>
+                        </td>
+                        <td>{{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td>
+                            {% for item in order.items.all()[:2] %}
+                                {{ item.product.name }}{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                            {% if order.items.count() > 2 %}
+                                и ещё {{ order.items.count() - 2 }}
+                            {% endif %}
+                        </td>
+                        <td>{{ format_price(order.grand_total) }}</td>
+                        <td>
+                            <span class="status-badge status-{{ order.display_status }}">
+                                {{ order.status_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-inbox" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i>
+            <p>Заказов пока нет</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    {# Товары на модерации #}
+    {% if moderation_products %}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2>Товары на модерации</h2>
+        </div>
+        
+        <div class="moderation-list">
+            {% for product in moderation_products %}
+            <div class="moderation-item">
+                <div class="moderation-info">
+                    <span class="moderation-product-name">{{ product.name }}</span>
+                    <span class="moderation-date">Отправлен {{ product.created_at.strftime('%d.%m.%Y') }}</span>
+                </div>
+                <a href="#" class="btn btn-secondary btn-sm">Просмотр</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    {# Отзывы #}
+    {% if recent_reviews %}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2>Последние отзывы</h2>
+            <a href="{{ url_for('seller.reviews') }}" class="btn btn-secondary">
+                Все отзывы <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+        
+        <div class="reviews-list">
+            {% for review in recent_reviews %}
+            <div class="review-item">
+                <div class="review-header">
+                    <span class="review-product-name">{{ review.product.name }}</span>
+                    <span class="rating">
+                        {% for i in range(5) %}{% if i < review.rating %}<i class="bi bi-star-fill"></i>{% else %}<i class="bi bi-star"></i>{% endif %}{% endfor %}
+                    </span>
+                </div>
+                <p class="review-text">{{ review.text or 'Без текста' }}</p>
+                <span class="review-date">{{ review.created_at.strftime('%d.%m.%Y') }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

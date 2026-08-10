@@ -1,0 +1,1050 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}Лояльность - Панель продавца{% endblock %}
+
+{% block content %}
+<div class="loyalty-page">
+    <div class="loyalty-page-header">
+        <h1>Лояльность</h1>
+        <p class="loyalty-page-sub">
+            Бонусная программа и промокоды для покупателей вашего магазина.
+        </p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="loyalty-flash">
+        {% for category, message in messages %}
+        <div class="flash-message {{ category }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <script type="application/json" id="seller-loyalty-csrf">
+        {"csrf_token": "{{ csrf_token() if csrf_token else '' }}"}
+    </script>
+
+    {# ────────── Вкладки ────────── #}
+    <div class="loyalty-tabs" role="tablist">
+        <button type="button" class="loyalty-tab {% if active_tab == 'bonus' %}active{% endif %}"
+                data-tab="bonus" role="tab" aria-selected="{{ 'true' if active_tab == 'bonus' else 'false' }}">
+            <i class="bi bi-coin"></i> Бонусы
+        </button>
+        <button type="button" class="loyalty-tab {% if active_tab == 'promo' %}active{% endif %}"
+                data-tab="promo" role="tab" aria-selected="{{ 'true' if active_tab == 'promo' else 'false' }}">
+            <i class="bi bi-ticket-perforated"></i> Промокоды
+        </button>
+    </div>
+
+    {# ────────── ВКЛАДКА: БОНУСЫ ────────── #}
+    <section class="loyalty-tab-panel {% if active_tab == 'bonus' %}active{% endif %}" id="panel-bonus" role="tabpanel">
+        {% if not loyalty_enabled %}
+        <div class="loyalty-disabled-note">
+            <i class="bi bi-exclamation-triangle"></i>
+            Программа лояльности сейчас выключена администратором. Раздел доступен только для просмотра.
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('seller.loyalty_save') }}" id="loyalty-form" class="loyalty-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+
+            <div class="loyalty-section">
+                <div class="loyalty-section-header loyalty-section-header--row">
+                    <div>
+                        <h2>Бонусная программа</h2>
+                        <p class="loyalty-section-sub">
+                            Включите тумблер, чтобы начислять покупателям баллы за заказы.
+                            Если выключено — баллы не копятся и не списываются.
+                        </p>
+                    </div>
+                    <div class="loyalty-toggle-inline">
+                        <div class="form-check form-switch m-0">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                   name="is_active" id="bonusActiveSwitch"
+                                   {% if seller_loyalty.is_active and seller_loyalty.rate_id %}checked{% endif %}
+                                   {% if not seller_loyalty.rate_id %}disabled{% endif %}>
+                            <label class="form-check-label" for="bonusActiveSwitch" id="bonusActiveLabel">
+                                {{ 'Включено' if (seller_loyalty.is_active and seller_loyalty.rate_id) else 'Выключено' }}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="loyalty-section">
+                <div class="loyalty-section-header">
+                    <h2>Курс начисления</h2>
+                    <p class="loyalty-section-sub">
+                        Сколько баллов покупатель получает за каждый рубль стоимости товара
+                        (после скидок). Начисление произойдёт, когда покупатель подтвердит
+                        получение заказа.
+                    </p>
+                </div>
+
+                {% if rates %}
+                <div class="loyalty-rates-grid">
+                    {% for rate in rates %}
+                    <label class="loyalty-rate-option {% if seller_loyalty.rate_id == rate.id %}selected{% endif %}"
+                           data-rate-id="{{ rate.id }}">
+                        <input type="radio" name="rate_id" value="{{ rate.id }}"
+                               {% if seller_loyalty.rate_id == rate.id %}checked{% endif %}>
+                        <div class="loyalty-rate-body">
+                            <div class="loyalty-rate-title">{{ rate.title }}</div>
+                            <div class="loyalty-rate-value">
+                                {{ '%.2f'|format(rate.points_per_ruble) }} <small>баллов за 1 ₽</small>
+                            </div>
+                            <div class="loyalty-rate-desc">{{ rate.description or '—' }}</div>
+                        </div>
+                        <div class="loyalty-rate-check">
+                            <i class="bi bi-check-circle-fill"></i>
+                        </div>
+                    </label>
+                    {% endfor %}
+                    <label class="loyalty-rate-option {% if not seller_loyalty.rate_id %}selected{% endif %}">
+                        <input type="radio" name="rate_id" value="" {% if not seller_loyalty.rate_id %}checked{% endif %}>
+                        <div class="loyalty-rate-body">
+                            <div class="loyalty-rate-title">Не подключать</div>
+                            <div class="loyalty-rate-desc">Баллы не начисляются, покупатели не смогут их тратить у вас.</div>
+                        </div>
+                        <div class="loyalty-rate-check">
+                            <i class="bi bi-check-circle-fill"></i>
+                        </div>
+                    </label>
+                </div>
+                {% else %}
+                <div class="empty-state" style="padding: 32px; text-align: center; color: #6b7280;">
+                    <i class="bi bi-info-circle" style="font-size: 28px; opacity: .4;"></i>
+                    <p style="margin-top: 12px;">Админ пока не добавил ни одного активного курса. Загляните сюда позже.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="loyalty-section">
+                <div class="loyalty-section-header">
+                    <h2>% списания баллами на кассе</h2>
+                    <p class="loyalty-section-sub">
+                        Какую максимальную долю стоимости покупатель может оплатить бонусными
+                        баллами вашего магазина. Например, 50% — половину чека можно закрыть
+                        баллами, остальное — деньгами.
+                    </p>
+                </div>
+
+                <div class="payback-control">
+                    <input type="range" name="payback_percent" id="paybackRange"
+                           min="0" max="100" step="1"
+                           value="{{ seller_loyalty.payback_percent or 0 }}">
+                    <div class="payback-display">
+                        <span id="paybackValue">{{ seller_loyalty.payback_percent or 0 }}</span>%
+                    </div>
+                </div>
+                <div class="payback-help">
+                    <span>0% — баллы копятся, но списывать нельзя</span>
+                    <span>100% — можно оплатить баллами весь чек</span>
+                </div>
+            </div>
+
+            <div class="loyalty-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Сохранить
+                </button>
+            </div>
+        </form>
+    </section>
+
+    {# ────────── ВКЛАДКА: ПРОМОКОДЫ ────────── #}
+    <section class="loyalty-tab-panel {% if active_tab == 'promo' %}active{% endif %}" id="panel-promo" role="tabpanel">
+        {% if not promo_enabled_global %}
+        <div class="loyalty-disabled-note">
+            <i class="bi bi-exclamation-triangle"></i>
+            Промокоды сейчас выключены администратором. Вы можете настроить форму, но
+            выданные коды применяться не будут.
+        </div>
+        {% endif %}
+
+        {# Тумблер «Промокоды включены/выключены у этого продавца» #}
+        <div class="promo-toggle-card">
+            <div class="promo-toggle-info">
+                <div class="promo-toggle-title">Промокоды в вашем магазине</div>
+                <div class="promo-toggle-sub">
+                    Включено — вы можете выдавать покупателям промокоды на скидку.
+                    Выключено — ранее выданные промокоды перестают действовать до повторного включения.
+                </div>
+            </div>
+            <div class="promo-toggle-control">
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="promoSellerEnabled" {% if promo_seller_enabled %}checked{% endif %}>
+                    <label class="form-check-label" for="promoSellerEnabled" id="promoSellerEnabledLabel">
+                        {{ 'Включено' if promo_seller_enabled else 'Выключено' }}
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        {# Настройки нового промокода #}
+        <div class="promo-section">
+            <div class="loyalty-section-header">
+                <h2>Создание промокода</h2>
+                <p class="loyalty-section-sub">
+                    Задайте параметры кода: срок, тип использования, получателя и размер скидки.
+                    Промокод можно придумать самому или сгенерировать автоматически.
+                </p>
+            </div>
+
+            <form id="promo-create-form" class="promo-form" autocomplete="off">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+
+                <div class="promo-form-grid">
+                    {# 1. Срок действия #}
+                    <div class="promo-field">
+                        <label class="promo-label">Срок действия</label>
+                        <select class="form-control" name="validity_type" id="promoValidityType">
+                            <option value="forever">Бессрочный</option>
+                            <option value="days">Указать количество дней</option>
+                            <option value="until">До даты</option>
+                        </select>
+                    </div>
+                    <div class="promo-field promo-field--days" id="promoValidDaysField" style="display:none;">
+                        <label class="promo-label">Сколько дней действует</label>
+                        <input type="number" class="form-control" name="valid_days" id="promoValidDays" min="1" max="3650" placeholder="например, 30">
+                    </div>
+                    <div class="promo-field promo-field--until" id="promoValidUntilField" style="display:none;">
+                        <label class="promo-label">Действует до</label>
+                        <input type="date" class="form-control" name="valid_until" id="promoValidUntil">
+                    </div>
+
+                    {# 2. Многоразовость #}
+                    <div class="promo-field">
+                        <label class="promo-label">Использование</label>
+                        <select class="form-control" name="usage_type" id="promoUsageType">
+                            <option value="single">Одноразовый</option>
+                            <option value="multiple">Многоразовый</option>
+                        </select>
+                    </div>
+                    <div class="promo-field promo-field--multi" id="promoMaxUsesField" style="display:none;">
+                        <label class="promo-label">Допустимое число использований</label>
+                        <input type="number" class="form-control" name="max_uses" id="promoMaxUses" min="2" max="100000" placeholder="например, 100">
+                    </div>
+
+                    {# 3. Получатель #}
+                    <div class="promo-field">
+                        <label class="promo-label">Получатель</label>
+                        <select class="form-control" name="recipient_type" id="promoRecipientType">
+                            <option value="public">Без определённого получателя</option>
+                            <option value="personal">Индивидуальный (конкретный покупатель)</option>
+                        </select>
+                    </div>
+                    <div class="promo-field promo-field--buyer" id="promoBuyerField" style="display:none;">
+                        <label class="promo-label">Кому выдаётся</label>
+                        <div class="promo-buyer-select">
+                            <input type="text" class="form-control" id="promoBuyerSearch" placeholder="Начните вводить логин покупателя...">
+                            <input type="hidden" name="buyer_id" id="promoBuyerId" value="">
+                            <div class="promo-buyer-dropdown" id="promoBuyerDropdown"></div>
+                        </div>
+                    </div>
+
+                    {# 4. Скидка #}
+                    <div class="promo-field">
+                        <label class="promo-label">Размер скидки</label>
+                        <div class="promo-discount-row">
+                            <input type="number" class="form-control" name="discount_value" id="promoDiscountValue"
+                                   min="0.01" step="0.01" placeholder="0" required>
+                            <select class="form-control" name="discount_type" id="promoDiscountType">
+                                <option value="rub">₽</option>
+                                <option value="percent">%</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="promo-field">
+                        <label class="promo-label">Для заказов</label>
+                        <select class="form-control" name="min_order_mode" id="promoMinOrderMode">
+                            <option value="any">Любой суммы</option>
+                            <option value="from">От указанной суммы</option>
+                        </select>
+                    </div>
+                    <div class="promo-field promo-field--min" id="promoMinOrderField" style="display:none;">
+                        <label class="promo-label">Минимальная сумма заказа, ₽</label>
+                        <input type="number" class="form-control" name="min_order_amount" id="promoMinOrderAmount" min="0" step="0.01" placeholder="например, 1500">
+                    </div>
+                </div>
+
+                {# Кнопки выбора способа задания кода #}
+                <div class="promo-code-actions">
+                    <button type="button" class="btn btn-outline" id="promoCodeCustomBtn">
+                        <i class="bi bi-pencil"></i> Придумать промокод самому
+                    </button>
+                    <button type="button" class="btn btn-outline" id="promoCodeGenerateBtn">
+                        <i class="bi bi-shuffle"></i> Сгенерировать промокод
+                    </button>
+                </div>
+                <div class="promo-code-field" id="promoCodeField" style="display:none;">
+                    <label class="promo-label">Промокод</label>
+                    <input type="text" class="form-control" name="code" id="promoCodeInput" maxlength="6" style="text-transform:uppercase;">
+                </div>
+
+                <div class="promo-submit-row" id="promoSubmitRow" style="display:none;">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check2-circle"></i> Создание промокода
+                    </button>
+                </div>
+                <div class="promo-form-error" id="promoFormError"></div>
+            </form>
+        </div>
+
+        {# Таблица выданных промокодов #}
+        <div class="promo-section">
+            <div class="loyalty-section-header">
+                <h2>Выданные промокоды</h2>
+                <p class="loyalty-section-sub">
+                    {% if promo_codes %}
+                        Всего кодов: {{ promo_codes|length }}.
+                    {% else %}
+                        У вас пока нет выданных промокодов.
+                    {% endif %}
+                </p>
+            </div>
+
+            {% if promo_codes %}
+            <div class="promo-table-wrap">
+                <table class="promo-table">
+                    <thead>
+                        <tr>
+                            <th>Промокод</th>
+                            <th>Скидка</th>
+                            <th>Получатель</th>
+                            <th>Срок действия</th>
+                            <th>Тип</th>
+                            <th style="text-align:center;">Статус</th>
+                            <th style="text-align:right;">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in promo_codes %}
+                        <tr data-promo-id="{{ p.id }}">
+                            <td class="promo-code-cell">{{ p.code }}</td>
+                            <td>{{ p.discount_label }}</td>
+                            <td>{{ p.recipient_label }}</td>
+                            <td>{{ p.validity_label }}</td>
+                            <td>{{ p.usage_label }}</td>
+                            <td style="text-align:center;">
+                                {% if p.is_valid_now %}
+                                    <span class="promo-lamp promo-lamp--on" title="Активен"></span>
+                                {% else %}
+                                    <span class="promo-lamp promo-lamp--off" title="{{ p.status_label }}"></span>
+                                {% endif %}
+                            </td>
+                            <td class="promo-actions-cell">
+                                <button type="button" class="btn btn-sm promo-action-btn js-promo-toggle
+                                               {% if p.is_active %}promo-action-btn--off{% else %}promo-action-btn--on{% endif %}"
+                                        data-id="{{ p.id }}"
+                                        title="{{ 'Деактивировать' if p.is_active else 'Активировать' }}">
+                                    <i class="bi {{ 'bi-toggle-on' if p.is_active else 'bi-toggle-off' }}"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm promo-action-btn promo-action-btn--delete js-promo-delete"
+                                        data-id="{{ p.id }}" data-code="{{ p.code }}"
+                                        title="Удалить">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 32px; text-align: center; color: #6b7280;">
+                <i class="bi bi-ticket-perforated" style="font-size: 28px; opacity: .4;"></i>
+                <p style="margin-top: 12px;">Создайте первый промокод с помощью формы выше.</p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+</div>
+
+<style>
+.loyalty-page { max-width: 1000px; }
+
+.loyalty-page-header { margin-bottom: 20px; }
+.loyalty-page-header h1 { font-size: 24px; font-weight: 600; margin: 0 0 8px; }
+.loyalty-page-sub { color: #6b7280; font-size: 14px; margin: 0; max-width: 720px; }
+
+.loyalty-flash { margin-bottom: 16px; }
+.loyalty-flash .flash-message {
+    padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 8px;
+}
+.loyalty-flash .success { background: #dcfce7; color: #15803d; }
+.loyalty-flash .error { background: #fee2e2; color: #b91c1c; }
+.loyalty-flash .warning { background: #fef3c7; color: #b45309; }
+
+.loyalty-disabled-note {
+    background: #fff7ed;
+    border-left: 4px solid #f59e0b;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    color: #92400e;
+    font-size: 14px;
+}
+.loyalty-disabled-note i { margin-right: 6px; }
+
+/* ────── Вкладки ────── */
+.loyalty-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 24px;
+}
+.loyalty-tab {
+    background: none;
+    border: none;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.2s, border-color 0.2s;
+}
+.loyalty-tab:hover { color: #1f2937; }
+.loyalty-tab.active {
+    color: #4a6cf7;
+    border-bottom-color: #4a6cf7;
+    font-weight: 600;
+}
+.loyalty-tab-panel { display: none; }
+.loyalty-tab-panel.active { display: block; }
+
+/* ────── Бонусы (общие секции) ────── */
+.loyalty-section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+.loyalty-section-header { margin-bottom: 16px; }
+.loyalty-section-header h2 { font-size: 16px; font-weight: 600; margin: 0 0 4px; color: #1f2937; }
+.loyalty-section-sub { color: #6b7280; font-size: 13px; margin: 0; line-height: 1.5; }
+.loyalty-section-header--row {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.loyalty-toggle-inline { flex-shrink: 0; }
+.loyalty-toggle-inline .form-check-input { width: 48px; height: 24px; cursor: pointer; }
+.loyalty-toggle-inline .form-check-input:checked + .form-check-label { color: #16a34a; font-weight: 600; }
+.loyalty-toggle-inline .form-check-input:not(:checked) + .form-check-label { color: #dc2626; font-weight: 600; }
+.loyalty-toggle-inline .form-check-label { margin-left: 8px; cursor: pointer; }
+.loyalty-toggle-inline .form-check-input:disabled { opacity: .5; cursor: not-allowed; }
+
+.loyalty-rates-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+}
+.loyalty-rate-option {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fafbfc;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+.loyalty-rate-option input { display: none; }
+.loyalty-rate-option:hover { border-color: #93c5fd; }
+.loyalty-rate-option.selected { border-color: #4a6cf7; background: #f0f4ff; }
+.loyalty-rate-body { flex: 1; min-width: 0; }
+.loyalty-rate-title { font-size: 14px; font-weight: 600; color: #1f2937; margin-bottom: 4px; }
+.loyalty-rate-value { font-size: 16px; font-weight: 700; color: #4a6cf7; margin-bottom: 4px; }
+.loyalty-rate-value small { font-size: 12px; color: #6b7280; font-weight: 500; }
+.loyalty-rate-desc { font-size: 12px; color: #6b7280; line-height: 1.4; }
+.loyalty-rate-check {
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    color: #d1d5db;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+.loyalty-rate-option.selected .loyalty-rate-check { color: #4a6cf7; }
+
+.payback-control {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 8px;
+}
+.payback-control input[type="range"] { flex: 1; }
+.payback-display {
+    background: #4a6cf7;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 18px;
+    min-width: 80px;
+    text-align: center;
+}
+.payback-help {
+    display: flex; justify-content: space-between;
+    font-size: 12px; color: #6b7280;
+}
+.loyalty-actions { margin-top: 24px; }
+
+/* ────── Промокоды ────── */
+.promo-toggle-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 20px;
+}
+.promo-toggle-info { flex: 1; min-width: 0; }
+.promo-toggle-title { font-size: 16px; font-weight: 600; color: #1f2937; margin-bottom: 4px; }
+.promo-toggle-sub { font-size: 13px; color: #6b7280; line-height: 1.5; }
+.promo-toggle-control { flex-shrink: 0; }
+.promo-toggle-control .form-check-input { width: 48px; height: 24px; cursor: pointer; }
+.promo-toggle-control .form-check-input:checked + .form-check-label { color: #16a34a; font-weight: 600; }
+.promo-toggle-control .form-check-input:not(:checked) + .form-check-label { color: #dc2626; font-weight: 600; }
+.promo-toggle-control .form-check-label { margin-left: 8px; cursor: pointer; }
+
+.promo-section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.promo-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 8px;
+    margin-bottom: 16px;
+}
+@media (max-width: 700px) { .promo-form-grid { grid-template-columns: 1fr; } }
+.promo-field { display: flex; flex-direction: column; gap: 6px; }
+.promo-label { font-size: 13px; font-weight: 500; color: #374151; }
+.promo-discount-row { display: flex; gap: 8px; }
+.promo-discount-row input { flex: 1; }
+.promo-discount-row select { width: 90px; flex-shrink: 0; }
+
+.promo-buyer-select { position: relative; }
+.promo-buyer-dropdown {
+    position: absolute;
+    top: 100%; left: 0; right: 0;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 30;
+    display: none;
+    margin-top: 4px;
+}
+.promo-buyer-dropdown.open { display: block; }
+.promo-buyer-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.promo-buyer-option:hover { background: #f3f4f6; }
+.promo-buyer-empty {
+    padding: 8px 12px; color: #6b7280; font-size: 13px;
+}
+.promo-buyer-selected {
+    display: inline-block;
+    margin-top: 6px;
+    background: #eef2ff;
+    color: #4338ca;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+}
+.promo-buyer-selected button {
+    background: none; border: none; color: #4338ca;
+    margin-left: 6px; cursor: pointer; font-size: 12px;
+}
+
+.promo-code-actions {
+    display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 8px;
+}
+.promo-code-field { margin-top: 8px; }
+.promo-submit-row { margin-top: 16px; }
+.promo-form-error {
+    color: #b91c1c;
+    font-size: 13px;
+    margin-top: 8px;
+    min-height: 18px;
+}
+
+/* ────── Таблица промокодов ────── */
+.promo-table-wrap {
+    overflow-x: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+}
+.promo-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+.promo-table th, .promo-table td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid #f1f5f9;
+}
+.promo-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #475569;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.promo-table tr:last-child td { border-bottom: none; }
+.promo-table tr:hover td { background: #fafbff; }
+.promo-code-cell {
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: #1f2937;
+}
+
+/* Лампочка */
+.promo-lamp {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(0,0,0,0.15) inset;
+    vertical-align: middle;
+}
+.promo-lamp--on {
+    background: radial-gradient(circle at 30% 30%, #bbf7d0, #22c55e 60%, #15803d);
+    box-shadow: 0 0 10px rgba(34,197,94,0.6);
+}
+.promo-lamp--off {
+    background: radial-gradient(circle at 30% 30%, #fecaca, #ef4444 60%, #991b1b);
+    box-shadow: 0 0 10px rgba(239,68,68,0.5);
+}
+
+/* Кнопки действий в строке промокода */
+.promo-actions-cell {
+    text-align: right;
+    white-space: nowrap;
+}
+.promo-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #475569;
+    margin-left: 4px;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.05s;
+}
+.promo-action-btn:hover { background: #f8fafc; }
+.promo-action-btn:active { transform: scale(0.96); }
+.promo-action-btn i { font-size: 16px; line-height: 1; }
+.promo-action-btn--on {
+    color: #16a34a;
+    border-color: #bbf7d0;
+}
+.promo-action-btn--on:hover {
+    background: #f0fdf4;
+    border-color: #86efac;
+}
+.promo-action-btn--off {
+    color: #f59e0b;
+    border-color: #fde68a;
+}
+.promo-action-btn--off:hover {
+    background: #fffbeb;
+    border-color: #fcd34d;
+}
+.promo-action-btn--delete {
+    color: #dc2626;
+    border-color: #fecaca;
+}
+.promo-action-btn--delete:hover {
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+.promo-action-btn.busy,
+.promo-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfData = JSON.parse(document.getElementById('seller-loyalty-csrf').textContent);
+    const csrfToken = csrfData.csrf_token;
+
+    // ────── Вкладки ──────
+    document.querySelectorAll('.loyalty-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            const target = this.dataset.tab;
+            document.querySelectorAll('.loyalty-tab').forEach(t => {
+                t.classList.toggle('active', t === this);
+                t.setAttribute('aria-selected', t === this ? 'true' : 'false');
+            });
+            document.querySelectorAll('.loyalty-tab-panel').forEach(p => {
+                p.classList.toggle('active', p.id === `panel-${target}`);
+            });
+            // Меняем URL ?tab= без перезагрузки, чтобы было можно закладывать ссылку
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', target);
+            window.history.replaceState({}, '', url);
+        });
+    });
+
+    // ────── Бонусы: подсветка карточки курса ──────
+    document.querySelectorAll('.loyalty-rate-option input[type="radio"]').forEach(r => {
+        r.addEventListener('change', function() {
+            document.querySelectorAll('.loyalty-rate-option').forEach(c => c.classList.remove('selected'));
+            const label = this.closest('.loyalty-rate-option');
+            if (label) label.classList.add('selected');
+        });
+    });
+
+    // ────── Бонусы: слайдер % ──────
+    const range = document.getElementById('paybackRange');
+    const out = document.getElementById('paybackValue');
+    if (range && out) {
+        range.addEventListener('input', function() { out.textContent = this.value; });
+    }
+
+    // ────── Бонусы: тумблер активности (включается только если выбран курс) ──────
+    const bonusSwitch = document.getElementById('bonusActiveSwitch');
+    const bonusLabel = document.getElementById('bonusActiveLabel');
+    function syncBonusLabel() {
+        if (!bonusSwitch) return;
+        bonusLabel.textContent = bonusSwitch.checked ? 'Включено' : 'Выключено';
+    }
+    if (bonusSwitch) {
+        // При выборе «Не подключать» — выключаем и блокируем тумблер
+        document.querySelectorAll('input[name="rate_id"]').forEach(r => {
+            r.addEventListener('change', function() {
+                const has = this.value && this.value !== '';
+                bonusSwitch.disabled = !has;
+                if (!has) {
+                    bonusSwitch.checked = false;
+                }
+                syncBonusLabel();
+            });
+        });
+        bonusSwitch.addEventListener('change', syncBonusLabel);
+        syncBonusLabel();
+    }
+
+    // ────── Промокоды: тумблер у продавца ──────
+    const promoToggle = document.getElementById('promoSellerEnabled');
+    const promoLabel = document.getElementById('promoSellerEnabledLabel');
+    function syncPromoLabel() {
+        if (!promoToggle) return;
+        promoLabel.textContent = promoToggle.checked ? 'Включено' : 'Выключено';
+    }
+    if (promoToggle) {
+        promoToggle.addEventListener('change', function() {
+            syncPromoLabel();
+            const fd = new FormData();
+            fd.append('enabled', promoToggle.checked ? '1' : '0');
+            fetch('{{ url_for("seller.loyalty_promo_toggle") }}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: fd,
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    alert('Не удалось сохранить состояние тумблера');
+                    promoToggle.checked = !promoToggle.checked;
+                    syncPromoLabel();
+                }
+            })
+            .catch(() => {
+                promoToggle.checked = !promoToggle.checked;
+                syncPromoLabel();
+            });
+        });
+    }
+
+    // ────── Промокоды: показ/скрытие зависимых полей ──────
+    function showIf(id, cond) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = cond ? '' : 'none';
+    }
+    function refreshPromoFields() {
+        const validityType = document.getElementById('promoValidityType').value;
+        showIf('promoValidDaysField', validityType === 'days');
+        showIf('promoValidUntilField', validityType === 'until');
+
+        const usageType = document.getElementById('promoUsageType').value;
+        showIf('promoMaxUsesField', usageType === 'multiple');
+
+        const recipientType = document.getElementById('promoRecipientType').value;
+        showIf('promoBuyerField', recipientType === 'personal');
+
+        const minOrderMode = document.getElementById('promoMinOrderMode').value;
+        showIf('promoMinOrderField', minOrderMode === 'from');
+
+        // Кнопка создания доступна только если задан код
+        const codeVal = (document.getElementById('promoCodeInput').value || '').trim();
+        showIf('promoSubmitRow', codeVal.length > 0);
+    }
+
+    ['promoValidityType', 'promoUsageType', 'promoRecipientType', 'promoMinOrderMode']
+        .forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', refreshPromoFields);
+        });
+    const codeInput = document.getElementById('promoCodeInput');
+    if (codeInput) codeInput.addEventListener('input', refreshPromoFields);
+    refreshPromoFields();
+
+    // ────── Промокоды: кнопки выбора способа задания кода ──────
+    const codeField = document.getElementById('promoCodeField');
+    document.getElementById('promoCodeCustomBtn').addEventListener('click', function() {
+        codeField.style.display = '';
+        codeInput.value = '';
+        codeInput.removeAttribute('readonly');
+        codeInput.placeholder = 'Например, SALE10';
+        codeInput.focus();
+        refreshPromoFields();
+    });
+    document.getElementById('promoCodeGenerateBtn').addEventListener('click', function() {
+        const fd = new FormData();
+        fd.append('csrf_token', csrfToken);
+        fetch('{{ url_for("seller.loyalty_promo_generate") }}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+            body: fd,
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                codeField.style.display = '';
+                codeInput.value = data.code;
+                codeInput.setAttribute('readonly', 'readonly');
+                refreshPromoFields();
+            } else {
+                alert(data.error || 'Не удалось сгенерировать промокод');
+            }
+        })
+        .catch(() => alert('Ошибка соединения'));
+    });
+
+    // ────── Промокоды: поиск покупателя (autocomplete) ──────
+    const buyerSearch = document.getElementById('promoBuyerSearch');
+    const buyerId = document.getElementById('promoBuyerId');
+    const buyerDropdown = document.getElementById('promoBuyerDropdown');
+    let buyerSearchTimer = null;
+
+    function renderBuyerSelected(buyer) {
+        buyerDropdown.innerHTML = '';
+        const tag = document.createElement('div');
+        tag.className = 'promo-buyer-selected';
+        tag.innerHTML = `Выбран: <b>${buyer.label}</b> <button type="button" id="promoBuyerClear">&times;</button>`;
+        buyerDropdown.appendChild(tag);
+        buyerDropdown.classList.add('open');
+        document.getElementById('promoBuyerClear').addEventListener('click', function(ev) {
+            ev.preventDefault();
+            buyerId.value = '';
+            buyerSearch.value = '';
+            buyerDropdown.classList.remove('open');
+        });
+    }
+    function renderBuyerList(items) {
+        buyerDropdown.innerHTML = '';
+        if (!items.length) {
+            const empty = document.createElement('div');
+            empty.className = 'promo-buyer-empty';
+            empty.textContent = 'Никого не найдено';
+            buyerDropdown.appendChild(empty);
+            buyerDropdown.classList.add('open');
+            return;
+        }
+        items.forEach(it => {
+            const opt = document.createElement('div');
+            opt.className = 'promo-buyer-option';
+            opt.textContent = it.label;
+            opt.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                buyerId.value = it.id;
+                buyerSearch.value = it.label;
+                renderBuyerSelected(it);
+            });
+            buyerDropdown.appendChild(opt);
+        });
+        buyerDropdown.classList.add('open');
+    }
+    if (buyerSearch) {
+        buyerSearch.addEventListener('input', function() {
+            buyerId.value = '';
+            const q = this.value.trim();
+            clearTimeout(buyerSearchTimer);
+            if (!q) { buyerDropdown.classList.remove('open'); return; }
+            buyerSearchTimer = setTimeout(() => {
+                const fd = new FormData();
+                fd.append('q', q);
+                fetch('{{ url_for("seller.loyalty_promo_buyer_search") }}', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken },
+                    body: fd,
+                })
+                .then(r => r.json())
+                .then(data => renderBuyerList(data.results || []))
+                .catch(() => {});
+            }, 200);
+        });
+        buyerSearch.addEventListener('blur', function() {
+            // даём mousedown успеть отработать
+            setTimeout(() => buyerDropdown.classList.remove('open'), 150);
+        });
+    }
+
+    // ────── Промокоды: сабмит формы ──────
+    const promoForm = document.getElementById('promo-create-form');
+    const promoError = document.getElementById('promoFormError');
+    promoForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        promoError.textContent = '';
+        const codeVal = (document.getElementById('promoCodeInput').value || '').trim();
+        if (!codeVal) {
+            promoError.textContent = 'Сначала задайте или сгенерируйте промокод';
+            return;
+        }
+        if (document.getElementById('promoRecipientType').value === 'personal' && !document.getElementById('promoBuyerId').value) {
+            promoError.textContent = 'Выберите получателя из списка';
+            return;
+        }
+        const fd = new FormData(promoForm);
+        fetch('{{ url_for("seller.loyalty_promo_create") }}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+            body: fd,
+        })
+        .then(r => r.json().then(j => ({ status: r.status, body: j })))
+        .then(({ status, body }) => {
+            if (body.success) {
+                location.reload();
+            } else {
+                promoError.textContent = body.error || 'Не удалось создать промокод';
+            }
+        })
+        .catch(() => { promoError.textContent = 'Ошибка соединения'; });
+    });
+
+    // ────── Промокоды: кнопка активации/деактивации ──────
+    document.querySelectorAll('.js-promo-toggle').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (this.disabled) return;
+            const id = this.dataset.id;
+            const fd = new FormData();
+            fd.append('id', id);
+            this.disabled = true;
+            this.classList.add('busy');
+            fetch('{{ url_for("seller.loyalty_promo_toggle_active") }}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: fd,
+            })
+            .then(r => r.json().then(j => ({ status: r.status, body: j })))
+            .then(({ status, body }) => {
+                if (body.success) {
+                    // Обновим кнопку: класс + иконка + tooltip
+                    const isOn = !!body.is_active;
+                    this.classList.toggle('promo-action-btn--on', isOn);
+                    this.classList.toggle('promo-action-btn--off', !isOn);
+                    const icon = this.querySelector('i');
+                    if (icon) {
+                        icon.className = 'bi ' + (isOn ? 'bi-toggle-on' : 'bi-toggle-off');
+                    }
+                    this.title = isOn ? 'Деактивировать' : 'Активировать';
+
+                    // Обновим лампочку в той же строке
+                    const row = this.closest('tr');
+                    if (row) {
+                        const lampTd = row.querySelector('td:nth-child(6)');
+                        if (lampTd) {
+                            lampTd.innerHTML = body.is_valid_now
+                                ? '<span class="promo-lamp promo-lamp--on" title="Активен"></span>'
+                                : '<span class="promo-lamp promo-lamp--off" title="' +
+                                  (body.status_label || 'Неактивен') + '"></span>';
+                        }
+                    }
+                } else {
+                    alert(body.error || 'Не удалось изменить состояние промокода');
+                }
+            })
+            .catch(() => alert('Ошибка соединения'))
+            .finally(() => {
+                this.disabled = false;
+                this.classList.remove('busy');
+            });
+        });
+    });
+
+    // ────── Промокоды: кнопка удаления ──────
+    document.querySelectorAll('.js-promo-delete').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            const code = this.dataset.code || '';
+            if (!confirm(`Удалить промокод «${code}»? Действие необратимо.`)) return;
+            const fd = new FormData();
+            fd.append('id', id);
+            const row = this.closest('tr');
+            this.disabled = true;
+            this.classList.add('busy');
+            fetch('{{ url_for("seller.loyalty_promo_delete") }}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: fd,
+            })
+            .then(r => r.json().then(j => ({ status: r.status, body: j })))
+            .then(({ status, body }) => {
+                if (body.success) {
+                    if (row) {
+                        row.style.transition = 'opacity 0.2s';
+                        row.style.opacity = '0';
+                        setTimeout(() => {
+                            row.remove();
+                            // Если строк больше нет — перерисуем заглушку
+                            const tbody = document.querySelector('.promo-table tbody');
+                            if (tbody && !tbody.children.length) {
+                                location.reload();
+                            }
+                        }, 200);
+                    } else {
+                        location.reload();
+                    }
+                } else {
+                    alert(body.error || 'Не удалось удалить промокод');
+                }
+            })
+            .catch(() => alert('Ошибка соединения'))
+            .finally(() => {
+                this.disabled = false;
+                this.classList.remove('busy');
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

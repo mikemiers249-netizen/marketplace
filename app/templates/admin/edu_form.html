@@ -1,0 +1,225 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ title }} - Админ-панель{% endblock %}
+
+{% block header_title %}{{ title }}{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="info-page info-page-detail">
+    <a class="info-back-link" href="{{ url_for('admin.info_education') }}">
+        <i class="bi bi-arrow-left"></i> Обратно к учебным материалам
+    </a>
+
+    <div class="admin-form-card">
+        <h2 class="admin-form-title">
+            <i class="bi bi-{% if is_new %}plus-lg{% else %}pencil{% endif %}"></i>
+            {{ 'Новый учебный материал' if is_new else 'Редактирование материала' }}
+        </h2>
+
+        <form method="POST"
+              action="{{ url_for('admin.edu_new') if is_new else url_for('admin.edu_edit', material_id=material.id) }}"
+              enctype="multipart/form-data"
+              class="admin-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+            <div class="form-group">
+                <label for="edu-title">Название урока *</label>
+                <input type="text" id="edu-title" name="title" required
+                       class="form-input"
+                       value="{{ material.title if material else '' }}"
+                       placeholder="Например: Как настроить доставку СДЭК">
+            </div>
+
+            <div class="form-group">
+                <label for="edu-cover-file">Обложка (jpg, png, webp, gif — до 16 МБ)</label>
+                <input type="file" id="edu-cover-file" name="cover_file"
+                       class="form-input"
+                       accept="image/png,image/jpeg,image/webp,image/gif">
+
+                {% set existing_cover = material.cover_url if material and material.cover_url else '' %}
+                {% if existing_cover %}
+                    {% if not (existing_cover.startswith('http://') or existing_cover.startswith('https://') or existing_cover.startswith('/')) %}
+                        {% set preview_url = url_for('static', filename=existing_cover) %}
+                    {% else %}
+                        {% set preview_url = existing_cover %}
+                    {% endif %}
+                    <div class="edu-cover-preview" style="margin-top: 0.75rem;">
+                        <img src="{{ preview_url|e }}" alt="Текущая обложка"
+                             style="max-width: 320px; max-height: 180px; border-radius: 8px; display: block;">
+                        <label class="form-hint" style="display: block; margin-top: 0.5rem;">
+                            <input type="checkbox" name="cover_clear" value="1">
+                            Удалить обложку
+                        </label>
+                    </div>
+                {% endif %}
+
+                <small class="form-hint">
+                    Картинка будет автоматически уменьшена до 1600px по большей стороне и
+                    использована как фон плитки. Если не загружена — будет дефолтный градиент.
+                </small>
+
+                {# Поле cover_url оставлено для обратной совместимости (внешние ссылки).
+                   Если прислали файл, оно игнорируется. #}
+                <details style="margin-top: 0.5rem;">
+                    <summary class="form-hint">Использовать внешнюю ссылку вместо файла</summary>
+                    <input type="text" id="edu-cover" name="cover_url"
+                           class="form-input"
+                           style="margin-top: 0.5rem;"
+                           value="{{ material.cover_url if material and material.cover_url else '' }}"
+                           placeholder="https://... (если хотите внешнюю ссылку)">
+                </details>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edu-tag">Тег</label>
+                    <input type="text" id="edu-tag" name="tag" maxlength="50"
+                           class="form-input"
+                           value="{{ material.tag if material and material.tag else '' }}"
+                           placeholder="Например: Доставка, Начало, Маркетинг"
+                           list="edu-existing-tags">
+                    <datalist id="edu-existing-tags">
+                        {% for t in all_tags or [] %}
+                        <option value="{{ t }}"></option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+
+                <div class="form-group">
+                    <label for="edu-audience">Кому показывать</label>
+                    <select id="edu-audience" name="audience" class="form-select">
+                        <option value="all" {% if not material or material.audience == 'all' %}selected{% endif %}>Всем (и админу, и продавцу)</option>
+                        <option value="admin" {% if material and material.audience == 'admin' %}selected{% endif %}>Только админу</option>
+                        <option value="seller" {% if material and material.audience == 'seller' %}selected{% endif %}>Только продавцу</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="edu-body">Содержимое (вёрстка)</label>
+                {# Простой textarea + кнопки форматирования сверху.
+                   Используется contenteditable-обёртка, чтобы можно было
+                   вставлять заголовки, списки, цитаты, изображения. #}
+                <div class="edu-editor">
+                    <div class="edu-editor-toolbar">
+                        <button type="button" class="edu-editor-btn" data-cmd="bold" title="Жирный">
+                            <i class="bi bi-type-bold"></i>
+                        </button>
+                        <button type="button" class="edu-editor-btn" data-cmd="italic" title="Курсив">
+                            <i class="bi bi-type-italic"></i>
+                        </button>
+                        <button type="button" class="edu-editor-btn" data-cmd="underline" title="Подчёркнутый">
+                            <i class="bi bi-type-underline"></i>
+                        </button>
+                        <span class="edu-editor-sep"></span>
+                        <button type="button" class="edu-editor-btn" data-cmd="formatBlock" data-arg="H2" title="Заголовок">
+                            <i class="bi bi-type-h2"></i>
+                        </button>
+                        <button type="button" class="edu-editor-btn" data-cmd="formatBlock" data-arg="H3" title="Подзаголовок">
+                            <i class="bi bi-type-h3"></i>
+                        </button>
+                        <button type="button" class="edu-editor-btn" data-cmd="formatBlock" data-arg="P" title="Параграф">
+                            <i class="bi bi-paragraph"></i>
+                        </button>
+                        <span class="edu-editor-sep"></span>
+                        <button type="button" class="edu-editor-btn" data-cmd="insertUnorderedList" title="Список">
+                            <i class="bi bi-list-ul"></i>
+                        </button>
+                        <button type="button" class="edu-editor-btn" data-cmd="insertOrderedList" title="Нумерованный">
+                            <i class="bi bi-list-ol"></i>
+                        </button>
+                        <button type="button" class="edu-editor-btn" data-cmd="formatBlock" data-arg="BLOCKQUOTE" title="Цитата">
+                            <i class="bi bi-quote"></i>
+                        </button>
+                        <span class="edu-editor-sep"></span>
+                        <button type="button" class="edu-editor-btn" data-cmd="createLink" title="Ссылка">
+                            <i class="bi bi-link-45deg"></i>
+                        </button>
+                        <button type="button" class="edu-editor-btn" data-cmd="insertImage" title="Картинка">
+                            <i class="bi bi-image"></i>
+                        </button>
+                        <button type="button" class="edu-editor-btn" data-cmd="removeFormat" title="Очистить">
+                            <i class="bi bi-eraser"></i>
+                        </button>
+                    </div>
+                    <div id="edu-editor" class="edu-editor-surface" contenteditable="true"
+                         data-placeholder="Начните писать содержимое урока. Можно вставлять заголовки, списки, цитаты, ссылки и картинки.">
+                        {{ material.body|safe if material and material.body else '' }}
+                    </div>
+                    <textarea id="edu-body" name="body" hidden>{{ material.body if material and material.body else '' }}</textarea>
+                </div>
+                <small class="form-hint">
+                    Поддерживается базовый HTML: h2, h3, p, ul/ol, blockquote, a, img, strong, em.
+                </small>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('admin.info_education') }}" class="btn btn-secondary">Отмена</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i>
+                    {% if is_new %}Опубликовать{% else %}Сохранить{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/info.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+    var surface = document.getElementById('edu-editor');
+    var hidden  = document.getElementById('edu-body');
+    if (!surface || !hidden) return;
+
+    // Перед сабмитом — копируем HTML из редактора в скрытое поле.
+    var form = surface.closest('form');
+    if (form) {
+        form.addEventListener('submit', function () {
+            hidden.value = surface.innerHTML.trim();
+        });
+    }
+
+    // Кнопки тулбара: document.execCommand (устаревший, но достаточный для
+    // базовой вёрстки и работает во всех браузерах без зависимостей).
+    document.querySelectorAll('.edu-editor-btn').forEach(function (btn) {
+        btn.addEventListener('mousedown', function (e) {
+            // Не теряем выделение в редакторе
+            e.preventDefault();
+        });
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            surface.focus();
+            var cmd = btn.getAttribute('data-cmd');
+            var arg = btn.getAttribute('data-arg') || null;
+            if (cmd === 'createLink') {
+                var url = window.prompt('Ссылка (https://...):', 'https://');
+                if (!url) return;
+                document.execCommand('createLink', false, url);
+            } else if (cmd === 'insertImage') {
+                var imgUrl = window.prompt('Ссылка на картинку:', 'https://');
+                if (!imgUrl) return;
+                document.execCommand('insertImage', false, imgUrl);
+            } else {
+                document.execCommand(cmd, false, arg);
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,214 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block header_title %}
+    <h1><i class="bi bi-star"></i> Модерация отзывов</h1>
+{% endblock %}
+
+{% block content %}
+<div class="reviews-moderation">
+    {% if reviews %}
+        <div class="reviews-list">
+            {% for review in reviews %}
+            <div class="review-card" data-review-id="{{ review.id }}">
+                <div class="review-card-header">
+                    <div class="review-product">
+                        {% if review.product %}
+                            <a href="{{ url_for('main.product', product_id=review.product.id) }}"
+                               target="_blank" class="product-link">
+                                {{ review.product.name }}
+                            </a>
+                        {% else %}
+                            <span class="text-muted">Товар удалён</span>
+                        {% endif %}
+                    </div>
+                    <div class="review-meta">
+                        <span class="review-author">
+                            <i class="bi bi-person"></i>
+                            {{ review.buyer.name or review.buyer.login if review.buyer else 'Аноним' }}
+                        </span>
+                        <span class="review-date">
+                            <i class="bi bi-calendar3"></i>
+                            {{ review.created_at.strftime('%d.%m.%Y %H:%M') }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="review-card-body">
+                    <div class="review-stars">
+                        {% for i in range(5) %}
+                            <span class="star{% if i < review.rating %} filled{% endif %}">★</span>
+                        {% endfor %}
+                        <span class="rating-num">{{ review.rating }}/5</span>
+                    </div>
+                    {% if review.text %}
+                        <div class="review-text">{{ review.text }}</div>
+                    {% else %}
+                        <div class="review-text text-muted"><em>Без текста</em></div>
+                    {% endif %}
+                </div>
+
+                <div class="review-card-actions">
+                    <form method="POST"
+                          action="{{ url_for('admin.review_approve', review_id=review.id) }}"
+                          class="review-action-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check2-circle"></i> Добавить
+                        </button>
+                    </form>
+                    <form method="POST"
+                          action="{{ url_for('admin.review_reject', review_id=review.id) }}"
+                          class="review-action-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-x-circle"></i> Отклонить
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">⭐</div>
+            <h3>Нет отзывов на модерации</h3>
+            <p>Здесь появятся отзывы, отправленные покупателями.</p>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+    .reviews-moderation {
+        padding: 8px 0;
+    }
+    .reviews-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .review-card {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 20px 24px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .review-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .product-link {
+        font-size: 16px;
+        font-weight: 600;
+        color: #0d6efd;
+        text-decoration: none;
+    }
+    .product-link:hover {
+        text-decoration: underline;
+    }
+    .review-meta {
+        display: flex;
+        gap: 16px;
+        font-size: 13px;
+        color: #888;
+    }
+    .review-meta i {
+        margin-right: 4px;
+    }
+    .review-card-body {
+        margin-bottom: 16px;
+    }
+    .review-stars {
+        margin-bottom: 8px;
+    }
+    .review-stars .star {
+        color: #ddd;
+        font-size: 18px;
+    }
+    .review-stars .star.filled {
+        color: #ffc107;
+    }
+    .review-stars .rating-num {
+        margin-left: 8px;
+        font-weight: 600;
+        color: #555;
+        font-size: 14px;
+    }
+    .review-text {
+        font-size: 15px;
+        color: #333;
+        line-height: 1.5;
+        white-space: pre-wrap;
+    }
+    .review-card-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+    .review-action-form {
+        margin: 0;
+    }
+    .btn-success {
+        background: #198754;
+        color: #fff;
+        border: none;
+        padding: 8px 18px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .btn-success:hover {
+        background: #146c43;
+    }
+    .btn-danger {
+        background: #dc3545;
+        color: #fff;
+        border: none;
+        padding: 8px 18px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .btn-danger:hover {
+        background: #bb2d3b;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 80px 20px;
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+    }
+    .empty-icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+    }
+    .empty-state h3 {
+        color: #333;
+        margin: 0 0 8px;
+    }
+    .empty-state p {
+        color: #888;
+        margin: 0;
+    }
+    .text-muted {
+        color: #888;
+    }
+</style>
+{% endblock %}

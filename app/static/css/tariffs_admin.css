@@ -1,0 +1,366 @@
+/* Стили раздела «Тариф» — вкладки Клиенты/Расчёты, раскрытие строк. */
+
+/* Вкладки */
+.tariff-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+.tariff-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    color: var(--text-secondary, #6b7280);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    font-weight: 500;
+    transition: color 0.2s, border-color 0.2s;
+}
+.tariff-tab:hover {
+    color: var(--primary-color, #6366f1);
+}
+.tariff-tab.active {
+    color: var(--primary-color, #6366f1);
+    border-bottom-color: var(--primary-color, #6366f1);
+}
+
+/* Ячейка с шевроном */
+.tariff-toggle-cell {
+    text-align: center;
+    width: 40px;
+}
+.tariff-expand-btn {
+    background: transparent;
+    border: 0;
+    color: var(--text-secondary, #6b7280);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 16px;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s;
+}
+.tariff-expand-btn:hover {
+    background: var(--bg-secondary, #f3f4f6);
+    color: var(--primary-color, #6366f1);
+}
+.tariff-seller-row-open {
+    background: rgba(99, 102, 241, 0.04);
+}
+
+/* Ссылка на магазин селлера */
+.tariff-seller-link {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    color: var(--text-primary, #1f2937);
+    text-decoration: none;
+}
+.tariff-seller-link:hover strong {
+    color: var(--primary-color, #6366f1);
+}
+.tariff-seller-login {
+    font-size: 12px;
+    color: var(--text-light, #9ca3af);
+}
+
+/* Иконка диалога */
+.tariff-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    color: var(--text-secondary, #6b7280);
+    background: var(--bg-secondary, #f3f4f6);
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+}
+.tariff-icon-btn:hover {
+    background: var(--primary-color, #6366f1);
+    color: #fff;
+}
+
+/* Бейдж количества */
+.tariff-badge {
+    display: inline-block;
+    min-width: 28px;
+    text-align: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--primary-color, #6366f1);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Карточка раскрытой строки */
+.tariff-detail-row td {
+    background: var(--bg-secondary, #f9fafb);
+    padding: 12px 16px 18px 24px;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+.tariff-detail-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: var(--radius-md, 8px);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+}
+.tariff-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px 20px;
+}
+.tariff-detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.tariff-detail-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-light, #9ca3af);
+}
+.tariff-detail-value {
+    font-size: 14px;
+    color: var(--text-primary, #1f2937);
+    font-weight: 500;
+}
+.tariff-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border-color, #e5e7eb);
+}
+.tariff-detail-actions form {
+    margin: 0;
+}
+
+/* Пустое состояние */
+.tariff-empty {
+    text-align: center;
+    padding: 48px 16px;
+    color: var(--text-secondary, #6b7280);
+}
+.tariff-empty i {
+    font-size: 36px;
+    color: var(--text-light, #9ca3af);
+    display: block;
+    margin-bottom: 8px;
+}
+.tariff-empty p {
+    margin: 4px 0;
+}
+.tariff-empty-hint {
+    font-size: 12px;
+    color: var(--text-light, #9ca3af);
+}
+
+/* ========== Каталог тарифов (TariffPlan CRUD) ========== */
+.admin-card {
+    background: #fff;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: var(--radius-md, 10px);
+    padding: 18px 20px;
+    margin-bottom: 18px;
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+.admin-card-title {
+    margin: 0 0 14px 0;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-primary, #1f2937);
+}
+
+.tariff-catalog-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.tariff-catalog-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+.tariff-catalog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.admin-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.admin-form-label {
+    font-size: 12px;
+    color: var(--text-secondary, #6b7280);
+    font-weight: 500;
+}
+.admin-form-field-checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    align-self: end;
+    padding-bottom: 8px;
+}
+.admin-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 6px;
+    font: inherit;
+    background: #fff;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.admin-input:focus {
+    outline: none;
+    border-color: var(--primary-color, #6366f1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.tariff-catalog-form-inline {
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: var(--bg-secondary, #f9fafb);
+    border: 1px dashed var(--border-color, #e5e7eb);
+    border-radius: 8px;
+}
+
+.tariff-inline-edit {
+    display: inline-block;
+    margin-right: 4px;
+}
+.tariff-inline-edit > summary {
+    list-style: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.tariff-inline-edit > summary::-webkit-details-marker {
+    display: none;
+}
+
+.tariff-plan-desc {
+    display: inline-block;
+    color: var(--text-secondary, #6b7280);
+    font-size: 13px;
+    max-width: 360px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.tariff-table td:last-child {
+    white-space: nowrap;
+}
+.tariff-table td:last-child form,
+.tariff-table td:last-child details {
+    display: inline-block;
+    margin: 0 2px;
+}
+
+/* ===== Сегменты (сводка + секции на /tariffs?tab=clients) ===== */
+
+.tariff-segments-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+}
+.tariff-segment-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    background: #fff;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.tariff-segment-card > i {
+    font-size: 28px;
+    line-height: 1;
+}
+.tariff-segment-paid > i { color: #16a34a; }
+.tariff-segment-global > i { color: #2563eb; }
+.tariff-segment-no-tariff > i { color: #d97706; }
+.tariff-segment-count {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+}
+.tariff-segment-label {
+    font-size: 13px;
+    color: var(--text-secondary, #6b7280);
+    margin-top: 4px;
+}
+
+.tariff-segment-section {
+    margin-bottom: 28px;
+}
+.tariff-segment-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary, #111827);
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+.tariff-segment-title > i {
+    color: var(--text-secondary, #6b7280);
+}
+.tariff-segment-count-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    background: var(--bg-secondary, #f3f4f6);
+    color: var(--text-secondary, #6b7280);
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 4px;
+}
+.tariff-empty-section {
+    text-align: center;
+    padding: 30px 20px;
+    background: var(--bg-secondary, #f9fafb);
+    border: 1px dashed var(--border-color, #e5e7eb);
+    border-radius: 10px;
+    color: var(--text-secondary, #6b7280);
+}
+.tariff-empty-section > i {
+    font-size: 36px;
+    display: block;
+    margin-bottom: 8px;
+    opacity: 0.4;
+}
+.tariff-row-hint {
+    font-size: 12px;
+    color: var(--text-secondary, #6b7280);
+    margin-top: 2px;
+}
+.tariff-row-empty {
+    color: var(--text-secondary, #9ca3af);
+}
+.tariff-status-info {
+    background: #dbeafe;
+    color: #1e40af;
+}

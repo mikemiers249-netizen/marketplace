@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Регистрация продавца - Маркетплейс{% endblock %}
+
+{% block content %}
+<div class="auth-page seller-auth">
+    <div class="auth-container">
+        <div class="auth-card">
+                <div class="auth-header">
+                    <h1>Регистрация продавца</h1>
+                    <p class="auth-subtitle">Создайте магазин и начните продавать</p>
+                </div>
+                
+                <form method="POST" class="auth-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    
+                    <div class="form-section">
+                        <h3>Данные аккаунта</h3>
+                        
+                        <div class="form-group">
+                            <label for="login">Логин *</label>
+                            <input type="text" id="login" name="login" required
+                                   placeholder="Придумайте логин"
+                                   minlength="3" maxlength="50">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="email">Email *</label>
+                            <input type="email" id="email" name="email" required
+                                   placeholder="Ваш email для уведомлений">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="phone">Телефон</label>
+                            <input type="tel" id="phone" name="phone"
+                                   placeholder="+7 (999) 000-00-00">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="password">Пароль *</label>
+                            <input type="password" id="password" name="password" required
+                                   placeholder="Минимум 8 символов"
+                                   minlength="8">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="password_confirm">Подтверждение пароля *</label>
+                            <input type="password" id="password_confirm" name="password_confirm" required
+                                   placeholder="Повторите пароль">
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h3>Информация о магазине</h3>
+                        
+                        <div class="form-group">
+                            <label for="store_name">Название магазина *</label>
+                            <input type="text" id="store_name" name="store_name" required
+                                   placeholder="Например: ТехноМир"
+                                   minlength="3" maxlength="100">
+                            <small>Название будет видно покупателям</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="agree" required>
+                            <span>Согласен с <a href="#">правилами продавцов</a> и <a href="#">договором оферты</a></span>
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block">
+                        Зарегистрировать магазин
+                    </button>
+                </form>
+                
+                <div class="auth-footer">
+                    <p>Уже есть магазин? <a href="{{ url_for('auth.seller_login') }}">Войти</a></p>
+                </div>
+                
+                <div class="auth-divider">
+                    <span>или</span>
+                </div>
+                
+                <div class="buyer-link">
+                    <p>Хотите покупать? <a href="{{ url_for('auth.signup') }}">Регистрация покупателя</a></p>
+                </div>
+            </div>
+        </div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}

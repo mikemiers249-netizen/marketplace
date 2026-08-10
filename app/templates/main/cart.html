@@ -1,0 +1,1466 @@
+{% extends "base.html" %}
+
+{% block title %}Корзина - {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+<style>
+    .cart-page {
+        padding: 30px 0;
+    }
+    
+    .cart-header {
+        margin-bottom: 24px;
+    }
+    
+    .cart-header h1 {
+        font-size: 28px;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    .cart-wrapper {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 24px;
+        align-items: start;
+    }
+    
+    @media (max-width: 991px) {
+        .cart-wrapper {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    /* Cart Items */
+    .cart-items-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .cart-item-card {
+        display: grid;
+        grid-template-columns: 100px 1fr auto auto auto;
+        gap: 16px;
+        align-items: center;
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 16px;
+        position: relative;
+    }
+    
+    @media (max-width: 767px) {
+        .cart-item-card {
+            grid-template-columns: 80px 1fr;
+            grid-template-rows: auto auto auto;
+        }
+        
+        .cart-item-card .cart-item-quantity,
+        .cart-item-card .cart-item-total {
+            grid-column: 2;
+        }
+        
+        .cart-item-card .cart-item-remove {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+        }
+    }
+    
+    .cart-item-image {
+        width: 100px;
+        height: 100px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #f5f5f5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .cart-item-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .cart-item-image .no-image {
+        color: #999;
+        font-size: 12px;
+    }
+    
+    .cart-item-details {
+        min-width: 0;
+    }
+    
+    .cart-item-name {
+        font-size: 16px;
+        font-weight: 500;
+        color: #333;
+        text-decoration: none;
+        display: block;
+        margin-bottom: 4px;
+    }
+    
+    .cart-item-name:hover {
+        color: #0d6efd;
+    }
+    
+    .cart-item-seller {
+        font-size: 13px;
+        color: #666;
+        margin-bottom: 8px;
+    }
+    
+    .cart-item-price {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    
+    .cart-item-price .old-price {
+        font-size: 14px;
+        color: #999;
+        text-decoration: line-through;
+    }
+    
+    .cart-item-price .current-price {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .cart-item-price .discount-badge {
+        background: #dc3545;
+        color: #fff;
+        font-size: 12px;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+    
+    /* Quantity Control */
+    .cart-item-quantity {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .quantity-control {
+        display: flex;
+        align-items: center;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .quantity-btn {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: #f8f8f8;
+        font-size: 18px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .quantity-btn:hover {
+        background: #e9ecef;
+    }
+    
+    .quantity-input {
+        width: 50px;
+        height: 36px;
+        border: none;
+        border-left: 1px solid #ddd;
+        border-right: 1px solid #ddd;
+        text-align: center;
+        font-size: 14px;
+    }
+    
+    .quantity-input:focus {
+        outline: none;
+    }
+    
+    .quantity-info {
+        font-size: 12px;
+        color: #666;
+    }
+    
+    /* Total Price */
+    .cart-item-total {
+        text-align: right;
+        min-width: 100px;
+    }
+    
+    .total-price {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    /* Remove Button */
+    .cart-item-remove {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: transparent;
+        font-size: 20px;
+        color: #999;
+        cursor: pointer;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .cart-item-remove:hover {
+        background: #f0f0f0;
+        color: #dc3545;
+    }
+    
+    /* Summary Block */
+    .cart-summary {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 24px;
+        position: sticky;
+        top: 20px;
+    }
+    
+    .summary-header {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        font-size: 15px;
+    }
+    
+    .summary-row .label {
+        color: #666;
+    }
+    
+    .summary-row .value {
+        font-weight: 500;
+        color: #333;
+    }
+    
+    .summary-row.discount .value {
+        color: #dc3545;
+    }
+    
+    .summary-row.discount .label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .summary-row.total {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #eee;
+        font-size: 18px;
+    }
+    
+    .summary-row.total .label {
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .summary-row.total .value {
+        font-size: 22px;
+        font-weight: 700;
+        color: #333;
+    }
+    
+    .checkout-btn {
+        width: 100%;
+        padding: 14px 24px;
+        font-size: 16px;
+        font-weight: 600;
+        margin-top: 20px;
+    }
+    
+    /* Delivery Section */
+    .delivery-section {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid #eee;
+    }
+    
+    .delivery-section h4 {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        color: #333;
+    }
+    
+    .delivery-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    
+    .delivery-option label {
+        font-size: 14px;
+        color: #333;
+    }
+    
+    .delivery-address {
+        font-size: 13px;
+        color: #666;
+        margin-bottom: 8px;
+    }
+    
+    .change-delivery {
+        font-size: 13px;
+        color: #0d6efd;
+        text-decoration: none;
+    }
+    
+    .change-delivery:hover {
+        text-decoration: underline;
+    }
+    
+    /* Seller Delivery Cards */
+    .seller-delivery-section {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #eee;
+    }
+    
+    .seller-delivery-card {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .seller-delivery-card .seller-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 8px;
+    }
+    
+    .delivery-services-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .delivery-service-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px;
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .delivery-service-option:hover {
+        border-color: #0d6efd;
+    }
+    
+    .delivery-service-option.selected {
+        border-color: #0d6efd;
+        background: #e7f1ff;
+    }
+    
+    .delivery-service-logo {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        border-radius: 4px;
+    }
+    
+    .delivery-service-info {
+        flex: 1;
+    }
+    
+    .delivery-service-name {
+        font-size: 14px;
+        font-weight: 500;
+        color: #333;
+    }
+    
+    .delivery-service-tariff {
+        font-size: 12px;
+        color: #666;
+    }
+    
+    .delivery-cost {
+        font-size: 14px;
+        font-weight: 600;
+        color: #28a745;
+    }
+    
+    /* PVZ Modal */
+    .pvz-modal .modal-content {
+        max-width: 900px;
+    }
+    
+    .pvz-modal-body {
+        display: flex;
+        gap: 20px;
+        height: 500px;
+    }
+    
+    .pvz-map-container {
+        flex: 1;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .pvz-list-container {
+        width: 300px;
+        overflow-y: auto;
+    }
+    
+    .pvz-item {
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+        cursor: pointer;
+    }
+    
+    .pvz-item:hover {
+        background: #f8f9fa;
+    }
+    
+    .pvz-item.selected {
+        background: #e7f1ff;
+    }
+    
+    .pvz-name {
+        font-weight: 500;
+        font-size: 14px;
+    }
+    
+    .pvz-address {
+        font-size: 12px;
+        color: #666;
+    }
+    
+    /* Empty Cart */
+    .cart-empty {
+        text-align: center;
+        padding: 60px 20px;
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e5e5e5;
+    }
+    
+    .cart-empty .empty-icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+    }
+    
+    .cart-empty h2 {
+        font-size: 24px;
+        margin-bottom: 8px;
+    }
+    
+    .cart-empty p {
+        color: #666;
+        margin-bottom: 24px;
+    }
+
+    /* Блок "Списать баллы" в корзине */
+    .bonus-block {
+        border: 1px dashed #c7d2fe;
+        background: #f8faff;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin: 12px 0;
+    }
+    .bonus-block-title {
+        font-size: 13px; font-weight: 600; color: #4338ca;
+        margin-bottom: 8px;
+    }
+    .bonus-block-list {
+        display: flex; flex-direction: column; gap: 6px;
+    }
+    .bonus-row {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 8px;
+        padding: 8px 10px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+    }
+    .bonus-row-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .bonus-row-no { color: #9ca3af; font-size: 18px; line-height: 1; }
+    .bonus-row-name {
+        display: flex; flex-direction: column; min-width: 0;
+    }
+    .bonus-row-name a {
+        font-size: 13px; font-weight: 600; color: #1f2937;
+        text-decoration: none;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        max-width: 180px;
+    }
+    .bonus-row-name a:hover { color: #4a6cf7; }
+    .bonus-row-payback { font-size: 11px; color: #6b7280; }
+    .bonus-row-values { text-align: right; }
+    .bonus-row-balance { font-size: 13px; color: #1f2937; }
+    .bonus-row-spendable { font-size: 11px; color: #6b7280; }
+    .bonus-block-total {
+        margin-top: 10px; padding-top: 8px;
+        border-top: 1px dashed #c7d2fe;
+        display: flex; justify-content: space-between;
+        font-size: 13px;
+    }
+    .bonus-block-total b { color: #16a34a; }
+
+    .form-check-input:checked { background-color: #4a6cf7; border-color: #4a6cf7; }
+    .form-check-input:disabled { opacity: .4; }
+
+    /* Блок "Промокод магазина" в корзине */
+    .promo-block {
+        border: 1px dashed #fcd34d;
+        background: #fffbeb;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin: 12px 0;
+    }
+    .promo-block-title {
+        font-size: 13px; font-weight: 600; color: #92400e;
+        margin-bottom: 8px;
+    }
+    .promo-block-title i { color: #d97706; margin-right: 4px; }
+    .promo-row {
+        display: flex; flex-direction: column; gap: 6px;
+        padding: 8px 10px;
+        background: #fff;
+        border: 1px solid #fde68a;
+        border-radius: 8px;
+        margin-bottom: 6px;
+    }
+    .promo-row:last-child { margin-bottom: 0; }
+    .promo-row-info {
+        min-width: 0;
+    }
+    .promo-row-store {
+        font-size: 12px; font-weight: 600; color: #1f2937;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        max-width: 100%;
+    }
+    .promo-row select {
+        font-size: 13px;
+        padding: 6px 8px;
+        border: 1px solid #fde68a;
+        border-radius: 6px;
+        background: #fff;
+        width: 100%;
+        max-width: 100%;
+    }
+    .promo-row select:focus {
+        outline: none;
+        border-color: #d97706;
+        box-shadow: 0 0 0 2px rgba(217,119,6,.15);
+    }
+    .promo-block-total {
+        margin-top: 10px; padding-top: 8px;
+        border-top: 1px dashed #fde68a;
+        display: flex; justify-content: space-between;
+        font-size: 13px;
+    }
+    .promo-block-total b { color: #b45309; }
+    .promo-row-discount {
+        font-size: 12px;
+        color: #b45309;
+        font-weight: 500;
+        margin-left: 6px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container cart-page">
+    <div class="cart-header">
+        <h1>Корзина</h1>
+    </div>
+    
+    {% if cart_items %}
+    <div class="cart-wrapper">
+        {# Список товаров #}
+        <div class="cart-items-list">
+            {% set total_weight = namespace(value=0) %}
+            {% set total_items = namespace(value=0) %}
+            
+            {% for item in cart_items %}
+                {% set total_weight.value = total_weight.value + (item.product.weight or 0) * item.quantity %}
+                {% set total_items.value = total_items.value + item.quantity %}
+                
+                <div class="cart-item-card" data-product-id="{{ item.product_id }}">
+                    <div class="cart-item-image">
+                        {% if item.product.main_photo %}
+                        <img src="{{ url_for('static', filename='uploads/products/' + item.product.main_photo.path) }}" 
+                             alt="{{ item.product.name }}">
+                        {% else %}
+                        <div class="no-image">Нет фото</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="cart-item-details">
+                        <a href="{{ url_for('main.product', product_id=item.product_id) }}" class="cart-item-name">
+                            {{ item.product.name }}
+                        </a>
+                        
+                        <div class="cart-item-seller">
+                            Продавец: {{ item.product.seller.store_name if item.product.seller else 'Неизвестно' }}
+                        </div>
+                        
+                        <div class="cart-item-price">
+                            {% if item.product.current_discount > 0 %}
+                            <span class="old-price">{{ item.product.price }} ₽</span>
+                            <span class="current-price">{{ item.product.price * (1 - item.product.current_discount / 100) | round(2) }} ₽</span>
+                            <span class="discount-badge">-{{ item.product.current_discount }}%</span>
+                            {% else %}
+                            <span class="current-price">{{ item.product.price }} ₽</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="cart-item-quantity">
+                        <div class="quantity-control">
+                            <button type="button" class="quantity-btn minus" 
+                                    data-product-id="{{ item.product_id }}">−</button>
+                            <input type="number" class="quantity-input" 
+                                   value="{{ item.quantity }}" 
+                                   min="1" 
+                                   max="{{ item.product.stock_quantity }}"
+                                   data-product-id="{{ item.product_id }}">
+                            <button type="button" class="quantity-btn plus" 
+                                    data-product-id="{{ item.product_id }}">+</button>
+                        </div>
+                        <div class="quantity-info">В наличии: {{ item.product.stock_quantity }}</div>
+                    </div>
+                    
+                    <div class="cart-item-total">
+                        <span class="total-price">{{ item.total_price }} ₽</span>
+                    </div>
+                    
+                    <button type="button" class="cart-item-remove" 
+                            data-product-id="{{ item.product_id }}"
+                            title="Удалить из корзины">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            {% endfor %}
+        </div>
+        
+        {# Блок с итогами #}
+        <div class="cart-summary">
+            {# Данные о сохранённых ПВЗ покупателя для JS #}
+            <script type="application/json" id="buyer-saved-pvz">
+            {
+                {% if buyer_delivery_by_service %}
+                {% for code, delivery in buyer_delivery_by_service.items() %}
+                "{{ code }}": {"pvz_code": "{{ delivery.pvz_code }}", "pvz_address": "{{ delivery.pvz_address }}", "pvz_city": "{{ delivery.pvz_city }}", "pvz_city_code": "{{ delivery.pvz_city_code or '' }}"}{% if not loop.last %},{% endif %}
+                {% endfor %}
+                {% endif %}
+            }
+            </script>
+            
+            <div class="summary-header">
+                Ваша корзина {{ total_items.value }} {{ 'товар' if total_items.value == 1 else ('товара' if total_items.value in [2,3,4] else 'товаров') }}
+                {% if total_weight.value > 0 %} • {{ total_weight.value }} г{% endif %}
+            </div>
+            
+            <div class="summary-row">
+                <span class="label">Товары ({{ total_items.value }})</span>
+                <span class="value">{{ cart_total.subtotal if cart_total is mapping else cart_total }} ₽</span>
+            </div>
+            
+            {% if cart_total is mapping and cart_total.discount > 0 %}
+            <div class="summary-row discount">
+                <span class="label"><i class="bi bi-tag-fill"></i> Скидка</span>
+                <span class="value">− {{ cart_total.discount }} ₽</span>
+            </div>
+            {% endif %}
+
+            {# Бонусные баллы магазинов — тумблер "Списать баллы".
+               Скрываем строки селлеров, у которых нет ни баланса, ни
+               доступной к списанию суммы; если таких не осталось —
+               не показываем весь блок вообще. #}
+            {% if loyalty_enabled and bonus_snapshot %}
+                {% set spendable_ns = namespace(value=0) %}
+                {% for b in bonus_snapshot %}
+                    {% if b.balance > 0 or b.spendable > 0 %}
+                        {% set spendable_ns.value = spendable_ns.value + 1 %}
+                    {% endif %}
+                {% endfor %}
+                {% if spendable_ns.value > 0 %}
+                <div class="bonus-block">
+                    <div class="bonus-block-title">
+                        <i class="bi bi-coin"></i> Списать баллы
+                    </div>
+                    <div class="bonus-block-list">
+                        {% for b in bonus_snapshot %}
+                            {% if b.balance > 0 or b.spendable > 0 %}
+                            <div class="bonus-row" data-seller-id="{{ b.seller_id }}">
+                                <div class="bonus-row-info">
+                                    {% if b.seller_active %}
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input bonus-toggle" type="checkbox"
+                                               role="switch"
+                                               data-seller-id="{{ b.seller_id }}"
+                                               data-spendable="{{ '%.2f'|format(b.spendable) }}"
+                                               id="bonusToggle{{ b.seller_id }}"
+                                               {% if b.spendable <= 0 %}disabled{% endif %}>
+                                        <label class="form-check-label" for="bonusToggle{{ b.seller_id }}"></label>
+                                    </div>
+                                    {% else %}
+                                    <span class="bonus-row-no" title="Магазин не подключён к программе"><i class="bi bi-dash-circle"></i></span>
+                                    {% endif %}
+                                    <div class="bonus-row-name">
+                                        <a href="{{ url_for('main.seller_store', seller_slug=b.store_slug) if b.store_slug else '#' }}">{{ b.store_name }}</a>
+                                        <span class="bonus-row-payback">до {{ b.payback_percent }}%</span>
+                                    </div>
+                                </div>
+                                <div class="bonus-row-values">
+                                    <div class="bonus-row-balance">
+                                        <b>{{ '%.2f'|format(b.balance) }}</b> баллов
+                                    </div>
+                                    <div class="bonus-row-spendable">
+                                        доступно к списанию: <b>{{ '%.2f'|format(b.spendable) }} ₽</b>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="bonus-block-total">
+                        <span>Списано баллами:</span>
+                        <b id="bonusTotalValue">0.00 ₽</b>
+                    </div>
+                </div>
+                <input type="hidden" name="bonus_per_seller" id="bonusPerSellerInput" value="">
+                {% endif %}
+            {% endif %}
+
+            {# Промокоды магазинов — поле выбора с выпадающим списком.
+               Блок показывается только если у покупателя есть хотя бы один
+               промокод от продавца в корзине, удовлетворяющий условиям. #}
+            {% set promo_ns = namespace(has_any=false) %}
+            {% for snap in promo_snapshot %}
+                {% if snap.promos and snap.promos|length > 0 %}
+                    {% set promo_ns.has_any = true %}
+                {% endif %}
+            {% endfor %}
+            {% if promo_ns.has_any %}
+            <div class="promo-block">
+                <div class="promo-block-title">
+                    <i class="bi bi-ticket-perforated"></i> Промокод магазина
+                </div>
+                {% for snap in promo_snapshot %}
+                    {% if snap.promos and snap.promos|length > 0 %}
+                        {% set store_ns = namespace(name='') %}
+                        {% for b in bonus_snapshot if b.seller_id == snap.seller_id %}
+                            {% set store_ns.name = b.store_name %}
+                        {% endfor %}
+                        {% if not store_ns.name %}
+                            {% for it in cart_items if it.product.seller_id == snap.seller_id %}
+                                {% if it.product.seller and not store_ns.name %}
+                                    {% set store_ns.name = it.product.seller.store_name %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                        <div class="promo-row" data-seller-id="{{ snap.seller_id }}">
+                            <div class="promo-row-info">
+                                <div class="promo-row-store">{{ store_ns.name or ('Продавец #' ~ snap.seller_id) }}</div>
+                            </div>
+                            <select class="promo-select" data-seller-id="{{ snap.seller_id }}">
+                                <option value="">— без промокода —</option>
+                                {% for p in snap.promos %}
+                                    <option value="{{ p.id }}"
+                                            data-code="{{ p.code }}"
+                                            data-discount="{{ '%.2f'|format(p.discount_amount) }}"
+                                            data-discount-label="{{ p.discount_label }}"
+                                            data-min="{{ '%.2f'|format(p.min_subtotal or 0) }}"
+                                            {% if selected_promo_ids and selected_promo_ids.get(snap.seller_id) == p.id %}selected{% endif %}>
+                                        {{ p.code }} — {{ p.discount_label }}
+                                        (скидка {{ '%.2f'|format(p.discount_amount) }} ₽)
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+                <div class="promo-block-total">
+                    <span>Скидка по промокоду:</span>
+                    <b id="promoTotalValue">0.00 ₽</b>
+                </div>
+            </div>
+            <input type="hidden" name="promo_per_seller" id="promoPerSellerInput" value="{{ promo_per_seller_str or '' }}">
+            {% endif %}
+
+
+            <div class="summary-row total">
+                <span class="label">Итого</span>
+                <span class="value" id="total-with-delivery">{{ cart_total.total if cart_total is mapping else cart_total }} ₽</span>
+            </div>
+            
+            <a href="{{ url_for('main.order_review') }}" class="btn btn-primary checkout-btn" id="checkout-btn">
+                Перейти к оформлению
+            </a>
+        </div>
+    </div>
+    
+    {% else %}
+    <div class="cart-empty">
+        <div class="empty-icon">🛒</div>
+        <h2>Корзина пуста</h2>
+        <p>Добавьте товары в корзину, чтобы оформить заказ</p>
+        <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+            Перейти к покупкам
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+{# Модальное окно выбора ПВЗ #}
+<div class="modal fade" id="pvzModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Выберите ПВЗ</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-7">
+                        <div id="pvzMap" style="height: 400px; border-radius: 8px;"></div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="pvzCitySearch" placeholder="Поиск по городу">
+                        </div>
+                        <div id="pvzList" style="max-height: 350px; overflow-y: auto;">
+                            <p class="text-muted">Загрузка...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="confirmPvzBtn">Подтвердить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# CSRF token #}
+<script type="application/json" id="csrf-data">
+    {"csrf_token": "{{ csrf_token() if csrf_token else '' }}"}
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfData = JSON.parse(document.getElementById('csrf-data').textContent);
+    const csrfToken = csrfData.csrf_token;
+    
+    // Обновление количества
+    document.querySelectorAll('.quantity-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const productId = this.dataset.productId;
+            const isPlus = this.classList.contains('plus');
+            const input = document.querySelector(`.quantity-input[data-product-id="${productId}"]`);
+            let quantity = parseInt(input.value);
+            
+            if (isPlus) {
+                quantity++;
+            } else {
+                quantity--;
+            }
+            
+            if (quantity < 1) return;
+            
+            try {
+                const formData = new FormData();
+                formData.append('product_id', productId);
+                formData.append('quantity', quantity);
+                
+                const response = await fetch('{{ url_for("main.cart_update") }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.error || 'Ошибка обновления');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ошибка соединения');
+            }
+        });
+    });
+    
+    // Удаление из корзины
+    document.querySelectorAll('.cart-item-remove').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const productId = this.dataset.productId;
+            
+            if (!confirm('Удалить товар из корзины?')) return;
+            
+            try {
+                const formData = new FormData();
+                formData.append('product_id', productId);
+                
+                const response = await fetch('{{ url_for("main.cart_remove") }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.error || 'Ошибка удаления');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ошибка соединения');
+            }
+        });
+    });
+    
+    // === Доставка: выбор ПВЗ покупателя ===
+    let selectedBuyerPvz = {};  // ПВЗ покупателя {sellerId: {deliveryId, pvzCode, pvzAddress, pvzCityCode, cost}}
+    let currentPvzSellerId = null;
+    let currentDeliveryId = null;
+    let pvzMap = null;
+    let pvzMarkers = [];
+    
+    // Загружаем сохранённые ПВЗ покупателя из настроек профиля
+    const buyerSavedPvz = JSON.parse(document.getElementById('buyer-saved-pvz')?.textContent || '{}');
+    
+    // Инициализация сохранённых ПВЗ при загрузке страницы
+    function initSavedBuyerPvz() {
+        document.querySelectorAll('.seller-delivery-card').forEach(card => {
+            const sellerId = card.dataset.sellerId;
+            // Получаем профиль доставки продавца для этого продавца
+            const deliveryOption = card.querySelector('.delivery-service-option');
+            const deliveryId = deliveryOption?.dataset.deliveryId;
+            
+            if (deliveryId && buyerSavedPvz) {
+                // Пробуем найти сохранённый ПВЗ для любой службы доставки
+                for (const [serviceCode, pvzData] of Object.entries(buyerSavedPvz)) {
+                    if (pvzData.pvz_code) {
+                        // Нашли сохранённый ПВЗ - используем его
+                        selectedBuyerPvz[sellerId] = {
+                            deliveryId: deliveryId,
+                            pvzCode: pvzData.pvz_code,
+                            pvzAddress: pvzData.pvz_address,
+                            pvzCityCode: pvzData.pvz_city_code
+                        };
+                        
+                        // Обновляем UI
+                        const infoEl = document.getElementById('buyer-pvz-' + sellerId);
+                        if (infoEl) {
+                            infoEl.textContent = pvzData.pvz_address || pvzData.pvz_code;
+                        }
+                        
+                        const btnEl = document.querySelector('.btn-select-buyer-pvz[data-seller-id="' + sellerId + '"]');
+                        if (btnEl) {
+                            btnEl.classList.remove('btn-outline-primary');
+                            btnEl.classList.add('btn-success');
+                            btnEl.querySelector('.btn-pvz-text').textContent = 'Изменить';
+                        }
+                        
+                        // Автоматически запускаем расчёт доставки
+                        setTimeout(() => calculateDeliveryCost(sellerId), 100);
+                        break;
+                    }
+                }
+            }
+        });
+    }
+    
+    // Запускаем инициализацию при загрузке
+    initSavedBuyerPvz();
+    
+    // Открытие модального окна выбора ПВЗ (покупатель)
+    document.querySelectorAll('.btn-select-buyer-pvz').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentPvzSellerId = this.dataset.sellerId;
+            
+            // Получаем deliveryId из DOM
+            const sellerCard = this.closest('.seller-delivery-card');
+            const deliveryOption = sellerCard?.querySelector('.delivery-service-option');
+            currentDeliveryId = deliveryOption?.dataset.deliveryId;
+            
+            // Показываем модальное окно
+            const modalEl = document.getElementById('pvzModal');
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+            
+            // Инициализируем карту после показа
+            setTimeout(() => {
+                initPvzMap();
+                if (pvzMap) pvzMap.invalidateSize();
+                loadPvzList('');
+            }, 300);
+        });
+    });
+    
+    // Инициализация карты Leaflet
+    function initPvzMap() {
+        if (pvzMap) return;
+        
+        if (typeof L === 'undefined') {
+            // Загружаем CSS
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            document.head.appendChild(link);
+            
+            // Загружаем JS
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.onload = () => {
+                createMap();
+            };
+            document.head.appendChild(script);
+        } else {
+            createMap();
+        }
+    }
+    
+    function createMap() {
+        pvzMap = L.map('pvzMap').setView([55.7558, 37.6173], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(pvzMap);
+    }
+    
+    // Загрузка списка ПВЗ
+    async function loadPvzList(city) {
+        const pvzListEl = document.getElementById('pvzList');
+        pvzListEl.innerHTML = '<p class="text-muted">Загрузка...</p>';
+        
+        try {
+            const url = '/api/cdek/pvz?city=' + encodeURIComponent(city) + '&delivery_id=' + currentDeliveryId;
+            const response = await fetch(url, { headers: { 'X-CSRFToken': csrfToken }});
+            const data = await response.json();
+            
+            if (data.success && data.pvz) {
+                renderPvzList(data.pvz);
+                renderPvzMarkers(data.pvz);
+            } else {
+                pvzListEl.innerHTML = '<p class="text-danger">Ошибка: ' + (data.error || 'Unknown') + '</p>';
+            }
+        } catch (error) {
+            pvzListEl.innerHTML = '<p class="text-danger">Error: ' + error.message + '</p>';
+        }
+    }
+    
+    let currentPvzList = [];
+    
+    function renderPvzList(pvzList) {
+        currentPvzList = pvzList;
+        const container = document.getElementById('pvzList');
+        
+        if (!pvzList.length) {
+            container.innerHTML = '<p class="text-muted">ПВЗ не найдены</p>';
+            return;
+        }
+        
+        container.innerHTML = pvzList.map((pvz, idx) =>
+            '<div class="pvz-item ' + (selectedBuyerPvz[currentPvzSellerId]?.pvzCode === pvz.code ? 'selected' : '') + '" data-index="' + idx + '" onclick="selectPvzItem(' + idx + ')">' +
+                '<div class="pvz-name">' + (pvz.name || pvz.code) + '</div>' +
+                '<div class="pvz-address">' + pvz.address + '</div>' +
+            '</div>'
+        ).join('');
+    }
+    
+    function renderPvzMarkers(pvzList) {
+        if (!pvzMap) return;
+        
+        pvzMarkers.forEach(m => pvzMap.removeLayer(m));
+        pvzMarkers = [];
+        
+        pvzList.forEach(pvz => {
+            if (pvz.latitude && pvz.longitude) {
+                const marker = L.marker([pvz.latitude, pvz.longitude])
+                    .addTo(pvzMap)
+                    .bindPopup('<strong>' + (pvz.name || pvz.code) + '</strong><br>' + pvz.address);
+                pvzMarkers.push(marker);
+            }
+        });
+        
+        if (pvzMarkers.length > 0) {
+            const group = L.featureGroup(pvzMarkers);
+            pvzMap.fitBounds(group.getBounds().pad(0.1));
+        }
+    }
+    
+    window.selectPvzItem = function(index) {
+        const pvz = currentPvzList[index];
+        if (!pvz) return;
+        
+        document.querySelectorAll('.pvz-item').forEach(el => el.classList.remove('selected'));
+        document.querySelector('.pvz-item[data-index="' + index + '"]')?.classList.add('selected');
+        
+        // ПВЗ покупателя (получение)
+        selectedBuyerPvz[currentPvzSellerId] = {
+            deliveryId: currentDeliveryId,
+            pvzCode: pvz.code,
+            pvzAddress: pvz.address,
+            pvzCityCode: pvz.city_code
+        };
+        
+        // Обновляем UI
+        const infoEl = document.getElementById('buyer-pvz-' + currentPvzSellerId);
+        if (infoEl) {
+            infoEl.textContent = pvz.address || pvz.code;
+        }
+        const btnEl = document.querySelector('.btn-select-buyer-pvz[data-seller-id="' + currentPvzSellerId + '"]');
+        if (btnEl) {
+            btnEl.classList.remove('btn-outline-primary');
+            btnEl.classList.add('btn-success');
+            btnEl.querySelector('.btn-pvz-text').textContent = 'Изменить';
+        }
+        
+        if (pvzMap && pvz.latitude && pvz.longitude) {
+            pvzMap.setView([pvz.latitude, pvz.longitude], 14);
+        }
+    };
+    
+    // Поиск ПВЗ по городу
+    document.getElementById('pvzCitySearch')?.addEventListener('input', function() {
+        loadPvzList(this.value);
+    });
+    
+    // Подтверждение выбора ПВЗ
+    document.getElementById('confirmPvzBtn')?.addEventListener('click', async function() {
+        const selected = selectedBuyerPvz[currentPvzSellerId];
+        
+        if (!selected?.pvzCode) {
+            alert('Пожалуйста, выберите ПВЗ');
+            return;
+        }
+        
+        // Закрываем модальное окно
+        bootstrap.Modal.getInstance(document.getElementById('pvzModal')).hide();
+        
+        // Запускаем расчёт доставки
+        if (currentPvzSellerId) {
+            await calculateDeliveryCost(currentPvzSellerId);
+        }
+    });
+    
+    // Расчёт стоимости доставки
+    async function calculateDeliveryCost(sellerId) {
+        const buyerPvz = selectedBuyerPvz[sellerId];
+        
+        // Покупатель должен выбрать ПВЗ (достаточно кода, город API определит сам)
+        if (!buyerPvz || !buyerPvz.pvzCode) {
+            alert('Пожалуйста, выберите ПВЗ для получения');
+            return;
+        }
+        
+        const deliveryId = buyerPvz.deliveryId;
+        if (!deliveryId) {
+            console.error('Не найден ID доставки');
+            return;
+        }
+        
+        const costEl = document.getElementById('cost-' + sellerId);
+        if (costEl) costEl.innerHTML = '<span class="cost-value">Расчёт...</span>';
+        
+        try {
+            const response = await fetch('/api/cdek/calculate-delivery', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({
+                    delivery_id: deliveryId,
+                    buyer_pvz_code: buyerPvz.pvzCode,
+                    buyer_pvz_city_code: buyerPvz.pvzCityCode
+                })
+            });
+            
+            const data = await response.json();
+            if (data.success && data.delivery_price !== undefined) {
+                buyerPvz.cost = data.delivery_price;
+                if (costEl) costEl.innerHTML = '<span class="cost-value text-success">' + data.delivery_price + ' ₽</span>';
+                updateTotalWithDelivery();
+            } else {
+                if (costEl) costEl.innerHTML = '<span class="cost-value text-danger">' + (data.error || '—') + '</span>';
+            }
+        } catch (error) {
+            console.error('Error calculating delivery:', error);
+            if (costEl) costEl.innerHTML = '<span class="cost-value">—</span>';
+        }
+    }
+    
+    // Обновление итоговой суммы с доставкой и списанными баллами
+    function updateTotalWithDelivery() {
+        let totalDeliveryCost = 0;
+        Object.values(selectedBuyerPvz).forEach(d => {
+            if (d.cost) totalDeliveryCost += d.cost;
+        });
+
+        const cartTotal = {{ cart_total.total if cart_total is mapping else cart_total }};
+        const bonusTotal = getBonusTotal();
+        const newTotal = Math.max(0, cartTotal + totalDeliveryCost - bonusTotal);
+
+        if (totalDeliveryCost > 0) {
+            document.getElementById('delivery-cost-row').style.display = 'flex';
+            document.getElementById('delivery-cost-value').textContent = totalDeliveryCost + ' ₽';
+        }
+
+        document.getElementById('total-with-delivery').textContent = newTotal.toFixed(2) + ' ₽';
+    }
+
+    // ===== Бонусы: тумблер "Списать баллы" =====
+    // cartTotalBeforeBonus используется для расчёта лимита списания
+    // (= min(spendable, subtotal по селлеру)). В нашей модели spendable
+    // уже посчитан на сервере с учётом % селлера, поэтому тут просто
+    // берём его из data-атрибута.
+    function getBonusTotal() {
+        let total = 0;
+        const toggles = document.querySelectorAll('.bonus-toggle');
+        toggles.forEach(t => {
+            if (t.checked) {
+                const spendable = parseFloat(t.dataset.spendable || '0') || 0;
+                total += spendable;
+            }
+        });
+        return total;
+    }
+
+    function syncBonusUi() {
+        const total = getBonusTotal();
+        const out = document.getElementById('bonusTotalValue');
+        if (out) out.textContent = total.toFixed(2) + ' ₽';
+        // Синхронизируем скрытое поле для отправки на сервер (JSON {seller_id: amount})
+        const input = document.getElementById('bonusPerSellerInput');
+        if (input) {
+            const payload = {};
+            document.querySelectorAll('.bonus-toggle').forEach(t => {
+                if (t.checked) {
+                    payload[t.dataset.sellerId] = parseFloat(t.dataset.spendable || '0') || 0;
+                }
+            });
+            input.value = JSON.stringify(payload);
+        }
+        updateTotalWithDelivery();
+    }
+
+    document.querySelectorAll('.bonus-toggle').forEach(t => {
+        t.addEventListener('change', syncBonusUi);
+    });
+
+    // Перед переходом на /order-review пробрасываем выбранные бонусы
+    // в URL (?bonus=sellerId:amount;sellerId:amount). Без этого шага
+    // order_review получает пустой bonus_per_seller и итог не учитывает
+    // списание баллов.
+    const checkoutBtn = document.getElementById('checkout-btn');
+    if (checkoutBtn) {
+        checkoutBtn.addEventListener('click', function(e) {
+            const baseUrl = checkoutBtn.getAttribute('href') || '{{ url_for("main.order_review") }}';
+            const bonusStr = getBonusPerSellerString();
+            const promoStr = getPromoPerSellerString();
+            // Если нет ни бонусов, ни промокодов — идём как есть, без
+            // лишних query-параметров.
+            if (!bonusStr && !promoStr) {
+                return;
+            }
+            e.preventDefault();
+            const url = new URL(baseUrl, window.location.origin);
+            if (bonusStr) url.searchParams.set('bonus', bonusStr);
+            if (promoStr) url.searchParams.set('promo', promoStr);
+            window.location.href = url.toString();
+        });
+    }
+    
+            // Собрать выбранные к списанию баллы в формат "sellerId:amount;sellerId:amount"
+    function getBonusPerSellerString() {
+        const payload = {};
+        document.querySelectorAll('.bonus-toggle').forEach(t => {
+            if (t.checked) {
+                payload[t.dataset.sellerId] = parseFloat(t.dataset.spendable || '0') || 0;
+            }
+        });
+        const parts = [];
+        Object.keys(payload).forEach(sid => {
+            const v = payload[sid];
+            if (v > 0) parts.push(sid + ':' + v.toFixed(2));
+        });
+        return parts.join(';');
+    }
+
+    // Проверка рассчитана ли доставка перед переходом на checkout
+    window.checkDeliveryCalculated = function(link) {
+        let totalDeliveryCost = 0;
+        let deliveryInfo = [];
+
+        console.log('checkDeliveryCalculated called, selectedBuyerPvz:', selectedBuyerPvz);
+
+        Object.entries(selectedBuyerPvz).forEach(([sellerId, d]) => {
+            console.log('Checking seller:', sellerId, 'delivery data:', d);
+            if (d.cost && d.cost > 0) {
+                totalDeliveryCost += d.cost;
+                deliveryInfo.push(`${sellerId}:${d.deliveryId}:${d.pvzCode}:${d.cost}`);
+            }
+        });
+
+        console.log('deliveryInfo:', deliveryInfo);
+
+        if (deliveryInfo.length > 0) {
+            // Добавляем параметры доставки к URL
+            const baseUrl = "{{ url_for('main.checkout') }}";
+            const params = new URLSearchParams();
+            params.set('delivery', deliveryInfo.join(';'));
+            // Бонусы к списанию: seller_id:amount;...
+            const bonusStr = getBonusPerSellerString();
+            if (bonusStr) params.set('bonus', bonusStr);
+            // Промокоды: seller_id:promo_id;... (могут отсутствовать)
+            const promoStr = getPromoPerSellerString();
+            if (promoStr) params.set('promo', promoStr);
+            const newUrl = baseUrl + '?' + params.toString();
+            console.log('Navigating to:', newUrl);
+            link.href = newUrl;
+            return true;
+        } else {
+            alert('Пожалуйста, рассчитайте стоимость доставки для всех продавцов перед оформлением заказа.');
+            return false;
+        }
+    }
+
+    // ===== Промокоды магазинов =====
+    // Локальная копия текущего выбора: {sellerId: promoId}
+    const selectedPromos = {};
+
+    // Инициализация: читаем уже сохранённый выбор из скрытого поля
+    // (оно заполняется серверным render-ом из session).
+    function initPromoFromSession() {
+        const input = document.getElementById('promoPerSellerInput');
+        if (!input) return;
+        const raw = (input.value || '').trim();
+        if (!raw) return;
+        raw.split(';').forEach(part => {
+            const [sid, pid] = part.split(':');
+            if (sid && pid) selectedPromos[sid] = pid;
+        });
+    }
+    initPromoFromSession();
+
+    // Получить текущий выбор в формате "sellerId:promoId;sellerId:promoId"
+    function getPromoPerSellerString() {
+        const parts = [];
+        Object.keys(selectedPromos).forEach(sid => {
+            const pid = selectedPromos[sid];
+            if (pid) parts.push(sid + ':' + pid);
+        });
+        return parts.join(';');
+    }
+
+    // Получить общую скидку по промокодам (на клиенте, для UI).
+    function getPromoTotal() {
+        let total = 0;
+        document.querySelectorAll('.promo-select').forEach(sel => {
+            const opt = sel.options[sel.selectedIndex];
+            if (!opt || !opt.dataset.discount) return;
+            total += parseFloat(opt.dataset.discount) || 0;
+        });
+        return total;
+    }
+
+    // Синхронизация UI промокодов: обновляет текст "Скидка по промокоду"
+    // и общую сумму (subtotal − бонусы − промокоды + доставка).
+    function syncPromoUi() {
+        // Сохраняем выбор
+        const input = document.getElementById('promoPerSellerInput');
+        if (input) input.value = getPromoPerSellerString();
+
+        // Обновляем отображение суммы скидки
+        const total = getPromoTotal();
+        const out = document.getElementById('promoTotalValue');
+        if (out) out.textContent = total.toFixed(2) + ' ₽';
+
+        // Пересчитываем общий итог
+        updateTotalWithDelivery();
+    }
+
+    // Обработчик выбора промокода: уведомляем сервер, чтобы он
+    // перепроверил условия (срок, min_order_amount и т.п.) и сохранил
+    // выбор в сессии. Клиентская валидация — только для UI.
+    document.querySelectorAll('.promo-select').forEach(sel => {
+        sel.addEventListener('change', async function() {
+            const sellerId = this.dataset.sellerId;
+            if (this.value) {
+                selectedPromos[sellerId] = this.value;
+            } else {
+                delete selectedPromos[sellerId];
+            }
+            syncPromoUi();
+
+            // Уведомим сервер — он перепроверит условия и обновит сессию.
+            try {
+                const fd = new FormData();
+                fd.append('promo_per_seller', getPromoPerSellerString());
+                const resp = await fetch('{{ url_for("main.cart_promo_select") }}', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken },
+                    body: fd,
+                });
+                const data = await resp.json();
+                if (!data.success) {
+                    console.warn('Promo validation failed', data);
+                }
+            } catch (err) {
+                console.error('Promo select error', err);
+            }
+        });
+    });
+
+    // При загрузке страницы: если в сессии уже есть выбор — обновим
+    // отображение скидки и общего итога.
+    if (Object.keys(selectedPromos).length > 0) {
+        syncPromoUi();
+    } else {
+        // На случай, когда сервер уже знает про промокод, но в
+        // selectedPromos ещё пусто (например, после возврата со
+        // страницы оформления) — пробуем восстановить из input.
+        syncPromoUi();
+    }
+});
+</script>
+{% endblock %}

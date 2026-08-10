@@ -1,0 +1,694 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}Акции{% endblock %}
+
+{% block header_title %}
+<h1>Акции</h1>
+{% endblock %}
+
+{% block content %}
+<div class="promotions-page">
+
+    {# Flash-сообщения #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="promotions-info">
+        <i class="bi bi-info-circle"></i>
+        <p>
+            Акции создаёт администратор платформы. Для акции «Купи один — получи скидку»
+            продавец подключает шаблон — скидка действует на все товары продавца,
+            участвуют floor(N/2) товаров с наименьшей ценой в корзине.
+            Для акции «1+1» продавец подключает шаблон и выбирает участвующие товары —
+            скидка действует на каждый второй (по наименьшей цене) из них.
+            Скидки по разным акциям <strong>не суммируются</strong> — к каждому товару
+            применяется одна акция, дающая максимальную скидку.
+        </p>
+    </div>
+
+    {# =========================================================================
+       1) Подключённые акции (включая seller-scope шаблоны и шаблонные discount)
+       ========================================================================= #}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2><i class="bi bi-link-45deg"></i> Подключённые акции</h2>
+            <span class="promotions-count">Найдено: {{ linked_promotions|length }}</span>
+        </div>
+
+        {% if linked_promotions %}
+        <div class="promotions-list">
+            {% for item in linked_promotions %}
+                {% set promotion = item.promotion %}
+                <div class="promotion-card">
+                    <div class="promotion-header">
+                        <h3>{{ promotion.name }}</h3>
+                        <div class="d-flex gap-2 align-items-center flex-wrap">
+                            {% if promotion.scheme == 'second_with_discount' %}
+                                <span class="badge bg-info-subtle text-info-emphasis">
+                                    <i class="bi bi-magic"></i> На всю корзину
+                                </span>
+                            {% elif promotion.scheme == 'one_plus_one' %}
+                                <span class="badge bg-success-subtle text-success-emphasis">
+                                    <i class="bi bi-1-circle"></i> 1+1
+                                </span>
+                            {% elif promotion.scheme == 'discount' and promotion.is_template %}
+                                <span class="badge bg-warning-subtle text-warning-emphasis">
+                                    <i class="bi bi-percent"></i> Процентная скидка
+                                </span>
+                                {% if item.apply_same_discount %}
+                                    <span class="badge bg-light text-dark border">
+                                        <i class="bi bi-equal"></i> общая скидка
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-light text-dark border">
+                                        <i class="bi bi-list-ul"></i> индивидуальная скидка
+                                    </span>
+                                {% endif %}
+                            {% endif %}
+                            <span class="promotion-status status-{{ promotion.status }}">
+                                {% if promotion.status == 'active' %}
+                                    <i class="bi bi-check-circle"></i> Активна
+                                {% elif promotion.status == 'upcoming' %}
+                                    <i class="bi bi-clock"></i> Скоро
+                                {% elif promotion.status == 'ended' %}
+                                    <i class="bi bi-x-circle"></i> Завершена
+                                {% else %}
+                                    {{ promotion.status }}
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="promotion-details">
+                        {% if promotion.description %}
+                        <p class="promotion-description">{{ promotion.description }}</p>
+                        {% endif %}
+
+                        <div class="promotion-meta">
+                            <div class="meta-item">
+                                <i class="bi bi-calendar-event"></i>
+                                <span class="meta-label">Период:</span>
+                                <span class="meta-value">
+                                    {{ promotion.start_date.strftime('%d.%m.%Y') if promotion.start_date else 'сразу' }}
+                                    —
+                                    {{ promotion.end_date.strftime('%d.%m.%Y') if promotion.end_date else 'бессрочно' }}
+                                </span>
+                            </div>
+
+                            {% if promotion.scheme == 'second_with_discount' %}
+                                <div class="meta-item">
+                                    <i class="bi bi-percent"></i>
+                                    <span class="meta-label">Скидка:</span>
+                                    <span class="meta-value discount-value">
+                                        {{ item.effective_percent }}%
+                                    </span>
+                                </div>
+                                <div class="meta-item">
+                                    <i class="bi bi-info-circle"></i>
+                                    <span class="meta-text">
+                                        Каждый второй товар (по наименьшей цене) идёт со скидкой.
+                                        Акция действует на все ваши товары.
+                                    </span>
+                                </div>
+                            {% elif promotion.scheme == 'one_plus_one' %}
+                                <div class="meta-item">
+                                    <i class="bi bi-percent"></i>
+                                    <span class="meta-label">Скидка:</span>
+                                    <span class="meta-value discount-value">
+                                        {{ item.effective_percent }}%
+                                    </span>
+                                </div>
+                                <div class="meta-item">
+                                    <i class="bi bi-box-seam"></i>
+                                    <span class="meta-label">Товаров в акции:</span>
+                                    <span class="meta-value">{{ item.products_count }}</span>
+                                </div>
+                                <div class="meta-item">
+                                    <i class="bi bi-info-circle"></i>
+                                    <span class="meta-text">
+                                        Из выбранных вами товаров каждый второй (по наименьшей цене)
+                                        идёт со скидкой {{ item.effective_percent }}%. Акция применяется,
+                                        только если даёт наибольшую скидку.
+                                    </span>
+                                </div>
+                            {% elif promotion.scheme == 'discount' and promotion.is_template %}
+                                <div class="meta-item">
+                                    <i class="bi bi-percent"></i>
+                                    <span class="meta-label">Скидка:</span>
+                                    <span class="meta-value">
+                                        {% if item.apply_same_discount %}
+                                            <strong class="discount-value">{{ item.effective_percent }}%</strong>
+                                            <span class="meta-text">на все товары акции</span>
+                                        {% else %}
+                                            <span class="meta-text">индивидуально для каждого товара</span>
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                <div class="meta-item">
+                                    <i class="bi bi-box-seam"></i>
+                                    <span class="meta-label">Товаров в акции:</span>
+                                    <span class="meta-value">{{ item.products_count }}</span>
+                                </div>
+                            {% elif promotion.discount_percent %}
+                                <div class="meta-item">
+                                    <i class="bi bi-percent"></i>
+                                    <span class="meta-label">Скидка:</span>
+                                    <span class="meta-value discount-value">{{ promotion.discount_percent }}%</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="promotion-actions d-flex gap-2 flex-wrap">
+                        {% if promotion.scheme in ('discount', 'one_plus_one') and promotion.is_template %}
+                            <a href="{{ url_for('seller.template_promotion_products', promotion_id=promotion.id) }}"
+                               class="btn btn-primary btn-sm">
+                                <i class="bi bi-box-seam"></i> Управление товарами
+                            </a>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('seller.unlink_template_promotion', promotion_id=promotion.id) }}"
+                              onsubmit="return confirm('Отключить эту акцию? Скидка перестанет применяться к вашим товарам.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-x-circle"></i> Отключить
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-link-45deg" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i>
+            <p>У вас пока нет подключённых акций. Подключите шаблон ниже.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {# =========================================================================
+       2) Доступные шаблоны (которые можно подключить)
+       ========================================================================= #}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2><i class="bi bi-stars"></i> Доступные шаблоны</h2>
+            <span class="promotions-count">Найдено: {{ available_templates|length }}</span>
+        </div>
+
+        {% if available_templates %}
+        <div class="promotions-list">
+            {% for promotion in available_templates %}
+            <div class="promotion-card promotion-card--template">
+                <div class="promotion-header">
+                    <h3>{{ promotion.name }}</h3>
+                    <div class="d-flex gap-2 align-items-center">
+                        <span class="badge bg-primary-subtle text-primary-emphasis">
+                            <i class="bi bi-stars"></i> Шаблон
+                        </span>
+                        {% if promotion.scheme == 'discount' %}
+                            <span class="badge bg-warning-subtle text-warning-emphasis">
+                                <i class="bi bi-percent"></i> Процентная скидка
+                            </span>
+                        {% elif promotion.scheme == 'one_plus_one' %}
+                            <span class="badge bg-success-subtle text-success-emphasis">
+                                <i class="bi bi-1-circle"></i> 1+1
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="promotion-details">
+                    {% if promotion.description %}
+                    <p class="promotion-description">{{ promotion.description }}</p>
+                    {% else %}
+                        {% if promotion.scheme == 'second_with_discount' %}
+                        <p class="promotion-description">
+                            Каждый второй товар (по наименьшей цене) в корзине покупателя —
+                            со скидкой. Действует на все ваши товары.
+                        </p>
+                        {% elif promotion.scheme == 'one_plus_one' %}
+                        <p class="promotion-description">
+                            Купи один — получи второй со скидкой {{ promotion.discount_percent if promotion.discount_percent is not none else 99 }}%.
+                            Вы выбираете участвующие товары. Скидка действует на каждый второй
+                            по наименьшей цене товар из корзины покупателя.
+                        </p>
+                        {% else %}
+                        <p class="promotion-description">
+                            Процентная скидка. Вы сами выбираете товары, на которые она действует.
+                        </p>
+                        {% endif %}
+                    {% endif %}
+
+                    <div class="promotion-meta">
+                        <div class="meta-item">
+                            <i class="bi bi-percent"></i>
+                            <span class="meta-label">Скидка:</span>
+                            <span class="meta-value">
+                                {% if promotion.discount_percent is not none %}
+                                    <strong class="discount-value">{{ promotion.discount_percent }}%</strong>
+                                    <span class="meta-text">— установлена администратором</span>
+                                {% else %}
+                                    <span class="meta-text">вы укажете при подключении</span>
+                                {% endif %}
+                            </span>
+                        </div>
+
+                        <div class="meta-item">
+                            <i class="bi bi-calendar-event"></i>
+                            <span class="meta-label">Период:</span>
+                            <span class="meta-value">
+                                {{ promotion.start_date.strftime('%d.%m.%Y') if promotion.start_date else 'сразу' }}
+                                —
+                                {{ promotion.end_date.strftime('%d.%m.%Y') if promotion.end_date else 'бессрочно' }}
+                            </span>
+                        </div>
+
+                        {% if promotion.scheme == 'discount' and promotion.apply_same_discount is not none %}
+                        <div class="meta-item">
+                            <i class="bi bi-info-circle"></i>
+                            <span class="meta-label">Режим по умолчанию:</span>
+                            <span class="meta-value">
+                                {% if promotion.apply_same_discount %}
+                                    одинаковая скидка на все товары
+                                {% else %}
+                                    индивидуальная скидка для каждого товара
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="promotion-actions">
+                    <button type="button"
+                            class="btn btn-primary btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#linkTemplateModal{{ promotion.id }}">
+                        <i class="bi bi-plus-circle"></i> Подключить
+                    </button>
+                </div>
+            </div>
+
+            {# Модалка подключения #}
+            <div class="modal fade" id="linkTemplateModal{{ promotion.id }}" tabindex="-1"
+                 aria-labelledby="linkTemplateModalLabel{{ promotion.id }}" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <form method="POST" action="{{ url_for('seller.link_template_promotion', promotion_id=promotion.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="linkTemplateModalLabel{{ promotion.id }}">
+                                    Подключить «{{ promotion.name }}»
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                {% if promotion.scheme == 'second_with_discount' %}
+                                    {% if promotion.discount_percent is not none %}
+                                        <p>Администратор установил скидку <strong>{{ promotion.discount_percent }}%</strong>.
+                                           Акция будет действовать на все ваши товары.</p>
+                                        <input type="hidden" name="override_discount_percent" value=""/>
+                                    {% else %}
+                                        <p>Администратор не задал размер скидки — укажите свой процент.</p>
+                                        <div class="mb-3">
+                                            <label for="override_discount_percent{{ promotion.id }}" class="form-label">
+                                                Процент скидки (1–100) *
+                                            </label>
+                                            <input type="number" min="1" max="100" step="1" required
+                                                   class="form-control"
+                                                   id="override_discount_percent{{ promotion.id }}"
+                                                   name="override_discount_percent"
+                                                   placeholder="например, 15">
+                                            <div class="form-text">
+                                                Этот процент будет применён к каждому второму товару
+                                                (по наименьшей цене) в корзине покупателя.
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% elif promotion.scheme == 'one_plus_one' %}
+                                    <p>Купи один — получи второй со скидкой
+                                       <strong>{{ promotion.discount_percent if promotion.discount_percent is not none else 99 }}%</strong>.</p>
+                                    <p class="text-muted small">
+                                        Скидка применяется к каждому второму по наименьшей цене товару
+                                        в корзине покупателя (из выбранных вами товаров).
+                                        Акция применяется, только если даёт наибольшую скидку —
+                                        не суммируется с другими.
+                                    </p>
+                                    {% if promotion.min_product_price is not none %}
+                                    <div class="alert alert-warning small">
+                                        <i class="bi bi-exclamation-triangle"></i>
+                                        Минимальная цена товара для участия:
+                                        <strong>{{ "{:,.2f}".format(promotion.min_product_price).replace(',', ' ') }} ₽</strong>.
+                                        Более дешёвые товары добавить в акцию нельзя.
+                                    </div>
+                                    {% endif %}
+                                    <input type="hidden" name="override_discount_percent" value=""/>
+                                {% else %}
+                                    <p class="text-muted">Процентная скидка: вы сами выбираете, на какие товары она действует.</p>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Режим скидки</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio"
+                                                   name="apply_same_discount" id="apply_same_yes{{ promotion.id }}"
+                                                   value="1"
+                                                   {% if promotion.apply_same_discount is none or promotion.apply_same_discount %}checked{% endif %}>
+                                            <label class="form-check-label" for="apply_same_yes{{ promotion.id }}">
+                                                Одинаковая скидка на все товары
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio"
+                                                   name="apply_same_discount" id="apply_same_no{{ promotion.id }}"
+                                                   value="0"
+                                                   {% if promotion.apply_same_discount == false %}checked{% endif %}>
+                                            <label class="form-check-label" for="apply_same_no{{ promotion.id }}">
+                                                Индивидуальная скидка для каждого товара
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3" id="override-block{{ promotion.id }}">
+                                        <label for="override_discount_percent{{ promotion.id }}" class="form-label">
+                                            Общая скидка, %
+                                        </label>
+                                        {% if promotion.discount_percent is not none %}
+                                            <input type="number" min="1" max="100" step="1"
+                                                   class="form-control"
+                                                   id="override_discount_percent{{ promotion.id }}"
+                                                   name="override_discount_percent"
+                                                   value="{{ promotion.discount_percent }}"
+                                                   placeholder="по умолчанию {{ promotion.discount_percent }}%">
+                                            <div class="form-text">
+                                                Администратор задал шаблонный процент — можно переопределить своим.
+                                            </div>
+                                        {% else %}
+                                            <input type="number" min="1" max="100" step="1"
+                                                   class="form-control"
+                                                   id="override_discount_percent{{ promotion.id }}"
+                                                   name="override_discount_percent"
+                                                   placeholder="например, 15">
+                                            <div class="form-text">
+                                                Администратор не задал скидку — укажите свой процент.
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="alert alert-info small mb-0" id="apply-same-hint{{ promotion.id }}">
+                                        В режиме «одинаковая скидка» вы просто добавите товары из каталога.
+                                        В режиме «индивидуальная» — процент указывается для каждого товара отдельно.
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                <button type="submit" class="btn btn-primary">Подключить</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-stars" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i>
+            <p>Нет доступных шаблонов для подключения.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {# =========================================================================
+       3) Классические акции, в которые попали товары продавца
+       ========================================================================= #}
+    {% if classic_promotions %}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2><i class="bi bi-tag"></i> Акции с вашими товарами</h2>
+            <span class="promotions-count">Найдено: {{ classic_promotions|length }}</span>
+        </div>
+
+        <div class="promotions-list">
+            {% for promotion in classic_promotions %}
+            <div class="promotion-card">
+                <div class="promotion-header">
+                    <h3>{{ promotion.name }}</h3>
+                    <span class="promotion-status status-{{ promotion.status }}">
+                        {% if promotion.status == 'active' %}
+                            <i class="bi bi-check-circle"></i> Активна
+                        {% else %}
+                            {{ promotion.status }}
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="promotion-details">
+                    {% if promotion.description %}
+                    <p class="promotion-description">{{ promotion.description }}</p>
+                    {% endif %}
+
+                    <div class="promotion-meta">
+                        <div class="meta-item">
+                            <i class="bi bi-calendar-event"></i>
+                            <span class="meta-label">Период:</span>
+                            <span class="meta-value">
+                                {{ promotion.start_date.strftime('%d.%m.%Y') if promotion.start_date else 'сразу' }}
+                                —
+                                {{ promotion.end_date.strftime('%d.%m.%Y') if promotion.end_date else 'бессрочно' }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {% set promotion_products = [] %}
+                {% for pp in promotion.products %}
+                    {% if pp.product and pp.product.seller_id == current_user.id %}
+                        {% set _ = promotion_products.append(pp.product) %}
+                    {% endif %}
+                {% endfor %}
+                {% if promotion_products %}
+                <div class="promotion-products">
+                    <h4><i class="bi bi-box-seam"></i> Ваши товары в этой акции ({{ promotion_products|length }}):</h4>
+                    <div class="products-grid">
+                        {% for product in promotion_products %}
+                        <div class="product-mini-card">
+                            {% if product.image %}
+                            <img src="{{ url_for('static', filename='uploads/' + product.image) }}" alt="{{ product.name }}" class="product-image">
+                            {% else %}
+                            <div class="product-image-placeholder">
+                                <i class="bi bi-image"></i>
+                            </div>
+                            {% endif %}
+                            <div class="product-info">
+                                <span class="product-name">{{ product.name }}</span>
+                                <span class="product-price">{{ "{:,.0f}".format(product.price).replace(',', ' ') }} ₽</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# Как участвовать #}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2><i class="bi bi-lightbulb"></i> Как участвовать в акциях</h2>
+        </div>
+
+        <div class="info-box">
+            <ol>
+                <li>Добавьте товары в каталог — они появятся на витрине.</li>
+                <li>Администратор создаёт шаблон акции. Если у шаблона не задан процент — вы задаёте свой при подключении.</li>
+                <li>Подключите подходящий шаблон. Скидка «Купи один — получи скидку» действует на все ваши товары, «1+1» — на выбранные вами.</li>
+                <li>В корзине покупателя каждый второй товар (по наименьшей цене) идёт со скидкой автоматически. Скидки не суммируются — применяется лучшая.</li>
+            </ol>
+        </div>
+    </div>
+</div>
+
+<style>
+.promotions-page { padding: 0; }
+
+.promotions-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: #dbeafe;
+    border-left: 4px solid var(--primary-color);
+    padding: 16px;
+    border-radius: var(--radius-md);
+    margin-bottom: 24px;
+}
+.promotions-info i { font-size: 20px; color: var(--primary-color); flex-shrink: 0; margin-top: 2px; }
+.promotions-info p { margin: 0; color: #1e40af; font-size: 14px; line-height: 1.5; }
+
+.promotions-count { color: var(--text-secondary); font-size: 14px; }
+
+.promotions-list { display: flex; flex-direction: column; gap: 20px; }
+
+.promotion-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+}
+.promotion-card--template {
+    border-style: dashed;
+    background: linear-gradient(0deg, rgba(13,110,253,0.03), rgba(13,110,253,0.03));
+}
+
+.promotion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.promotion-header h3 { margin: 0; color: var(--text-primary); font-size: 18px; }
+
+.promotion-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+}
+.promotion-status i { font-size: 14px; }
+.status-active { background: #dcfce7; color: #166534; }
+.status-upcoming { background: #fef3c7; color: #92400e; }
+.status-ended { background: #fee2e2; color: #991b1b; }
+
+.promotion-details { margin-bottom: 16px; }
+.promotion-description { color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; }
+
+.promotion-meta { display: flex; flex-wrap: wrap; gap: 20px; }
+.meta-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.meta-item i { color: var(--text-light); }
+.meta-label { color: var(--text-secondary); }
+.meta-value { color: var(--text-primary); font-weight: 500; }
+.meta-text { color: var(--text-secondary); font-size: 13px; }
+.discount-value { color: var(--danger-color) !important; font-size: 18px; font-weight: 700 !important; }
+
+.promotion-actions { margin-top: 16px; }
+
+.promotion-products {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-top: 16px;
+}
+.promotion-products h4 {
+    margin: 0 0 16px;
+    color: var(--text-primary);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.promotion-products h4 i { color: var(--primary-color); }
+
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+}
+.product-mini-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    transition: var(--transition);
+}
+.product-mini-card:hover { box-shadow: var(--shadow-md); }
+
+.product-image {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    margin-bottom: 10px;
+    background: var(--bg-secondary);
+}
+.product-image-placeholder {
+    width: 100%;
+    height: 100px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    color: var(--text-light);
+    margin-bottom: 10px;
+}
+.product-info { display: flex; flex-direction: column; gap: 6px; }
+.product-name {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.product-price { font-size: 14px; color: var(--text-primary); font-weight: 600; }
+
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+
+.info-box {
+    background: var(--bg-secondary);
+    border-left: 4px solid var(--primary-color);
+    padding: 16px 20px;
+    border-radius: var(--radius-md);
+}
+.info-box ol { margin: 0; padding-left: 20px; }
+.info-box li { margin-bottom: 10px; color: var(--text-primary); line-height: 1.5; }
+.info-box li:last-child { margin-bottom: 0; }
+</style>
+
+<script>
+(function () {
+    // Для каждой модалки discount-шаблона: переключать поле общей скидки
+    // в зависимости от выбора apply_same_discount.
+    document.querySelectorAll('.modal').forEach(function (modal) {
+        var yes = modal.querySelector('input[id^="apply_same_yes"]');
+        var no = modal.querySelector('input[id^="apply_same_no"]');
+        if (!yes && !no) return;
+        var block = modal.querySelector('[id^="override-block"]');
+        var hint = modal.querySelector('[id^="apply-same-hint"]');
+        function refresh() {
+            if (!block) return;
+            var same = !no || !no.checked;
+            if (same) {
+                block.style.display = '';
+                if (hint) hint.textContent = 'В режиме «одинаковая скидка» вы просто добавите товары из каталога.';
+            } else {
+                block.style.display = 'none';
+                if (hint) hint.textContent = 'В режиме «индивидуальная» — процент указывается для каждого товара отдельно.';
+            }
+        }
+        if (yes) yes.addEventListener('change', refresh);
+        if (no) no.addEventListener('change', refresh);
+        refresh();
+    });
+})();
+</script>
+{% endblock %}

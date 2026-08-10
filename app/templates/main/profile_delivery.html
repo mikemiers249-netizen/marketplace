@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+
+{% block title %}Доставка - Личный кабинет{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+<style>
+    .profile-page {
+        padding: 30px 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .profile-header {
+        margin-bottom: 24px;
+    }
+    
+    .profile-header h1 {
+        font-size: 28px;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    .profile-wrapper {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 24px;
+        align-items: start;
+    }
+    
+    @media (max-width: 991px) {
+        .profile-wrapper {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .profile-sidebar {
+        position: sticky;
+        top: 100px;
+    }
+    
+    @media (max-width: 991px) {
+        .profile-sidebar {
+            position: static;
+        }
+    }
+    
+    .profile-user-card {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        margin-bottom: 16px;
+    }
+    
+    .user-avatar-large {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+    }
+    
+    .avatar-initials {
+        font-size: 32px;
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .user-name {
+        font-size: 20px;
+        margin: 0 0 8px;
+        color: #333;
+    }
+    
+    .user-email {
+        color: #666;
+        font-size: 14px;
+        margin: 0 0 12px;
+    }
+    
+    .user-status {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .profile-nav {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    
+    .profile-nav-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        color: #555;
+        text-decoration: none;
+        transition: all 0.2s;
+        border-left: 3px solid transparent;
+    }
+    
+    .profile-nav-link:hover {
+        background: #f8f9fa;
+        color: #333;
+    }
+    
+    .profile-nav-link.active {
+        background: #e7f1ff;
+        color: #0d6efd;
+        border-left-color: #0d6efd;
+    }
+    
+    .profile-nav-link i {
+        font-size: 18px;
+    }
+    
+    .profile-content {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 24px;
+        min-height: 400px;
+    }
+    
+    .profile-content h2 {
+        font-size: 22px;
+        margin: 0 0 8px;
+        color: #333;
+    }
+    
+    .profile-content .text-muted {
+        margin-bottom: 24px;
+    }
+    
+    .delivery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+    }
+    
+    .delivery-card {
+        border: 1px solid #e5e5e5;
+        border-radius: 10px;
+        padding: 20px;
+        background: #fff;
+    }
+    
+    .delivery-card-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+    
+    .delivery-logo {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        margin-right: 12px;
+    }
+    
+    .delivery-logo-placeholder {
+        width: 40px;
+        height: 40px;
+        background: #6c757d;
+        color: #fff;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+        font-weight: 600;
+    }
+    
+    .delivery-card-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0;
+        color: #333;
+    }
+    
+    .form-group {
+        margin-bottom: 16px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        color: #444;
+        font-size: 14px;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+    }
+    
+    .btn-primary {
+        background: #0d6efd;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #fff;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .btn-primary:hover {
+        background: #0b5ed7;
+    }
+    
+    .btn-outline-secondary {
+        background: #fff;
+        border: 1px solid #6c757d;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+        color: #6c757d;
+        cursor: pointer;
+    }
+    
+    .btn-outline-secondary:hover {
+        background: #f8f9fa;
+    }
+    
+    .save-success {
+        margin-top: 12px;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+    }
+    
+    .alert-info {
+        background: #e7f3ff;
+        border: 1px solid #b6d4fe;
+        color: #084298;
+        padding: 16px 20px;
+        border-radius: 10px;
+    }
+    
+    /* Modal Map Styles */
+    .pvz-modal .modal-dialog {
+        max-width: 95vw;
+        height: 85vh;
+    }
+    
+    .pvz-modal .modal-body {
+        padding: 0;
+        height: calc(100% - 56px - 60px); /* header + footer */
+    }
+    
+    .pvz-modal .modal-content {
+        height: 100%;
+    }
+    
+    .pvz-modal-container {
+        display: flex;
+        height: 100%;
+    }
+    
+    .pvz-list-panel {
+        width: 350px;
+        min-width: 300px;
+        border-right: 1px solid #ddd;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .pvz-search-panel {
+        padding: 15px;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .pvz-search-panel input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+    }
+    
+    .pvz-items {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        max-height: calc(100% - 60px);
+    }
+    
+    .pvz-item {
+        padding: 12px;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .pvz-item:hover {
+        background: #f8f9fa;
+    }
+    
+    .pvz-item.selected {
+        border-color: #0d6efd;
+        background: #e7f1ff;
+    }
+    
+    .pvz-item-name {
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+    
+    .pvz-item-address {
+        font-size: 13px;
+        color: #666;
+    }
+    
+    .pvz-item-time {
+        font-size: 12px;
+        color: #999;
+        margin-top: 4px;
+    }
+    
+    .pvz-map-panel {
+        flex: 1;
+        position: relative;
+        min-height: 400px;
+    }
+    
+    .pvz-map {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+    
+    #buyerPvzMap, #buyerPvzMap1, #buyerPvzMap2, #buyerPvzMap3, #buyerPvzMap4, #buyerPvzMap5 {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1;
+    }
+    
+    .pvz-confirm-panel {
+        padding: 15px;
+        border-top: 1px solid #ddd;
+        background: #f8f9fa;
+        flex-shrink: 0;
+    }
+    
+    @media (max-width: 768px) {
+        .pvz-modal-container {
+            flex-direction: column;
+        }
+        
+        .pvz-list-panel {
+            width: 100%;
+            height: 40%;
+        }
+        
+        .pvz-map-panel {
+            height: 60%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+    <div class="profile-header">
+        <h1>Личный кабинет</h1>
+    </div>
+    
+    <div class="profile-wrapper">
+        {# Sidebar #}
+        <aside class="profile-sidebar">
+            <div class="profile-user-card">
+                <div class="user-avatar-large">
+                    <span class="avatar-initials">{{ user.name[:1] if user.name else user.login[:1] }}</span>
+                </div>
+                <h3 class="user-name">{{ user.name or user.login }}</h3>
+                <p class="user-email">{{ user.email }}</p>
+                <span class="user-status">Покупатель</span>
+            </div>
+            
+            <nav class="profile-nav">
+                <a href="{{ url_for('main.profile_orders') }}"
+                   class="profile-nav-link">
+                    <i class="bi bi-box-seam"></i>
+                    Мои заказы
+                </a>
+                <a href="{{ url_for('main.profile_delivery') }}"
+                   class="profile-nav-link active">
+                    <i class="bi bi-truck"></i>
+                    Доставка
+                </a>
+                <a href="{{ url_for('main.profile', section='favorite') }}"
+                   class="profile-nav-link">
+                    <i class="bi bi-heart"></i>
+                    Избранное
+                </a>
+                <a href="{{ url_for('main.profile', section='messages') }}"
+                   class="profile-nav-link">
+                    <i class="bi bi-chat-dots"></i>
+                    Сообщения
+                </a>
+                <a href="{{ url_for('main.profile', section='settings') }}"
+                   class="profile-nav-link">
+                    <i class="bi bi-gear"></i>
+                    Настройки
+                </a>
+            </nav>
+        </aside>
+        
+        {# Main Content #}
+        <main class="profile-content">
+            <h2>Доставка</h2>
+            <p class="text-muted">Выберите удобный пункт выдачи для каждой службы доставки</p>
+            
+            {% if not delivery_services %}
+            <div class="alert alert-info">
+                Нет доступных служб доставки
+            </div>
+            {% else %}
+            <div class="delivery-grid">
+                {% for service in delivery_services %}
+                <div class="delivery-card">
+                    <div class="delivery-card-header">
+                        {% if service.logo %}
+                        <img src="{{ service.logo }}" alt="{{ service.name }}" class="delivery-logo">
+                        {% else %}
+                        <div class="delivery-logo-placeholder">
+                            {{ service.name[0] }}
+                        </div>
+                        {% endif %}
+                        <h5 class="delivery-card-title">{{ service.name }}</h5>
+                    </div>
+                    
+                    <form class="delivery-form" data-service-id="{{ service.id }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="service_id" value="{{ service.id }}">
+                        <input type="hidden" name="pvz_city_code" id="pvz_city_code_{{ service.id }}" 
+                               value="{{ delivery_by_service.get(service.code).pvz_city_code if delivery_by_service.get(service.code) else '' }}">
+                        <div class="form-group">
+                            <label>Пункт выдачи (ПВЗ)</label>
+                            <div class="input-group">
+                                <input type="text" 
+                                       class="form-control pvz-input" 
+                                       name="pvz_code" 
+                                       placeholder="Код ПВЗ"
+                                       value="{{ delivery_by_service[service.code].pvz_code if delivery_by_service.get(service.code) else '' }}">
+                                <button type="button" class="btn btn-outline-secondary" onclick="openCdekWidget({{ service.id }})">
+                                    <i class="bi bi-map"></i> Выбрать ПВЗ
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Адрес ПВЗ</label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   name="pvz_address" 
+                                   placeholder="Адрес пункта выдачи"
+                                   value="{{ delivery_by_service[service.code].pvz_address if delivery_by_service.get(service.code) else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Город</label>
+                            <input type="text" 
+                                   class="form-control pvz-city-input" 
+                                   name="pvz_city" 
+                                   placeholder="Город"
+                                   value="{{ delivery_by_service[service.code].pvz_city if delivery_by_service.get(service.code) else '' }}">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </form>
+                    <div class="alert alert-success save-success d-none">Сохранено!</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </main>
+    </div>
+</div>
+
+{# Модальные окна для выбора ПВЗ #}
+{% for service in delivery_services %}
+<div class="modal fade pvz-modal" id="pvzModal{{ service.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Выберите ПВЗ - {{ service.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="cdekWidgetContainer{{ service.id }}" class="cdek-widget-container"></div>
+            </div>
+            <div class="pvz-confirm-panel">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>Выбран: </strong><span class="selected-pvz-name" id="selectedPvzName{{ service.id }}">-</span>
+                    </div>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal" id="confirmPvzBtn{{ service.id }}">
+                        Подтвердить выбор
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{# Виджет СДЭК #}
+<script id="ISDEKscript" type="text/javascript" src="https://widget.cdek.ru/widget/widjet.js" charset="utf-8"></script>
+<script>
+let cdekWidjets = {};
+let selectedBuyerPvz = {};
+
+// Инициализация виджета при открытии модального окна
+document.querySelectorAll('.pvz-modal').forEach(modal => {
+    modal.addEventListener('shown.bs.modal', function() {
+        const serviceId = this.id.replace('pvzModal', '');
+        initCdekWidget(serviceId);
+    });
+    
+    // Очистка при закрытии
+    modal.addEventListener('hidden.bs.modal', function() {
+        const serviceId = this.id.replace('pvzModal', '');
+        // Виджет СДЭК сам управляется, просто очистим выбранные данные
+    });
+});
+
+function initCdekWidget(serviceId) {
+    if (cdekWidjets[serviceId]) {
+        return; // Виджет уже инициализирован
+    }
+    
+    const containerId = `cdekWidgetContainer${serviceId}`;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    // Получаем текущий выбранный ПВЗ для этого сервиса
+    const form = document.querySelector(`.delivery-form[data-service-id="${serviceId}"]`);
+    const currentCity = form?.querySelector('.pvz-city-input')?.value || 'Москва';
+    
+    cdekWidjets[serviceId] = new ISDEKWidjet({
+        popup: true,
+        hideDelivery: true,
+        defaultCity: currentCity,
+        cityFrom: currentCity,
+        link: containerId,
+        onChoose: function(info) {
+            // Сохраняем выбранный ПВЗ
+            selectedBuyerPvz[serviceId] = {
+                code: info.id,
+                address: info.PVZ.Address,
+                city: info.cityName,
+                city_code: info.PVZ?.Location?.CityCode || ''
+            };
+            
+            // Обновляем UI
+            const nameEl = document.getElementById(`selectedPvzName${serviceId}`);
+            if (nameEl) {
+                nameEl.textContent = `${info.id} - ${info.PVZ.Address}`;
+            }
+            
+            // Автоматически заполняем форму при выборе
+            const form = document.querySelector(`.delivery-form[data-service-id="${serviceId}"]`);
+            if (form) {
+                form.querySelector('.pvz-input').value = info.id;
+                form.querySelector('input[name="pvz_address"]').value = info.PVZ.Address;
+                form.querySelector('.pvz-city-input').value = info.cityName;
+                const cityCodeInput = document.getElementById(`pvz_city_code_${serviceId}`);
+                if (cityCodeInput) {
+                    cityCodeInput.value = info.PVZ?.Location?.CityCode || '';
+                }
+            }
+        },
+        onReady: function() {
+            console.log(`Виджет СДЭК для сервиса ${serviceId} готов`);
+        }
+    });
+    
+    cdekWidjets[serviceId].serviceId = serviceId;
+}
+</script>
+
+// Форма сохранения
+document.querySelectorAll('.delivery-form').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const serviceId = form.dataset.serviceId;
+        
+        try {
+            const response = await fetch('{{ url_for("main.profile_delivery_save") }}', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            
+            const successEl = form.parentElement.querySelector('.save-success');
+            if (data.success) {
+                successEl.classList.remove('d-none', 'alert-danger');
+                successEl.classList.add('alert-success');
+                successEl.textContent = 'Сохранено!';
+                setTimeout(() => successEl.classList.add('d-none'), 3000);
+            } else {
+                successEl.classList.remove('d-none', 'alert-success');
+                successEl.classList.add('alert-danger');
+                successEl.textContent = data.error || 'Ошибка сохранения';
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    });
+});
+</script>
+
+{# Виджет СДЭК для выбора ПВЗ #}
+<script id="ISDEKscript" type="text/javascript" src="https://widget.cdek.ru/widget/widjet.js" charset="utf-8"></script>
+<script>
+var widjet = null;
+
+function openCdekWidget(serviceId) {
+    if (!widjet) {
+        widjet = new ISDEKWidjet({
+            popup: true,
+            hidedelt: true,
+            defaultCity: 'Москва',
+            cityFrom: 'Москва',
+            onChoose: function(info) {
+                // Заполняем форму
+                var form = document.querySelector('.delivery-form[data-service-id="' + serviceId + '"]');
+                if (form) {
+                    form.querySelector('input[name="pvz_code"]').value = info.id;
+                    form.querySelector('input[name="pvz_address"]').value = info.PVZ.Address;
+                    form.querySelector('input[name="pvz_city"]').value = info.cityName;
+                    var cityCodeInput = document.getElementById('pvz_city_code_' + serviceId);
+                    if (cityCodeInput) cityCodeInput.value = info.PVZ?.Location?.CityCode || '';
+                }
+                widjet.close();
+            }
+        });
+    }
+    widjet.open();
+}
+</script>
+{% endblock %}

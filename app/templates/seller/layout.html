@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Панель продавца{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/seller.css') }}">
+    {# Inline-страховка: подсветка пункта «Сообщения» при непрочитанных. #}
+    <style>
+        .nav-link.has-unread,
+        .nav-link.has-unread span { color: #ff6b6b; }
+        .nav-link.has-unread .nav-icon { color: #ff6b6b; }
+        .nav-link.has-unread.active .nav-icon { color: #ff4d4f; }
+        .nav-link .unread-dot { display: none; }
+        .nav-link.has-unread .unread-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin-left: auto;
+            border-radius: 50%;
+            background: #ff4d4f;
+            box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.25);
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+    {# CSRF token for AJAX requests #}
+    <meta name="csrf-token" content="{{ csrf_token() if csrf_token else '' }}">
+</head>
+<body>
+    <div class="seller-layout">
+        {# Sidebar #}
+        {% set _ts = tariff_state or {} %}
+        {% set _st = _ts.state or 'none' %}
+        {% set can_work = _st in ('paid', 'grace', 'global') %}
+        <aside class="seller-sidebar">
+            <div class="sidebar-header">
+                <a href="http://seller.marketplace.local:5000/dashboard/" class="seller-logo" title="{{ current_user.store_name }}">
+                    <div class="sidebar-header-inner">
+                        {% if current_user.store_logo %}
+                        <img src="{{ url_for('static', filename='uploads/sellers/' + current_user.store_logo) }}"
+                             alt="{{ current_user.store_name }}"
+                             class="sidebar-store-avatar">
+                        {% else %}
+                        <div class="sidebar-store-avatar-placeholder">
+                            <span>{{ current_user.store_name[:1].upper() }}</span>
+                        </div>
+                        {% endif %}
+                        <span class="sidebar-store-name">{{ current_user.store_name }}</span>
+                    </div>
+                </a>
+            </div>
+
+            <nav class="sidebar-nav">
+                <ul>
+                    {% if can_work %}
+                    <li>
+                        <a href="http://seller.marketplace.local:5000/dashboard/" class="nav-link{% if request.endpoint == 'seller.dashboard' %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-grid-1x2"></i></span>
+                            <span>Обзор</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('seller.products') }}" class="nav-link{% if 'products' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-box-seam"></i></span>
+                            <span>Товары</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('seller.orders') }}" class="nav-link{% if 'order' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-cart3"></i></span>
+                            <span>Заказы</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li>
+                        <a href="{{ url_for('seller.messages') }}"
+                           class="nav-link{% if 'message' in request.endpoint %} active{% endif %}{% if unread_messages_count %} has-unread{% endif %}"
+                           {% if unread_messages_count %}style="color: #ff6b6b !important;"{% endif %}>
+                            <span class="nav-icon" {% if unread_messages_count %}style="color: #ff4d4f !important;"{% endif %}><i class="bi bi-chat-dots"></i></span>
+                            <span {% if unread_messages_count %}style="color: #ff6b6b !important;"{% endif %}>Сообщения</span>
+                            {% if unread_messages_count %}
+                            <span class="unread-dot"
+                                  title="{{ unread_messages_count }} непрочитанных сообщений"
+                                  style="display: inline-block !important;
+                                         width: 10px !important;
+                                         height: 10px !important;
+                                         margin-left: auto !important;
+                                         border-radius: 50% !important;
+                                         background: #ff4d4f !important;
+                                         box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.3) !important;"></span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    {% if can_work %}
+                    <li>
+                        <a href="{{ url_for('seller.analytics') }}" class="nav-link{% if 'analytics' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-graph-up"></i></span>
+                            <span>Аналитика</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('seller.delivery') }}" class="nav-link{% if 'delivery' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-truck"></i></span>
+                            <span>Доставки</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('seller.reviews') }}" class="nav-link{% if 'review' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-star"></i></span>
+                            <span>Отзывы</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('seller.settings') }}" class="nav-link{% if 'setting' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-gear"></i></span>
+                            <span>Настройки</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('seller.promotions') }}" class="nav-link{% if 'promotion' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-tag"></i></span>
+                            <span>Акции</span>
+                        </a>
+                    </li>
+                    {% if loyalty_enabled %}
+                    <li>
+                        <a href="{{ url_for('seller.loyalty') }}" class="nav-link{% if request.endpoint == 'seller.loyalty' %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-gift"></i></span>
+                            <span>Лояльность</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% endif %}
+                    <li>
+                        <a href="{{ url_for('seller.tariffs') }}" class="nav-link{% if 'tariff' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-cash-coin"></i></span>
+                            <span>Тариф</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('seller.info') }}" class="nav-link{% if request.endpoint == 'seller.info' %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-info-circle"></i></span>
+                            <span>Информация</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                {# Ссылки «На сайт» и «Выйти» перенесены в правый верхний угол (header-actions) #}
+            </div>
+        </aside>
+        
+        {# Main content #}
+        <main class="seller-main">
+            <header class="seller-header">
+                <div class="header-title">
+                    {% block header_title %}{% endblock %}
+                </div>
+                <div class="header-actions header-actions--icons">
+                    {% if not can_work %}
+                    <a href="{{ url_for('seller.tariffs') }}#blocked" class="btn btn-warning">
+                        <i class="bi bi-cash-coin"></i> Активировать тариф
+                    </a>
+                    {% endif %}
+                    <a href="{{ url_for('main.index') }}" class="header-icon-btn" target="_blank" title="Перейти на сайт" aria-label="Перейти на сайт">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                    </a>
+                    <a href="{{ url_for('auth.seller_logout') }}" class="header-icon-btn" title="Выйти" aria-label="Выйти">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </a>
+                </div>
+            </header>
+            
+            <div class="seller-content">
+                {# ===== Баннер состояния тарифа (grace / locked / expiring) ===== #}
+                {% if tariff_state and tariff_state.show_warning_banner %}
+                    {% if tariff_state.state == 'locked' %}
+                        <div class="tariff-banner tariff-banner--danger">
+                            <i class="bi bi-lock-fill"></i>
+                            <div class="tariff-banner-text">
+                                <strong>Магазин заблокирован.</strong>
+                                Срок действия тарифа истёк, грейс-период закончился.
+                                Доступ к товарам и заказам ограничен.
+                            </div>
+                            <a href="{{ url_for('seller.tariffs') }}#blocked"
+                               class="btn btn-sm btn-danger tariff-banner-action">
+                                <i class="bi bi-unlock"></i> Оплатить тариф
+                            </a>
+                        </div>
+                    {% elif tariff_state.state == 'grace' %}
+                        <div class="tariff-banner tariff-banner--warn">
+                            <i class="bi bi-hourglass-split"></i>
+                            <div class="tariff-banner-text">
+                                <strong>Срок тарифа истёк.</strong>
+                                Осталось <strong>{{ tariff_state.days_to_grace_end }}</strong>
+                                дн., чтобы оплатить и продолжить работу. После — магазин будет заблокирован.
+                            </div>
+                            <a href="{{ url_for('seller.tariffs') }}#grace"
+                               class="btn btn-sm btn-warning tariff-banner-action">
+                                Оплатить
+                            </a>
+                        </div>
+                    {% elif tariff_state.state == 'paid' and tariff_state.days_to_expire is defined and tariff_state.days_to_expire <= 5 %}
+                        <div class="tariff-banner tariff-banner--info">
+                            <i class="bi bi-info-circle"></i>
+                            <div class="tariff-banner-text">
+                                До окончания тарифа осталось
+                                <strong>{{ tariff_state.days_to_expire }}</strong> дн.
+                                Продлите заранее, чтобы не терять доступ.
+                            </div>
+                            <a href="{{ url_for('seller.tariffs') }}"
+                               class="btn btn-sm btn-primary tariff-banner-action">
+                                <i class="bi bi-arrow-clockwise"></i> Продлить
+                            </a>
+                        </div>
+                    {% endif %}
+                {% endif %}
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/seller.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+    
+</body>
+</html>

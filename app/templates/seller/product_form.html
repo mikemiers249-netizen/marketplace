@@ -1,0 +1,1187 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}{{ title }} - Панель продавца{% endblock %}
+
+{% block header_title %}
+<h1>{{ title }}</h1>
+{% endblock %}
+
+{% block content %}
+<div class="product-form-page">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash-message {{ category }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('seller.product_new') if not product else url_for('seller.product_edit', product_id=product.id) }}" 
+          class="product-form" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        
+        <div class="form-section">
+            <h3>Основная информация</h3>
+            
+            <div class="form-group">
+                <label for="name">Название товара *</label>
+                <input type="text" id="name" name="name" required
+                       class="form-input" value="{{ product.name if product else '' }}"
+                       placeholder="Введите название товара">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Категория *</label>
+                    <div id="category-selector" class="category-selector">
+                        <select id="category_level_0" class="form-select category-select" data-level="0">
+                            <option value="">Выберите категорию</option>
+                            {% for category in categories if category.parent_id == None %}
+                            <option value="{{ category.id }}" 
+                                    {% if product and product.category_id == category.id %}selected{% endif %}>
+                                {{ category.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <input type="hidden" id="category_id" name="category_id" value="{{ product.category_id if product else '' }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="price">Цена (₽) *</label>
+                    <input type="number" id="price" name="price" step="0.01" min="0" required
+                           class="form-input" value="{{ product.price if product else '' }}"
+                           placeholder="0.00">
+                </div>
+            </div>
+
+            <!-- Параметры категории -->
+            <div class="form-section" id="parameters-section" style="display: none;">
+                <h3>Параметры товара</h3>
+                <div id="parameters-container">
+                    <!-- Поля параметров будут добавлены здесь динамически -->
+                </div>
+            </div>
+
+            {% if not product %}
+            <div class="form-group">
+                <label for="article">Артикул *</label>
+                <input type="text" id="article" name="article" required
+                       class="form-input" value="{{ product.article if product else '' }}"
+                       placeholder="Уникальный артикул товара">
+                <span class="form-help">Артикул должен быть уникальным</span>
+            </div>
+            {% endif %}
+
+            <div class="form-group">
+                <label for="description">Описание</label>
+                <textarea id="description" name="description" rows="5"
+                          class="form-textarea" placeholder="Подробное описание товара">{{ product.description if product else '' }}</textarea>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Остаток и скидки</h3>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="stock_quantity">Количество на складе</label>
+                    <input type="number" id="stock_quantity" name="stock_quantity" min="0" 
+                           class="form-input" value="{{ product.stock_quantity if product else 0 }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="max_discount">Максимальная скидка (%)</label>
+                    <input type="number" id="max_discount" name="max_discount" min="0" max="100"
+                           class="form-input" value="{{ product.max_discount_percent if product else 0 }}">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="common_card">Общая карточка</label>
+                <select id="common_card" name="common_card" class="form-select">
+                    <option value="">Не объединять</option>
+                    {% for card in common_cards %}
+                    <option value="{{ card }}" {% if product and product.common_card == card %}selected{% endif %}>
+                        {{ card }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <span class="form-help">Объедините товары в одну карточку для отображения вариаций</span>
+            </div>
+
+            <!-- Карточка товара (новая система) -->
+            <div class="form-group">
+                <label for="card_option">Карточка товара</label>
+                <select id="card_option" name="card_option" class="form-select" onchange="handleCardOptionChange()">
+                    <option value="none" {% if not product or not product.product_card_id %}selected{% endif %}>Без карточки</option>
+                    <option value="new">Новая карточка</option>
+                    <option value="existing" {% if product and product.product_card_id %}selected{% endif %}>Подключить к карточке</option>
+                </select>
+                <span class="form-help">Карточка объединяет товары с разными значениями одного параметра</span>
+            </div>
+
+            <!-- Блок создания новой карточки -->
+            <div id="new-card-section" class="card-subsection" style="display: none;">
+                <div class="form-group">
+                    <label for="card_parameter_id">Параметр для группировки</label>
+                    <select id="card_parameter_id" name="card_parameter_id" class="form-select">
+                        <option value="">Выберите параметр</option>
+                        <!-- Заполняется динамически через JS -->
+                    </select>
+                    <span class="form-help">Выберите параметр, по которому будут различаться товары в карточке</span>
+                </div>
+                <div class="form-group">
+                    <label for="card_name">Название карточки</label>
+                    <input type="text" id="card_name" name="card_name" class="form-input" placeholder="Введите название карточки">
+                    <span class="form-help">Название для идентификации карточки (например, "iPhone 15 Pro")</span>
+                </div>
+            </div>
+
+            <!-- Блок выбора существующей карточки -->
+            <div id="existing-card-section" class="card-subsection" style="display: none;">
+                <div class="form-group">
+                    <label for="existing_card_id">Выберите карточку</label>
+                    <select id="existing_card_id" name="existing_card_id" class="form-select">
+                        <option value="">Выберите карточку</option>
+                        <!-- Заполняется динамически через JS -->
+                    </select>
+                    <span class="form-help">Выберите существующую карточку для данной категории</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Изображения <span class="image-counter">(0/10)</span></h3>
+            
+            <!-- Основное изображение -->
+            <div class="form-group">
+                <label>Основное изображение</label>
+                <div class="image-upload-wrapper" id="main-image-wrapper">
+                    <div class="image-preview-container" onclick="document.getElementById('main_image').click()">
+                        {% if product and product.main_photo %}
+                        <div class="image-preview has-image">
+                            <img src="{{ url_for('static', filename='uploads/products/' + product.main_photo.path) }}" alt="Основное изображение">
+                            <input type="hidden" name="keep_main_image" value="{{ product.main_photo.path }}">
+                            <button type="button" class="remove-image-btn" onclick="removeMainImage()">×</button>
+                        </div>
+                        {% else %}
+                        <div class="image-preview-placeholder">
+                            <span>Выберите фото</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <input type="file" id="main_image" name="main_image" accept="image/*" class="image-file-input" onchange="previewMainImage(this)">
+                    <span class="form-help">Рекомендуемый размер: 800x800px</span>
+                </div>
+            </div>
+
+            <!-- Дополнительные изображения -->
+            <div class="form-group">
+                <label>Дополнительные изображения</label>
+                <div id="gallery-wrapper" class="gallery-wrapper">
+                    {% if product %}
+                    {% for photo in product.photos.all() %}
+                    {% if not photo.is_main %}
+                    <div class="gallery-item" id="existing_photo_{{ photo.id }}">
+                        <div class="image-preview-container">
+                            <div class="image-preview has-image">
+                                <img src="{{ url_for('static', filename='uploads/products/' + photo.path) }}" alt="Дополнительное изображение">
+                            </div>
+                        </div>
+                        <input type="hidden" name="keep_photos[]" value="{{ photo.id }}">
+                        <button type="button" class="remove-gallery-btn" onclick="removeExistingPhoto({{ photo.id }})">×</button>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                    {% endif %}
+                </div>
+                <button type="button" id="add-image-btn" class="btn btn-secondary add-image-btn" onclick="addImageField()">
+                    + Добавить фото
+                </button>
+                <span class="form-help">Максимум 10 изображений (включая основное)</span>
+            </div>
+        </div>
+
+        {% if product %}
+        <div class="form-section">
+            <h3>Статус товара</h3>
+            <div class="product-status-info">
+                <span class="status-badge status-{{ product.status }}">
+                    {% if product.status == 'approved' %}Одобрен
+                    {% elif product.status == 'on_moderation' %}На модерации
+                    {% elif product.status == 'draft' %}Черновик
+                    {% elif product.status == 'rejected' %}Отклонён
+                    {% else %}{{ product.status }}
+                    {% endif %}
+                </span>
+                {% if product.status == 'rejected' and moderation_remarks %}
+                <div class="rejection-remarks">
+                    <p class="rejection-title">Причина отклонения:</p>
+                    {% for remark in moderation_remarks %}
+                    <div class="rejection-item">
+                        <p class="rejection-text">{{ remark.text }}</p>
+                        <span class="rejection-date">{{ remark.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {{ 'Создать товар' if not product else 'Сохранить изменения' }}
+            </button>
+            <a href="{{ url_for('seller.products') }}" class="btn btn-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.product-form-page {
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.product-form-page * {
+    box-sizing: border-box;
+}
+
+.flash-messages {
+    margin-bottom: 20px;
+}
+
+.flash-message {
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.flash-message.success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.flash-message.error {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.product-form {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 24px;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.form-section {
+    margin-bottom: 32px;
+}
+
+.form-section h3 {
+    margin: 0 0 16px;
+    font-size: 18px;
+    color: #333;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.form-group {
+    margin-bottom: 16px;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: #333;
+}
+
+.form-input,
+.form-select,
+.form-textarea,
+.form-file {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+    outline: none;
+    border-color: #4a6cf7;
+}
+
+.form-textarea {
+    resize: vertical;
+}
+
+.form-help {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.image-upload {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.current-image img {
+    max-width: 200px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+}
+
+.product-status-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.status-active {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-on_moderation {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-inactive {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.status-rejected {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.rejection-remarks {
+    margin-top: 15px;
+    padding: 15px;
+    background: #fff5f5;
+    border: 1px solid #f8d7da;
+    border-radius: 6px;
+}
+
+.rejection-title {
+    font-weight: 600;
+    color: #721c24;
+    margin: 0 0 10px 0;
+}
+
+.rejection-item {
+    padding: 10px;
+    background: #fff;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    border-left: 3px solid #dc3545;
+}
+
+.rejection-item:last-child {
+    margin-bottom: 0;
+}
+
+.rejection-text {
+    margin: 0 0 5px 0;
+    color: #333;
+}
+
+.rejection-date {
+    font-size: 12px;
+    color: #999;
+}
+
+.rejection-reason {
+    color: #721c24;
+    font-size: 14px;
+    margin: 0;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #eee;
+}
+
+.btn {
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #4a6cf7;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #3b5ce4;
+}
+
+.btn-secondary {
+    background: #f8f9fa;
+    color: #495057;
+    border: 1px solid #ddd;
+}
+
+.btn-secondary:hover {
+    background: #e9ecef;
+}
+
+.category-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.category-select {
+    margin-bottom: 0;
+}
+
+/* Стили для загрузки изображений */
+.image-counter {
+    font-size: 14px;
+    font-weight: normal;
+    color: #6c757d;
+}
+
+.image-upload-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.image-preview-container {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.image-preview-container:hover {
+    border-color: #4a6cf7;
+}
+
+.image-preview-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    color: #6c757d;
+    font-size: 12px;
+    text-align: center;
+    padding: 8px;
+}
+
+.image-preview.has-image {
+    border: none;
+}
+
+.image-preview-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    aspect-ratio: 1/1;
+}
+
+.image-file-input {
+    display: none;
+}
+
+.remove-image-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.image-preview-container:hover .remove-image-btn {
+    opacity: 1;
+}
+
+/* Галерея дополнительных изображений */
+.gallery-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.gallery-item {
+    position: relative;
+    width: 150px;
+}
+
+.gallery-item .image-preview-container {
+    width: 150px;
+    height: 150px;
+}
+
+.add-image-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+}
+
+.add-image-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.gallery-item .remove-gallery-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: #dc3545;
+    color: white;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.gallery-item .remove-gallery-btn:hover {
+    background: #c82333;
+}
+
+.current-image {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.current-image img {
+    max-width: 150px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+}
+
+/* Стили для карточки товара */
+.card-subsection {
+    margin-top: 12px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.card-subsection .form-group {
+    margin-bottom: 12px;
+}
+
+.card-subsection .form-group:last-child {
+    margin-bottom: 0;
+}
+</style>
+
+<script>
+// Все категории для каскадного выбора
+const allCategories = [
+    {% for category in categories %}
+    {
+        id: {{ category.id }},
+        name: {{ category.name|tojson }},
+        parent_id: {{ category.parent_id if category.parent_id else 'null' }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+// Параметры для каждой категории
+const categoryParams = {{ category_params|tojson }};
+
+// Текущая выбранная категория
+let currentCategoryId = {{ product.category_id if product else 'null' }};
+
+// Параметры товара при редактировании
+const productParams = {{ product_params|tojson }};
+
+// Карточки товаров по категориям
+const productCardsByCategory = {{ product_cards_by_category|tojson if product_cards_by_category else '{}' }};
+
+// Текущая карточка товара (при редактировании)
+const currentProductCardId = {{ product.product_card_id if product and product.product_card_id else 'null' }};
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    if (currentCategoryId) {
+        // Находим выбранную категорию и строим путь
+        buildCategoryPath(currentCategoryId, function() {
+            // После построения пути загружаем параметры
+            loadParametersForCategory(currentCategoryId);
+            // Обновляем опции карточек для выбранной категории
+            updateCardOptions(currentCategoryId);
+        });
+    }
+    
+    // Инициализация отображения секций карточки
+    handleCardOptionChange();
+    
+    // Слушатель на первый селект
+    const firstSelect = document.getElementById('category_level_0');
+    if (firstSelect) {
+        firstSelect.addEventListener('change', function() {
+            handleCategoryChange(0, this.value);
+        });
+    }
+});
+
+// Построение пути категорий от корня до выбранной
+function buildCategoryPath(categoryId, callback) {
+    const path = [];
+    let current = categoryId;
+    
+    while (current) {
+        const cat = allCategories.find(c => c.id === current);
+        if (cat) {
+            path.unshift(cat);
+            current = cat.parent_id;
+        } else {
+            break;
+        }
+    }
+    
+    // Удаляем все уровни кроме первого
+    const selector = document.getElementById('category-selector');
+    while (selector.children.length > 1) {
+        selector.removeChild(selector.lastChild);
+    }
+    
+    // Создаём уровни последовательно
+    let index = 0;
+    function createNextLevel() {
+        if (index < path.length) {
+            const cat = path[index];
+            if (index === 0) {
+                const firstSelect = document.getElementById('category_level_0');
+                if (firstSelect) {
+                    firstSelect.value = cat.id;
+                    handleCategoryChange(0, cat.id, () => {
+                        index++;
+                        createNextLevel();
+                    });
+                }
+            } else {
+                addCategoryLevel(index, cat.parent_id, cat.id, () => {
+                    index++;
+                    createNextLevel();
+                });
+            }
+        } else {
+            if (callback) callback();
+        }
+    }
+    createNextLevel();
+}
+
+// Обработка изменения категории
+function handleCategoryChange(level, categoryId, callback) {
+    const selector = document.getElementById('category-selector');
+    
+    // Удаляем все уровни после текущего
+    while (selector.children.length > level + 1) {
+        selector.removeChild(selector.lastChild);
+    }
+    
+    // Обновляем скрытое поле
+    document.getElementById('category_id').value = categoryId || '';
+    
+    // Загружаем параметры для выбранной категории
+    if (categoryId) {
+        loadParametersForCategory(categoryId);
+        // Обновляем опции карточек для выбранной категории
+        updateCardOptions(categoryId);
+        
+        const children = allCategories.filter(c => c.parent_id === parseInt(categoryId));
+        if (children.length > 0) {
+            addCategoryLevel(level + 1, categoryId, null, callback);
+            return;
+        }
+    } else {
+        // Если категория не выбрана, скрываем параметры
+        document.getElementById('parameters-section').style.display = 'none';
+        // Очищаем опции карточек
+        updateCardOptions(null);
+    }
+    
+    if (callback) callback();
+}
+
+// Добавление нового уровня выбора
+function addCategoryLevel(level, parentId, selectedId = null, callback = null) {
+    const selector = document.getElementById('category-selector');
+    const children = allCategories.filter(c => c.parent_id === parseInt(parentId));
+    
+    if (children.length === 0) return;
+    
+    const select = document.createElement('select');
+    select.id = `category_level_${level}`;
+    select.className = 'form-select category-select';
+    select.dataset.level = level;
+    
+    let optionsHtml = '<option value="">Выберите подкатегорию</option>';
+    children.forEach(cat => {
+        optionsHtml += `<option value="${cat.id}" ${selectedId === cat.id ? 'selected' : ''}>${cat.name}</option>`;
+    });
+    
+    select.innerHTML = optionsHtml;
+    select.addEventListener('change', function() {
+        handleCategoryChange(level, this.value);
+    });
+    
+    selector.appendChild(select);
+    
+    if (callback) callback();
+}
+
+// Загрузка параметров для выбранной категории
+function loadParametersForCategory(categoryId) {
+    const paramsSection = document.getElementById('parameters-section');
+    const paramsContainer = document.getElementById('parameters-container');
+    
+    // Собираем все параметры для категории и её родителей
+    let allParams = [];
+    let currentId = categoryId;
+    
+    while (currentId) {
+        if (categoryParams && categoryParams[currentId]) {
+            allParams = allParams.concat(categoryParams[currentId]);
+        }
+        const cat = allCategories.find(c => c.id === currentId);
+        currentId = cat ? cat.parent_id : null;
+    }
+    
+    // Удаляем дубликаты по id
+    const uniqueParams = [];
+    const seenIds = new Set();
+    allParams.forEach(p => {
+        if (!seenIds.has(p.id)) {
+            seenIds.add(p.id);
+            uniqueParams.push(p);
+        }
+    });
+    
+    if (uniqueParams.length > 0) {
+        paramsSection.style.display = 'block';
+        
+        let paramsHtml = '';
+        uniqueParams.forEach(param => {
+            const savedValue = productParams && productParams[param.id] ? productParams[param.id] : '';
+            
+            // Скрытое поле с ID параметра
+            paramsHtml += `<input type="hidden" name="param_ids" value="${param.id}">`;
+            
+            if (param.type === 'select' && param.predefined_values) {
+                // Выбор из списка
+                const values = param.predefined_values;
+                paramsHtml += `
+                    <div class="form-group">
+                        <label for="param_${param.id}">${param.name}</label>
+                        <select id="param_${param.id}" class="form-select" onchange="updateParamValue(${param.id}, this.value)">
+                            <option value="">Выберите значение</option>
+                            ${values.map(v => `<option value="${v}" ${savedValue === v ? 'selected' : ''}>${v}</option>`).join('')}
+                        </select>
+                        <input type="hidden" name="param_values" id="param_value_${param.id}" value="${savedValue}">
+                    </div>
+                `;
+            } else if (param.type === 'boolean') {
+                // Да/Нет
+                paramsHtml += `
+                    <div class="form-group">
+                        <label for="param_${param.id}">${param.name}</label>
+                        <select id="param_${param.id}" class="form-select" onchange="updateParamValue(${param.id}, this.value)">
+                            <option value="">Выберите значение</option>
+                            <option value="true" ${savedValue === 'true' ? 'selected' : ''}>Да</option>
+                            <option value="false" ${savedValue === 'false' ? 'selected' : ''}>Нет</option>
+                        </select>
+                        <input type="hidden" name="param_values" id="param_value_${param.id}" value="${savedValue}">
+                    </div>
+                `;
+            } else if (param.type === 'integer' || param.type === 'float') {
+                // Числовое поле
+                paramsHtml += `
+                    <div class="form-group">
+                        <label for="param_${param.id}">${param.name}</label>
+                        <input type="number" id="param_${param.id}" class="form-input" 
+                               step="${param.type === 'float' ? '0.01' : '1'}" 
+                               value="${savedValue}" placeholder="Введите значение" oninput="updateParamValue(${param.id}, this.value)">
+                        <input type="hidden" name="param_values" id="param_value_${param.id}" value="${savedValue}">
+                    </div>
+                `;
+            } else {
+                // Строковое поле
+                paramsHtml += `
+                    <div class="form-group">
+                        <label for="param_${param.id}">${param.name}</label>
+                        <input type="text" id="param_${param.id}" class="form-input" 
+                               value="${savedValue}" placeholder="Введите значение" oninput="updateParamValue(${param.id}, this.value)">
+                        <input type="hidden" name="param_values" id="param_value_${param.id}" value="${savedValue}">
+                    </div>
+                `;
+            }
+        });
+        
+        paramsContainer.innerHTML = paramsHtml;
+    } else {
+        paramsSection.style.display = 'none';
+        paramsContainer.innerHTML = '';
+    }
+}
+
+function updateParamValue(paramId, value) {
+    const hiddenInput = document.getElementById('param_value_' + paramId);
+    if (hiddenInput) {
+        hiddenInput.value = value;
+    }
+}
+
+// ========================================
+// Загрузка изображений
+// ========================================
+const MAX_IMAGES = 10;
+let additionalImageCount = 0;
+
+// Подсчет изображений
+function countImages() {
+    let count = 0;
+    
+    // Основное изображение
+    const mainPreview = document.querySelector('#main-image-wrapper .image-preview.has-image');
+    if (mainPreview) {
+        count++;
+    }
+    
+    // Дополнительные изображения (новые)
+    const galleryItems = document.querySelectorAll('.gallery-item .image-preview.has-image');
+    count += galleryItems.length;
+    
+    // Существующие фото (при редактировании)
+    const existingPhotos = document.querySelectorAll('.gallery-item[id^="existing_photo_"]');
+    count += existingPhotos.length;
+    
+    return count;
+}
+
+// Обновление счетчика и кнопки
+function updateImageCounter() {
+    const count = countImages();
+    const counter = document.querySelector('.image-counter');
+    if (counter) {
+        counter.textContent = `(${count}/${MAX_IMAGES})`;
+    }
+    
+    const addBtn = document.getElementById('add-image-btn');
+    if (addBtn) {
+        addBtn.disabled = count >= MAX_IMAGES;
+    }
+}
+
+// Предпросмотр основного изображения
+function previewMainImage(input) {
+    const wrapper = document.getElementById('main-image-wrapper');
+    const container = wrapper.querySelector('.image-preview-container');
+    
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        
+        // Проверка что это изображение
+        if (!file.type.startsWith('image/')) {
+            alert('Пожалуйста, выберите изображение');
+            input.value = '';
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // Удаляем старый preview
+            container.innerHTML = '';
+            
+            // Создаем новый preview
+            const previewDiv = document.createElement('div');
+            previewDiv.className = 'image-preview has-image';
+            
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.alt = 'Основное изображение';
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'remove-image-btn';
+            removeBtn.textContent = '×';
+            removeBtn.onclick = function() {
+                removeMainImage();
+            };
+            
+            previewDiv.appendChild(img);
+            previewDiv.appendChild(removeBtn);
+            container.appendChild(previewDiv);
+            
+            updateImageCounter();
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+// Удаление основного изображения
+function removeMainImage() {
+    const wrapper = document.getElementById('main-image-wrapper');
+    const container = wrapper.querySelector('.image-preview-container');
+    const input = wrapper.querySelector('input[type="file"]');
+    
+    // Очищаем input
+    input.value = '';
+    
+    // Показываем placeholder
+    container.innerHTML = '<div class="image-preview-placeholder"><span>Выберите фото</span></div>';
+    
+    updateImageCounter();
+}
+
+// Добавление поля для дополнительного изображения
+function addImageField() {
+    const count = countImages();
+    if (count >= MAX_IMAGES) {
+        alert('Достигнут максимум изображений (10)');
+        return;
+    }
+    
+    const gallery = document.getElementById('gallery-wrapper');
+    const itemId = 'gallery_' + Date.now();
+    
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'gallery-item';
+    itemDiv.id = itemId;
+    
+    itemDiv.innerHTML = `
+        <div class="image-preview-container" onclick="document.getElementById('${itemId}_input').click()">
+            <div class="image-preview-placeholder">
+                <span>Выберите фото</span>
+            </div>
+        </div>
+        <input type="file" id="${itemId}_input" name="additional_images[]" accept="image/*" class="image-file-input" style="display:none" onchange="previewGalleryImage('${itemId}', this)">
+        <button type="button" class="remove-gallery-btn" onclick="removeGalleryImage('${itemId}')">×</button>
+    `;
+    
+    gallery.appendChild(itemDiv);
+    updateImageCounter();
+}
+
+// Предпросмотр дополнительного изображения
+function previewGalleryImage(itemId, input) {
+    const item = document.getElementById(itemId);
+    const container = item.querySelector('.image-preview-container');
+    
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        
+        // Проверка что это изображение
+        if (!file.type.startsWith('image/')) {
+            alert('Пожалуйста, выберите изображение');
+            input.value = '';
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // Удаляем старый preview
+            container.innerHTML = '';
+            
+            // Создаем новый preview
+            const previewDiv = document.createElement('div');
+            previewDiv.className = 'image-preview has-image';
+            
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.alt = 'Дополнительное изображение';
+            
+            previewDiv.appendChild(img);
+            container.appendChild(previewDiv);
+            
+            updateImageCounter();
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+// Удаление дополнительного изображения
+function removeGalleryImage(itemId) {
+    const item = document.getElementById(itemId);
+    if (item) {
+        item.remove();
+        updateImageCounter();
+    }
+}
+
+// Удаление существующего фото при редактировании
+function removeExistingPhoto(photoId) {
+    const item = document.getElementById('existing_photo_' + photoId);
+    if (item) {
+        item.remove();
+        updateImageCounter();
+    }
+}
+
+// ========================================
+// Функции для карточки товара
+// ========================================
+
+// Обработка изменения опции карточки
+function handleCardOptionChange() {
+    const cardOption = document.getElementById('card_option').value;
+    const newCardSection = document.getElementById('new-card-section');
+    const existingCardSection = document.getElementById('existing-card-section');
+    
+    // Скрываем все секции
+    newCardSection.style.display = 'none';
+    existingCardSection.style.display = 'none';
+    
+    // Показываем нужную секцию
+    if (cardOption === 'new') {
+        newCardSection.style.display = 'block';
+    } else if (cardOption === 'existing') {
+        existingCardSection.style.display = 'block';
+    }
+}
+
+// Обновление опций карточек при смене категории
+function updateCardOptions(categoryId) {
+    updateCardParametersOptions(categoryId);
+    updateExistingCardsOptions(categoryId);
+}
+
+// Обновление списка параметров для новой карточки
+function updateCardParametersOptions(categoryId) {
+    const paramSelect = document.getElementById('card_parameter_id');
+    if (!paramSelect) return;
+    
+    // Очищаем список
+    paramSelect.innerHTML = '<option value="">Выберите параметр</option>';
+    
+    // Собираем все параметры для категории и её родителей
+    let allParams = [];
+    let currentId = parseInt(categoryId);
+    
+    while (currentId) {
+        if (categoryParams && categoryParams[currentId]) {
+            allParams = allParams.concat(categoryParams[currentId]);
+        }
+        const cat = allCategories.find(c => c.id === currentId);
+        currentId = cat ? cat.parent_id : null;
+    }
+    
+    // Удаляем дубликаты по id
+    const uniqueParams = [];
+    const seenIds = new Set();
+    allParams.forEach(p => {
+        if (!seenIds.has(p.id)) {
+            seenIds.add(p.id);
+            uniqueParams.push(p);
+        }
+    });
+    
+    // Добавляем опции
+    uniqueParams.forEach(param => {
+        const option = document.createElement('option');
+        option.value = param.id;
+        option.textContent = param.name;
+        paramSelect.appendChild(option);
+    });
+}
+
+// Обновление списка существующих карточек
+function updateExistingCardsOptions(categoryId) {
+    const cardSelect = document.getElementById('existing_card_id');
+    if (!cardSelect) return;
+    
+    // Очищаем список
+    cardSelect.innerHTML = '<option value="">Выберите карточку</option>';
+    
+    // Получаем карточки для данной категории (преобразуем categoryId в число)
+    const cards = productCardsByCategory[parseInt(categoryId)] || [];
+    
+    // Добавляем опции
+    cards.forEach(card => {
+        const option = document.createElement('option');
+        option.value = card.id;
+        option.textContent = `${card.name} (${card.parameter_name})`;
+        if (currentProductCardId && card.id === currentProductCardId) {
+            option.selected = true;
+        }
+        cardSelect.appendChild(option);
+    });
+}
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    updateImageCounter();
+});
+</script>
+{% endblock %}

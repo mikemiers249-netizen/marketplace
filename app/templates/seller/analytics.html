@@ -1,0 +1,509 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}Аналитика{% endblock %}
+
+{% block header_title %}
+<h1>Аналитика продавца</h1>
+{% endblock %}
+
+{% block content %}
+<div class="analytics">
+    {# Фильтры по датам #}
+    <div class="seller-filters">
+        <form method="GET" action="{{ url_for('seller.analytics') }}" class="filter-form">
+            <div class="filter-group-inline">
+                <label for="from_date">От:</label>
+                <input type="date" id="from_date" name="from_date" value="{{ request.args.get('from_date', '') }}">
+            </div>
+            <div class="filter-group-inline">
+                <label for="to_date">До:</label>
+                <input type="date" id="to_date" name="to_date" value="{{ request.args.get('to_date', '') }}">
+            </div>
+            <button type="submit" class="btn btn-primary">Применить</button>
+            <a href="{{ url_for('seller.analytics') }}" class="btn btn-secondary">Сбросить</a>
+        </form>
+    </div>
+    
+    {# Статистика #}
+    <div class="stats-grid">
+        <a class="stat-card stat-card-link"
+           href="{{ url_for('seller.orders', from_date=request.args.get('from_date', ''), to_date=request.args.get('to_date', '')) }}"
+           title="Разбивка выручки по заказам">
+            <div class="stat-icon success">
+                <i class="bi bi-currency-dollar"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ "{:,.0f}".format(total_sales).replace(',', ' ') }} ₽</span>
+                <span class="stat-label">Общая выручка</span>
+                <span class="stat-card-hint"><i class="bi bi-arrow-up-right"></i> Разбивка по заказам</span>
+            </div>
+        </a>
+        
+        <div class="stat-card">
+            <div class="stat-icon primary">
+                <i class="bi bi-cart3"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ orders_count }}</span>
+                <span class="stat-label">Всего заказов</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon info">
+                <i class="bi bi-calculator"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ "{:,.0f}".format(avg_order_value).replace(',', ' ') }} ₽</span>
+                <span class="stat-label">Средний чек</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon danger">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ "{:,.0f}".format(penalties).replace(',', ' ') }} ₽</span>
+                <span class="stat-label">Штрафы</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon primary">
+                <i class="bi bi-eye"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ "{:,}".format(total_views).replace(',', ' ') }}</span>
+                <span class="stat-label">Просмотры товаров</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon success">
+                <i class="bi bi-cart-plus"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ "{:,}".format(total_cart_adds).replace(',', ' ') }}</span>
+                <span class="stat-label">Добавлено в корзину</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon info">
+                <i class="bi bi-percent"></i>
+            </div>
+            <div class="stat-info">
+                {% set conv = (total_cart_adds / total_views * 100) if total_views else 0 %}
+                <span class="stat-value">{{ "%.1f"|format(conv) }}%</span>
+                <span class="stat-label">Конверсия в корзину</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon primary">
+                <i class="bi bi-people"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ unique_buyers }}</span>
+                <span class="stat-label">Уникальных покупателей</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon success">
+                <i class="bi bi-person-check"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ repeat_buyers }}</span>
+                <span class="stat-label">Постоянных покупателей</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon info">
+                <i class="bi bi-graph-up"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ "%.2f"|format(view_to_order_rate) }}%</span>
+                <span class="stat-label">Конверсия просмотров в заказы</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon success">
+                <i class="bi bi-bag-check"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ "%.1f"|format(fulfillment_rate) }}%</span>
+                <span class="stat-label">Эффективность продаж</span>
+            </div>
+        </div>
+    </div>
+    
+    {# Список заказов #}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2>Заказы</h2>
+            <span class="orders-count">Найдено: {{ orders|length }}</span>
+        </div>
+        
+        {% if orders %}
+        <div class="orders-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Номер</th>
+                        <th>Дата</th>
+                        <th>Товары</th>
+                        <th>Сумма</th>
+                        <th>Штраф</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('seller.order_detail', order_id=order.id) }}">
+                                {{ order.order_number }}
+                            </a>
+                        </td>
+                        <td>{{ order.created_at.strftime('%d.%m.%Y %H:%M') if order.created_at else '-' }}</td>
+                        <td>
+                            {% if order.items %}
+                                {% for item in order.items.all()[:2] %}
+                                    {{ item.product.name if item.product else 'Товар удален' }}{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                                {% if order.items.count() > 2 %}
+                                    и ещё {{ order.items.count() - 2 }}
+                                {% endif %}
+                            {% else %}
+                                Нет товаров
+                            {% endif %}
+                        </td>
+                        <td>{{ "{:,.0f}".format(order.grand_total).replace(',', ' ') }} ₽</td>
+                        <td>
+                            {% if order.penalty and order.penalty > 0 %}
+                                <span class="penalty">{{ "{:,.0f}".format(order.penalty).replace(',', ' ') }} ₽</span>
+                            {% else %}
+                                <span class="no-penalty">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="status-badge status-{{ order.display_status }}">
+                                {{ order.status_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-inbox" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i>
+            <p>Заказов за выбранный период не найдено</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    {# Топ товаров по вовлечённости #}
+    {% if top_viewed or top_cart %}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2>Топ товаров по вовлечённости</h2>
+        </div>
+
+        <div class="top-products-grid">
+            <div class="top-products-col">
+                <h3 class="top-products-title"><i class="bi bi-eye"></i> По просмотрам</h3>
+                {% if top_viewed %}
+                    <ol class="top-products-list">
+                        {% for p in top_viewed %}
+                            <li>
+                                <a href="{{ url_for('main.product', product_id=p.id) }}" target="_blank" class="top-product-name">{{ p.name }}</a>
+                                <span class="top-product-metric">{{ "{:,}".format(p.views_count or 0).replace(',', ' ') }} просмотров</span>
+                            </li>
+                        {% endfor %}
+                    </ol>
+                {% else %}
+                    <p class="empty-state-text">Пока нет данных</p>
+                {% endif %}
+            </div>
+
+            <div class="top-products-col">
+                <h3 class="top-products-title"><i class="bi bi-cart-plus"></i> По добавлениям в корзину</h3>
+                {% if top_cart %}
+                    <ol class="top-products-list">
+                        {% for p in top_cart %}
+                            <li>
+                                <a href="{{ url_for('main.product', product_id=p.id) }}" target="_blank" class="top-product-name">{{ p.name }}</a>
+                                <span class="top-product-metric">{{ "{:,}".format(p.cart_adds_count or 0).replace(',', ' ') }} добавлений</span>
+                            </li>
+                        {% endfor %}
+                    </ol>
+                {% else %}
+                    <p class="empty-state-text">Пока нет данных</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# График динамики (если есть данные) #}
+    {% if orders %}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2>Динамика заказов</h2>
+        </div>
+        
+        <div class="chart-container">
+            {% set status_counts = {} %}
+            {% for order in orders %}
+                {% set status = order.display_status %}
+                {% if status not in status_counts %}
+                    {% set _ = status_counts.update({status: 0}) %}
+                {% endif %}
+                {% set _ = status_counts.update({status: status_counts[status] + 1}) %}
+            {% endfor %}
+            
+            <div class="status-chart">
+                {% for status, count in status_counts.items() %}
+                <div class="chart-row">
+                    <span class="status-label">{{ status }}</span>
+                    <div class="status-bar-container">
+                        <div class="status-bar status-{{ status }}" style="width: {{ (count / orders|length * 100)|int }}%">
+                            <span class="status-count">{{ count }}</span>
+                        </div>
+                    </div>
+                    <span class="status-percent">{{ "%.1f"|format(count / orders|length * 100) }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.analytics {
+    padding: 0;
+}
+
+.filter-group-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-group-inline label {
+    font-size: 14px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.filter-group-inline input {
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    background: var(--bg-primary);
+}
+
+.filter-group-inline input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.penalty {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+.no-penalty {
+    color: var(--text-light);
+}
+
+.stat-card-link {
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    cursor: pointer;
+}
+
+.stat-card-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.15);
+    background: var(--bg-secondary);
+}
+
+.stat-card-link:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.stat-card-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.stat-card-link:hover .stat-card-hint {
+    opacity: 1;
+    color: var(--primary-color);
+}
+
+.chart-container {
+    padding: 10px 0;
+}
+
+.status-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.chart-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.status-label {
+    min-width: 120px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
+
+.status-bar-container {
+    flex: 1;
+    height: 24px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.status-bar {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    transition: width 0.3s ease;
+}
+
+.status-bar.status-delivered { background: #dcfce7; }
+.status-bar.status-shipped { background: #cffafe; }
+.status-bar.status-in_assembly { background: #fef3c7; }
+.status-bar.status-canceled { background: #fee2e2; }
+.status-bar.status-pending { background: #fef3c7; }
+.status-bar.status-processing { background: #dbeafe; }
+
+.status-count {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.status-percent {
+    min-width: 50px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: right;
+}
+
+.top-products-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+@media (max-width: 768px) {
+    .top-products-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.top-products-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.top-products-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    counter-reset: top-counter;
+}
+
+.top-products-list li {
+    counter-increment: top-counter;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+    gap: 12px;
+}
+
+.top-products-list li::before {
+    content: counter(top-counter);
+    min-width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.top-product-name {
+    flex: 1;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.top-product-name:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.top-product-metric {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.empty-state-text {
+    color: var(--text-light);
+    font-size: 14px;
+    text-align: center;
+    padding: 16px 0;
+    margin: 0;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Вход для продавцов - Маркетплейс{% endblock %}
+
+{% block content %}
+<div class="auth-page seller-auth">
+    <div class="auth-container">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <h1>Вход для продавцов</h1>
+                    <p class="auth-subtitle">Войдите в панель управления магазином</p>
+                </div>
+                
+                <form method="POST" class="auth-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    
+                    <div class="form-group">
+                        <label for="login">Логин или Email</label>
+                        <input type="text" id="login" name="login" required
+                               placeholder="Введите логин или email">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Пароль</label>
+                        <input type="password" id="password" name="password" required
+                               placeholder="Введите пароль">
+                    </div>
+                    
+                    <div class="form-options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="remember">
+                            <span>Запомнить меня</span>
+                        </label>
+                        <a href="#" class="forgot-link">Забыли пароль?</a>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block">
+                        Войти
+                    </button>
+                </form>
+                
+                <div class="auth-footer">
+                    <p>Нет магазина? <a href="{{ url_for('auth.seller_signup') }}">Зарегистрировать магазин</a></p>
+                </div>
+                
+                <div class="auth-divider">
+                    <span>или</span>
+                </div>
+                
+                <div class="buyer-link">
+                    <p>Вы покупатель? <a href="{{ url_for('auth.login') }}">Войти как покупатель</a></p>
+                </div>
+            </div>
+        </div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}

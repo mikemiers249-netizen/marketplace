@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Админ-панель{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    {# Inline-страховка: подсветка пункта «Сообщения» при непрочитанных.
+       Дублируем правила, чтобы они применялись, даже если основной admin.css
+       не догрузился (например, при сбое CDN или прокси). #}
+    <style>
+        .nav-link.has-unread,
+        .nav-link.has-unread span { color: #ff4d4f; }
+        .nav-link.has-unread .nav-icon { color: #ff4d4f; }
+        .nav-link.has-unread .unread-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin-left: auto;
+            border-radius: 50%;
+            background: #ff4d4f;
+            box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.2);
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {# MARKER: unread-badge-v2-active-2026-08-07 | build={{ build_marker }} #}
+    <div class="admin-layout">
+        {# Sidebar #}
+        <aside class="admin-sidebar">
+            <div class="sidebar-header">
+                <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">
+                    <i class="bi bi-shield-check"></i> Админ-панель
+                </a>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <ul>
+                    <li>
+                        <a href="{{ url_for('admin.dashboard') }}" class="nav-link{% if request.endpoint == 'admin.dashboard' %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-grid-1x2"></i></span>
+                            <span>Обзор</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.users') }}" class="nav-link{% if 'users' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-people"></i></span>
+                            <span>Покупатели</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.sellers') }}" class="nav-link{% if 'sellers' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-shop"></i></span>
+                            <span>Продавцы</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.products_moderation') }}" class="nav-link{% if 'products' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-box-seam"></i></span>
+                            <span>Модерация</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.orders') }}" class="nav-link{% if 'orders' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-cart3"></i></span>
+                            <span>Заказы</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.messages') }}"
+                           class="nav-link{% if 'message' in request.endpoint %} active{% endif %}{% if unread_messages_count %} has-unread{% endif %}"
+                           {% if unread_messages_count %}style="color: #ff4d4f !important;"{% endif %}>
+                            <span class="nav-icon" {% if unread_messages_count %}style="color: #ff4d4f !important;"{% endif %}><i class="bi bi-chat-dots"></i></span>
+                            <span {% if unread_messages_count %}style="color: #ff4d4f !important;"{% endif %}>Сообщения</span>
+                            {% if unread_messages_count %}
+                            <span class="unread-dot"
+                                  title="{{ unread_messages_count }} непрочитанных сообщений"
+                                  style="display: inline-block !important;
+                                         width: 10px !important;
+                                         height: 10px !important;
+                                         margin-left: auto !important;
+                                         border-radius: 50% !important;
+                                         background: #ff4d4f !important;
+                                         box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.3) !important;"></span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.reviews') }}" class="nav-link{% if 'review' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-star"></i></span>
+                            <span>Отзывы</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.categories') }}" class="nav-link{% if 'categor' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-folder"></i></span>
+                            <span>Категории</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.parameters') }}" class="nav-link{% if 'param' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-tag"></i></span>
+                            <span>Параметры</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.promotions') }}" class="nav-link{% if 'promotion' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-lightning"></i></span>
+                            <span>Акции</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.loyalty') }}" class="nav-link{% if 'loyalty' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-gift"></i></span>
+                            <span>Лояльность</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.tariffs') }}" class="nav-link{% if 'tariff' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-cash-coin"></i></span>
+                            <span>Тариф</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.deliveries') }}" class="nav-link{% if 'deliver' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-truck"></i></span>
+                            <span>Доставка</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.settings') }}" class="nav-link{% if 'setting' in request.endpoint %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-gear"></i></span>
+                            <span>Настройки</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin.info') }}" class="nav-link{% if request.endpoint == 'admin.info' or request.endpoint == 'admin.info_delete' %} active{% endif %}">
+                            <span class="nav-icon"><i class="bi bi-info-circle"></i></span>
+                            <span>Информация</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <a href="{{ url_for('main.index') }}" class="nav-link" target="_blank">
+                    <span class="nav-icon">🌐</span>
+                    <span>На сайт</span>
+                </a>
+            </div>
+        </aside>
+        
+        {# Main content #}
+        <main class="admin-main">
+            <header class="admin-header">
+                <div class="header-title">
+                    {% block header_title %}{% endblock %}
+                </div>
+                <div class="header-actions">
+                    {% if session.get('main_admin_authenticated') %}
+                    <span class="admin-badge">Администратор</span>
+                    {% endif %}
+                </div>
+            </header>
+            
+            <div class="admin-content">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

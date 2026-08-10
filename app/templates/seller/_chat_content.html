@@ -1,0 +1,355 @@
+{# Partial template for chat content loaded via AJAX - HTML and styles only, no JS #}
+<div class="chat-header">
+    <div class="chat-header-inner">
+        {% if partner_avatar %}
+        <img src="{{ url_for('static', filename='uploads/sellers/' + partner_avatar) }}" alt="" class="chat-header-avatar">
+        {% else %}
+        <div class="chat-header-avatar-placeholder">
+            {% if partner_type == 'buyer' %}👤
+            {% elif partner_type == 'admin' %}⚙️
+            {% else %}?{% endif %}
+        </div>
+        {% endif %}
+        <h3>{{ partner_name }}</h3>
+    </div>
+</div>
+
+<div class="messages-list" id="messagesList">
+    {% for message in messages %}
+    <div class="message {% if message.sender_type == user_type %}message-out{% else %}message-in{% endif %}" data-message-id="{{ message.id }}">
+        <div class="message-content">
+            {% if message.image_path %}
+            <div class="message-attachment message-image">
+                <a href="{{ url_for('static', filename=message.image_path) }}" target="_blank">
+                    <img src="{{ url_for('static', filename=message.image_path) }}" alt="Изображение">
+                </a>
+            </div>
+            {% endif %}
+            {% if message.file_path %}
+            <div class="message-attachment message-file">
+                <a href="{{ url_for('static', filename=message.file_path) }}" target="_blank" class="file-link">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2h-2.5a.5.5 0 0 1-.5-.5v-.5H4z"/>
+                        <path d="M4.5 1.5A.5.5 0 0 1 5 1h4.793L10.293 1.5A.5.5 0 0 1 11 2H5a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 0-.5-.5H5a.5.5 0 0 0-.5.5v.5H4a.5.5 0 0 0-.5.5v-.5z"/>
+                    </svg>
+                    <span>PDF документ</span>
+                </a>
+            </div>
+            {% endif %}
+            {% if message.text %}
+            <p>{{ message.text }}</p>
+            {% endif %}
+            <span class="message-time">{{ message.timestamp.strftime('%d.%m.%Y %H:%M') }}</span>
+        </div>
+    </div>
+    {% else %}
+    <div class="no-messages">
+        <p>Нет сообщений в этом диалоге</p>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="messages-input">
+    <form method="POST" id="messageForm" enctype="multipart/form-data" onsubmit="return false;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="receiver_type" value="{{ partner_type }}">
+        <input type="hidden" name="receiver_id" value="{{ partner_id }}">
+        <input type="hidden" name="image_path" id="imagePathInput" value="">
+        <input type="hidden" name="file_path" id="filePathInput" value="">
+        <div class="attachment-preview" id="attachmentPreview"></div>
+        <div class="input-row">
+            <label class="attach-btn" title="Прикрепить файл">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
+                    <path d="M2.002 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4.5a.5.5 0 0 1-.5-.5V5.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5V15a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2h-4.5a.5.5 0 0 0-.5.5v.5a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5V2z"/>
+                </svg>
+                <input type="file" id="fileInput" name="file" accept="image/*,.pdf" style="display:none">
+            </label>
+            <textarea name="text" id="messageText" placeholder="Введите сообщение..." class="message-textarea" rows="2"></textarea>
+            <button type="submit" class="btn btn-primary">Отправить</button>
+        </div>
+    </form>
+</div>
+
+<style>
+/* Chat content styles - shared with main messages page */
+.chat-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #eee;
+    background: #fafafa;
+    flex-shrink: 0;
+}
+
+.chat-header-inner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.chat-header-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.chat-header-avatar-placeholder {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.chat-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+
+.messages-list {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+}
+
+.message {
+    max-width: 70%;
+    display: flex;
+}
+
+.message-in {
+    align-self: flex-start;
+}
+
+.message-out {
+    align-self: flex-end;
+}
+
+.message-content {
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: #f0f0f0;
+}
+
+.message-in .message-content {
+    background: #f0f0f0;
+    border-bottom-left-radius: 4px;
+}
+
+.message-out .message-content {
+    background: #007bff;
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.message-content p {
+    margin: 0 0 4px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.message-time {
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.message-out .message-time {
+    color: rgba(255,255,255,0.8);
+}
+
+.no-messages {
+    text-align: center;
+    padding: 40px;
+    color: #888;
+}
+
+.messages-input {
+    padding: 16px 20px;
+    border-top: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex-shrink: 0;
+    background: #fff;
+}
+
+.messages-input form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+}
+
+.messages-input .input-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+.attach-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #666;
+    flex-shrink: 0;
+}
+
+.attach-btn:hover {
+    background: #e9ecef;
+border-color: #007bff;
+    color: #007bff;
+}
+
+.attachment-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    min-height: 60px;
+}
+
+.attachment-preview:empty {
+    display: none;
+}
+
+.attachment-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    gap: 8px;
+}
+
+.attachment-item img {
+    max-width: 60px;
+    max-height: 60px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.attachment-item .file-icon {
+    color: #dc3545;
+}
+
+.attachment-item .file-name {
+    font-size: 13px;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attachment-item .remove-btn {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #dc3545;
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.message-attachment {
+    margin-bottom: 8px;
+}
+
+.message-image img {
+    max-width: 300px;
+    max-height: 200px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.message-file .file-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    color: #333;
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.message-file .file-link:hover {
+    background: #e9ecef;
+    border-color: #007bff;
+    color: #007bff;
+}
+
+.message-out .message-file .file-link {
+    background: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.3);
+    color: white;
+}
+
+.message-out .message-file .file-link:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.message-textarea {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    resize: none;
+    font-family: inherit;
+}
+
+.message-textarea:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+.btn-primary {
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    background: #007bff;
+    border-color: #007bff;
+    color: white;
+    flex-shrink: 0;
+}
+
+.btn-primary:hover {
+    background: #0056b3;
+    border-color: #0056b3;
+}
+</style>

@@ -1,0 +1,109 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Заказы - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>Заказы</h1>
+    <div class="header-actions">
+        <span class="orders-count">Всего: {{ orders_count }} заказов</span>
+    </div>
+</div>
+
+<div class="admin-filters">
+    <form method="GET" class="filter-form">
+        <input type="text" name="order_id" placeholder="№ заказа" 
+               value="{{ request.args.get('order_id', '') }}" class="filter-input filter-small">
+        <input type="text" name="search" placeholder="Поиск по товару или email..." 
+               value="{{ request.args.get('search', '') }}" class="filter-input">
+        <select name="status" class="filter-select">
+            <option value="">Все статусы</option>
+            <option value="pending" {% if request.args.get('status') == 'pending' %}selected{% endif %}>Ожидает</option>
+            <option value="confirmed" {% if request.args.get('status') == 'confirmed' %}selected{% endif %}>Подтверждён</option>
+            <option value="in_assembly" {% if request.args.get('status') == 'in_assembly' %}selected{% endif %}>В сборке</option>
+            <option value="assembled" {% if request.args.get('status') == 'assembled' %}selected{% endif %}>Собран</option>
+            <option value="shipped" {% if request.args.get('status') == 'shipped' %}selected{% endif %}>Отправлен</option>
+            <option value="in_transit" {% if request.args.get('status') == 'in_transit' %}selected{% endif %}>В пути</option>
+            <option value="delivered" {% if request.args.get('status') == 'delivered' %}selected{% endif %}>Доставлен</option>
+            <option value="cancelled" {% if request.args.get('status') == 'cancelled' %}selected{% endif %}>Отменён</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Фильтр</button>
+        <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary">Сброс</a>
+    </form>
+</div>
+
+<div class="admin-table-container">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>Покупатель</th>
+                <th>Товары</th>
+                <th>Сумма</th>
+                <th>Статус</th>
+                <th>Дата</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr class="order-row">
+                <td>
+                    <a href="{{ url_for('admin.order_detail', order_id=order.id) }}" class="order-id">
+                        #{{ order.id }}
+                    </a>
+                </td>
+                <td>
+                    <div class="customer-info">
+                        <span class="customer-name">{{ order.buyer.full_name or order.buyer.login }}</span>
+                        <span class="customer-email">{{ order.buyer.email }}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="order-items-preview">
+                        {% for item in order.items[:2] %}
+                        <span class="item-name">{{ item.product.name }} x{{ item.quantity }}</span>
+                        {% endfor %}
+                        {% if order.items.count() > 2 %}
+                        <span class="more-items">+{{ order.items.count() - 2 }} ещё</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td class="order-total">{{ format_price(order.grand_total) }}</td>
+                <td>
+                    <span class="status-badge status-{{ order.status }}">
+                        {{ order.status_display }}
+                    </span>
+                </td>
+                <td class="order-date">
+                    {{ order.created_at.strftime('%d.%m.%Y') }}
+                    <span class="order-time">{{ order.created_at.strftime('%H:%M') }}</span>
+                </td>
+                <td class="actions-cell">
+                    <a href="{{ url_for('admin.order_detail', order_id=order.id) }}" 
+                       class="btn btn-sm btn-secondary">
+                        Открыть
+                    </a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="empty-state">
+                    {% if request.args.get('search') or request.args.get('status') %}
+                    Заказы не найдены по вашему запросу
+                    {% else %}
+                    Пока нет заказов
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if pagination and pagination.pages > 1 %}
+<div class="admin-pagination">
+    {{ pagination.links }}
+</div>
+{% endif %}
+{% endblock %}

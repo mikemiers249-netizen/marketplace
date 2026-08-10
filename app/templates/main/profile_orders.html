@@ -1,0 +1,583 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+<style>
+    .profile-page {
+        padding: 30px 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .profile-header {
+        margin-bottom: 24px;
+    }
+    
+    .profile-header h1 {
+        font-size: 28px;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    .profile-wrapper {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 24px;
+        align-items: start;
+    }
+    
+    @media (max-width: 991px) {
+        .profile-wrapper {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    /* Sidebar */
+    .profile-sidebar {
+        position: sticky;
+        top: 100px;
+    }
+    
+    @media (max-width: 991px) {
+        .profile-sidebar {
+            position: static;
+        }
+    }
+    
+    .profile-user-card {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        margin-bottom: 16px;
+    }
+    
+    .user-avatar-large {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+    }
+    
+    .avatar-initials {
+        font-size: 32px;
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .user-name {
+        font-size: 20px;
+        margin: 0 0 8px;
+        color: #333;
+    }
+    
+    .user-email {
+        color: #666;
+        font-size: 14px;
+        margin: 0 0 12px;
+    }
+    
+    .user-status {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    /* Navigation */
+    .profile-nav {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    
+    .profile-nav-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        color: #555;
+        text-decoration: none;
+        transition: all 0.2s;
+        border-left: 3px solid transparent;
+    }
+    
+    .profile-nav-link:hover {
+        background: #f8f9fa;
+        color: #333;
+    }
+    
+    .profile-nav-link.active {
+        background: #e7f1ff;
+        color: #0d6efd;
+        border-left-color: #0d6efd;
+    }
+    
+    .profile-nav-link i {
+        font-size: 18px;
+    }
+    
+    /* Content Area */
+    .profile-content {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 24px;
+        min-height: 400px;
+    }
+    
+    .profile-content h2 {
+        font-size: 22px;
+        margin: 0 0 24px;
+        color: #333;
+    }
+
+    /* Orders Styles */
+    .orders-filters {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+
+    .filter-btn {
+        padding: 8px 16px;
+        border-radius: 20px;
+        background: #f5f5f5;
+        color: #555;
+        text-decoration: none;
+        font-size: 14px;
+        transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+        background: #e8e8e8;
+        color: #333;
+    }
+
+    .filter-btn.active {
+        background: #0d6efd;
+        color: #fff;
+    }
+
+    .orders-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .order-card {
+        border: 1px solid #e5e5e5;
+        border-radius: 10px;
+        overflow: hidden;
+        transition: box-shadow 0.2s;
+    }
+
+    .order-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .order-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e5e5e5;
+    }
+
+    .order-info {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .order-number {
+        font-weight: 600;
+        color: #333;
+    }
+
+    .order-date {
+        color: #888;
+        font-size: 14px;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status-processing {
+        background: #cce5ff;
+        color: #004085;
+    }
+
+    .status-shipped {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-delivered {
+        background: #d1e7dd;
+        color: #0a3622;
+    }
+
+    .status-cancelled {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .order-items {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .order-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .item-image {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+
+    .item-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .no-image {
+        width: 100%;
+        height: 100%;
+        background: #f0f0f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: #999;
+    }
+
+    .item-details {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+    }
+
+    .item-name {
+        flex: 1;
+        color: #333;
+    }
+
+    .item-quantity {
+        color: #888;
+        font-size: 14px;
+    }
+
+    .item-price {
+        font-weight: 500;
+        color: #333;
+    }
+
+    .more-items {
+        text-align: center;
+        color: #888;
+        font-size: 14px;
+        padding: 8px;
+    }
+
+    .order-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px;
+        border-top: 1px solid #e5e5e5;
+    }
+
+    .order-details {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .order-delivery {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: #666;
+    }
+
+    .order-total {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 16px;
+    }
+
+    .total-amount {
+        font-weight: 600;
+        color: #333;
+        font-size: 18px;
+    }
+
+    .btn-sm {
+        padding: 8px 16px;
+        font-size: 13px;
+        border-radius: 6px;
+        text-decoration: none;
+        display: inline-block;
+        cursor: pointer;
+        border: none;
+    }
+
+    .btn-secondary {
+        background: #f5f5f5;
+        color: #555;
+    }
+
+    .btn-secondary:hover {
+        background: #e8e8e8;
+    }
+
+    .btn-primary {
+        background: #0d6efd;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #fff;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background 0.2s;
+    }
+
+    .btn-primary:hover {
+        background: #0b5ed7;
+        color: #fff;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+    }
+
+    .empty-icon {
+        font-size: 64px;
+        margin-bottom: 20px;
+    }
+
+    .empty-state h3 {
+        margin: 0 0 8px;
+        color: #333;
+    }
+
+    .empty-state p {
+        color: #888;
+        margin: 0 0 24px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+    <div class="profile-header">
+        <h1>Личный кабинет</h1>
+    </div>
+    
+    <div class="profile-wrapper">
+        {# Sidebar #}
+        <aside class="profile-sidebar">
+            <div class="profile-user-card">
+                <div class="user-avatar-large">
+                    <span class="avatar-initials">{{ user.name[:1] if user.name else user.login[:1] }}</span>
+                </div>
+                <h3 class="user-name">{{ user.name or user.login }}</h3>
+                <p class="user-email">{{ user.email }}</p>
+                <span class="user-status">Покупатель</span>
+            </div>
+            
+            <nav class="profile-nav">
+                <a href="{{ url_for('main.profile_orders') }}"
+                   class="profile-nav-link active">
+                    <i class="bi bi-box-seam"></i>
+                    Мои заказы
+                </a>
+                <a href="{{ url_for('main.profile', section='delivery') }}"
+                   class="profile-nav-link">
+                    <i class="bi bi-truck"></i>
+                    Доставка
+                </a>
+                <a href="{{ url_for('main.profile', section='favorite') }}"
+                   class="profile-nav-link">
+                    <i class="bi bi-heart"></i>
+                    Избранное
+                </a>
+                <a href="{{ url_for('main.profile', section='messages') }}"
+                   class="profile-nav-link">
+                    <i class="bi bi-chat-dots"></i>
+                    Сообщения
+                </a>
+                <a href="{{ url_for('main.profile', section='settings') }}"
+                   class="profile-nav-link">
+                    <i class="bi bi-gear"></i>
+                    Настройки
+                </a>
+            </nav>
+        </aside>
+        
+        {# Main Content #}
+        <main class="profile-content">
+            <h2>Мои заказы</h2>
+
+            <div class="orders-filters">
+                <a href="{{ url_for('main.profile_orders') }}"
+                   class="filter-btn {% if not current_status %}active{% endif %}">Все</a>
+                <a href="{{ url_for('main.profile_orders', status='pending') }}"
+                   class="filter-btn {% if current_status == 'pending' %}active{% endif %}">Ожидающие</a>
+                <a href="{{ url_for('main.profile_orders', status='processing') }}"
+                   class="filter-btn {% if current_status == 'processing' %}active{% endif %}">В обработке</a>
+                <a href="{{ url_for('main.profile_orders', status='shipped') }}"
+                   class="filter-btn {% if current_status == 'shipped' %}active{% endif %}">Отправленные</a>
+                <a href="{{ url_for('main.profile_orders', status='delivered') }}"
+                   class="filter-btn {% if current_status == 'delivered' %}active{% endif %}">Доставленные</a>
+            </div>
+
+            <div class="orders-list">
+                {% if orders %}
+                    {% for order in orders %}
+                    <div class="order-card">
+                        <div class="order-header">
+                            <div class="order-info">
+                                <span class="order-number">Заказ #{{ order.id }}</span>
+                                <span class="order-date">{{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                            </div>
+                            <div class="order-status">
+                                {% if order.display_status == 'pending' %}
+                                <span class="status-badge status-pending">Ожидает оформления</span>
+                                {% elif order.display_status == 'processing' %}
+                                <span class="status-badge status-processing">В обработке</span>
+                                {% elif order.display_status == 'shipped' %}
+                                <span class="status-badge status-shipped">Отправлен</span>
+                                {% elif order.display_status == 'delivered' %}
+                                <span class="status-badge status-delivered">Доставлен</span>
+                                {% elif order.display_status == 'cancelled' %}
+                                <span class="status-badge status-cancelled">Отменён</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="order-items">
+                            {% for item in order.items[:3] %}
+                            {% set item_bonus_share = 0 %}
+                            {% if order.bonus_used and order.bonus_used > 0 and order.total_price and order.total_price > 0 %}
+                                {% set item_bonus_share = (item.total_price / order.total_price) * order.bonus_used %}
+                            {% endif %}
+                            {% set item_paid = item.total_price - item_bonus_share %}
+                            <div class="order-item">
+                                <div class="item-image">
+                                    {% if item.product and item.product.main_photo %}
+                                    <img src="{{ url_for('static', filename='uploads/products/' + item.product.main_photo.path) }}" alt="{{ item.product.name }}">
+                                    {% else %}
+                                    <div class="no-image">Нет фото</div>
+                                    {% endif %}
+                                </div>
+                                <div class="item-details">
+                                    <span class="item-name">{{ item.product_name or item.product.name if item.product else 'Товар' }}</span>
+                                    <span class="item-quantity">x{{ item.quantity }}</span>
+                                    <span class="item-price">{{ '%.2f'|format(item_paid) }} ₽</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% if order.items|list|length > 3 %}
+                            <div class="more-items">+{{ order.items|list|length - 3 }} товар(ов)</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="order-footer">
+                            <div class="order-details">
+                                {% set _items_product_discount = order.items | sum(attribute='line_product_discount') %}
+                                {% set _items_promo_discount = order.items | sum(attribute='line_promo_discount_amount') %}
+                                {% if _items_product_discount > 0 %}
+                                <div class="order-product-discount" style="color: #16a34a;">
+                                    <span>Скидка по товару:</span>
+                                    <span>− {{ '%.2f'|format(_items_product_discount) }} ₽</span>
+                                </div>
+                                {% endif %}
+                                {% if _items_promo_discount > 0 %}
+                                <div class="order-promo-discount" style="color: #16a34a;">
+                                    <span>Скидка по промо-акции:</span>
+                                    <span>− {{ '%.2f'|format(_items_promo_discount) }} ₽</span>
+                                </div>
+                                {% endif %}
+                                {% if order.delivery_price > 0 %}
+                                <div class="order-delivery">
+                                    <span>Доставка:</span>
+                                    <span>{{ order.delivery_price }} ₽</span>
+                                </div>
+                                {% endif %}
+                                {% if order.bonus_used and order.bonus_used > 0 %}
+                                <div class="order-bonus" style="color: #16a34a;">
+                                    <span><i class="bi bi-coin"></i> Списано баллами:</span>
+                                    <span>− {{ '%.2f'|format(order.bonus_used) }} ₽</span>
+                                </div>
+                                {% endif %}
+                                {% if order.track_number %}
+                                <div class="order-track">
+                                    <span>Трек:</span>
+                                    <span><strong>{{ order.track_number }}</strong></span>
+                                </div>
+                                {% endif %}
+                                <div class="order-total">
+                                    <span>Итого:</span>
+                                    <span class="total-amount">{{ order.grand_total }} ₽</span>
+                                </div>
+                            </div>
+                            <a href="{{ url_for('main.order_detail', order_id=order.id) }}" class="btn btn-sm btn-secondary">Подробнее</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <i class="bi bi-box-seam" style="font-size: 48px; color: #ccc;"></i>
+                    </div>
+                    <h3>У вас пока нет заказов</h3>
+                    <p>Откройте для себя отличные товары в нашем каталоге</p>
+                    <a href="{{ url_for('main.index') }}" class="btn btn-primary">Перейти в каталог</a>
+                </div>
+                {% endif %}
+            </div>
+        </main>
+</div>
+</div>
+{% endblock %}

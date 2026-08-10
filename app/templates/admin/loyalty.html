@@ -1,0 +1,483 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Лояльность - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>Программа лояльности</h1>
+    <div class="header-actions">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addRateModal">
+            <i class="bi bi-plus-lg"></i> Добавить курс
+        </button>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+{# CSRF для AJAX #}
+<script type="application/json" id="loyalty-csrf">
+    {"csrf_token": "{{ csrf_token() if csrf_token else '' }}"}
+</script>
+
+{# Глобальные тумблеры: программа лояльности + промокоды #}
+<div class="loyalty-toggles-grid">
+    <div class="loyalty-toggle-card">
+        <div class="loyalty-toggle-info">
+            <div class="loyalty-toggle-title">Программа лояльности для продавцов</div>
+            <div class="loyalty-toggle-sub">
+                Включено — продавцы могут подключать курсы начисления бонусных баллов в своих магазинах.
+                Выключено — раздел скрыт у продавцов, начисления приостановлены.
+            </div>
+        </div>
+        <div class="loyalty-toggle-control">
+            <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="loyaltyEnabled" {% if loyalty_enabled %}checked{% endif %}>
+                <label class="form-check-label" for="loyaltyEnabled" id="loyaltyEnabledLabel">
+                    {{ 'Включено' if loyalty_enabled else 'Выключено' }}
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="loyalty-toggle-card">
+        <div class="loyalty-toggle-info">
+            <div class="loyalty-toggle-title">Промокоды для продавцов</div>
+            <div class="loyalty-toggle-sub">
+                Включено — продавцы могут выдавать покупателям промокоды на скидку и управлять ими.
+                Выключено — раздел «Промокоды» скрыт у продавцов, существующие коды перестают действовать.
+            </div>
+        </div>
+        <div class="loyalty-toggle-control">
+            <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="promoEnabled" {% if promo_enabled %}checked{% endif %}>
+                <label class="form-check-label" for="promoEnabled" id="promoEnabledLabel">
+                    {{ 'Включено' if promo_enabled else 'Выключено' }}
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Сетка курсов #}
+<div class="loyalty-rates-section">
+    <div class="loyalty-rates-header">
+        <h2>Курсы начисления</h2>
+        <span class="loyalty-rates-count">
+            {{ rates|length }} {{ 'курс' if rates|length in [1,21,31,41] else ('курса' if 2 <= rates|length % 10 <= 4 and rates|length % 100 not in [12,13,14] else 'курсов') }} в системе
+        </span>
+    </div>
+
+    {% if rates %}
+    <div class="loyalty-rates-grid">
+        {% for rate in rates %}
+        <div class="loyalty-rate-card" data-rate-id="{{ rate.id }}">
+            <div class="loyalty-rate-badge {% if loop.index % 3 == 0 %}loyalty-rate-badge--premium{% elif loop.index % 2 == 0 %}loyalty-rate-badge--gold{% endif %}">
+                <i class="bi bi-coin"></i>
+            </div>
+            <div class="loyalty-rate-body">
+                <div class="loyalty-rate-title">{{ rate.title }}</div>
+                <div class="loyalty-rate-value">{{ '%.2f'|format(rate.points_per_ruble) }} баллов = 1 ₽</div>
+                <div class="loyalty-rate-desc">{{ rate.description or '—' }}</div>
+            </div>
+            <div class="loyalty-rate-status">
+                {% if rate.is_active %}
+                <span class="status-badge status-active">Доступен</span>
+                {% else %}
+                <span class="status-badge status-inactive">Скрыт</span>
+                {% endif %}
+            </div>
+            <div class="loyalty-rate-actions">
+                <button type="button" class="btn btn-sm btn-outline js-edit-rate" title="Изменить"
+                        data-id="{{ rate.id }}"
+                        data-title="{{ rate.title }}"
+                        data-points="{{ rate.points_per_ruble }}"
+                        data-description="{{ rate.description or '' }}"
+                        data-active="{{ '1' if rate.is_active else '0' }}">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline js-toggle-rate" title="Скрыть/показать селлерам"
+                        data-id="{{ rate.id }}">
+                    <i class="bi {{ 'bi-eye-slash' if rate.is_active else 'bi-eye' }}"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline js-delete-rate loyalty-rate-delete" title="Удалить"
+                        data-id="{{ rate.id }}" data-title="{{ rate.title }}">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 40px 20px; text-align: center; color: #6b7280;">
+        <i class="bi bi-coin" style="font-size: 36px; opacity: .3;"></i>
+        <p style="margin-top: 12px;">Курсы ещё не добавлены. Нажмите «Добавить курс», чтобы создать первый.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="admin-info-box">
+    <h4>Как это работает</h4>
+    <ul>
+        <li><b>Курс</b> — сколько баллов начисляется покупателю за каждый рубль стоимости товара (после скидок). Например, курс «2» означает 2 балла за 1 ₽.</li>
+        <li>Курсы — это шаблоны, которые видят продавцы в личном кабинете. Продавец выбирает один из доступных курсов и задаёт свой % списания (какую долю стоимости покупатель может оплатить баллами).</li>
+        <li>Начисление происходит, когда покупатель подтверждает получение заказа (статус «Получено»). Списание — в корзине тумблером «Списать баллы» у каждого продавца.</li>
+        <li>Глобальный тумблер выключает раздел лояльности для всех продавцов разом — начисления приостанавливаются.</li>
+    </ul>
+</div>
+
+{# Модалка добавления / редактирования курса #}
+<div class="modal fade" id="addRateModal" tabindex="-1" aria-labelledby="addRateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form id="addRateForm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addRateModalLabel">Новый курс начисления</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="rate_id" id="addRateId" value="">
+                    <div class="mb-3">
+                        <label class="form-label">Название курса *</label>
+                        <input type="text" class="form-control" name="title" id="addRateTitle" placeholder="Например: Базовый" required>
+                        <span class="form-help">Продавцы увидят это название в списке доступных курсов.</span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Сколько баллов начисляется за 1 рубль *</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" name="points_per_ruble" id="addRatePoints" min="0.01" step="0.01" placeholder="2" required>
+                            <span class="input-group-text">баллов = 1 ₽</span>
+                        </div>
+                        <span class="form-help">Пример: 1 — «1 балл за 1 ₽», 2 — «2 балла за 1 ₽», 5 — «5 баллов за 1 ₽».</span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Краткое описание</label>
+                        <textarea class="form-control" name="description" id="addRateDescription" rows="2" placeholder="Что увидит продавец в подсказке под курсом"></textarea>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="addRateAvailable" name="is_active" checked>
+                        <label class="form-check-label" for="addRateAvailable">Сразу доступен продавцам</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# Модалка подтверждения удаления #}
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Удалить курс?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Курс <b id="deleteRateTitle"></b> будет удалён безвозвратно.</p>
+                <p class="text-muted" style="font-size: 13px;">Если у каких-то продавцов он сейчас выбран — сначала нужно сменить им курс.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.loyalty-toggles-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+@media (max-width: 900px) {
+    .loyalty-toggles-grid { grid-template-columns: 1fr; }
+}
+
+.loyalty-toggle-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.loyalty-toggle-info { flex: 1; min-width: 0; }
+.loyalty-toggle-title { font-size: 16px; font-weight: 600; color: #1f2937; margin-bottom: 4px; }
+.loyalty-toggle-sub { font-size: 13px; color: #6b7280; line-height: 1.5; }
+.loyalty-toggle-control { flex-shrink: 0; }
+
+.loyalty-toggle-control .form-check-input { width: 48px; height: 24px; cursor: pointer; }
+.loyalty-toggle-control .form-check-input:checked + .form-check-label { color: #16a34a; font-weight: 600; }
+.loyalty-toggle-control .form-check-input:not(:checked) + .form-check-label { color: #dc2626; font-weight: 600; }
+.loyalty-toggle-control .form-check-label { margin-left: 8px; cursor: pointer; }
+
+.loyalty-rates-section {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 20px 24px;
+    margin-bottom: 24px;
+}
+
+.loyalty-rates-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 12px;
+}
+.loyalty-rates-header h2 { margin: 0; font-size: 16px; font-weight: 600; color: #1f2937; }
+.loyalty-rates-count { font-size: 13px; color: #6b7280; }
+
+.loyalty-rates-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.loyalty-rate-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #fafbfc;
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+.loyalty-rate-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-color: #d1d5db; }
+
+.loyalty-rate-badge {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+}
+.loyalty-rate-badge--gold { background: linear-gradient(135deg, #f59e0b, #f97316); }
+.loyalty-rate-badge--premium { background: linear-gradient(135deg, #db2777, #7c3aed); }
+
+.loyalty-rate-body { flex: 1; min-width: 0; }
+.loyalty-rate-title { font-size: 15px; font-weight: 600; color: #1f2937; margin-bottom: 4px; }
+.loyalty-rate-value { font-size: 18px; font-weight: 700; color: #4a6cf7; margin-bottom: 4px; }
+.loyalty-rate-desc { font-size: 12px; color: #6b7280; line-height: 1.4; }
+
+.loyalty-rate-status { display: flex; }
+.status-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.status-badge.status-active { background: #dcfce7; color: #15803d; }
+.status-badge.status-inactive { background: #f3f4f6; color: #6b7280; }
+
+.loyalty-rate-actions {
+    display: flex;
+    gap: 6px;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 10px;
+}
+.loyalty-rate-actions .btn { flex: 1; display: flex; align-items: center; justify-content: center; }
+.loyalty-rate-delete { color: #dc2626 !important; border-color: #fecaca !important; }
+.loyalty-rate-delete:hover { background: #fef2f2 !important; border-color: #fca5a5 !important; }
+
+.form-help { display: block; font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+.admin-info-box {
+    background: #f0f4ff;
+    border-left: 4px solid #4a6cf7;
+    border-radius: 8px;
+    padding: 16px 20px;
+    color: #1f2937;
+    font-size: 14px;
+}
+.admin-info-box h4 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.admin-info-box ul { margin: 0; padding-left: 20px; }
+.admin-info-box li { margin-bottom: 6px; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfData = JSON.parse(document.getElementById('loyalty-csrf').textContent);
+    const csrfToken = csrfData.csrf_token;
+
+    // Тумблер глобального вкл/выкл
+    const toggle = document.getElementById('loyaltyEnabled');
+    const label = document.getElementById('loyaltyEnabledLabel');
+    function syncLabel() {
+        label.textContent = toggle.checked ? 'Включено' : 'Выключено';
+    }
+    toggle.addEventListener('change', function() {
+        syncLabel();
+        const fd = new FormData();
+        fd.append('enabled', toggle.checked ? '1' : '0');
+        fetch('{{ url_for("admin.loyalty_toggle") }}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+            body: fd,
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                alert('Не удалось сохранить состояние тумблера');
+                toggle.checked = !toggle.checked;
+                syncLabel();
+            }
+        })
+        .catch(() => {
+            toggle.checked = !toggle.checked;
+            syncLabel();
+        });
+    });
+    syncLabel();
+
+    // Тумблер «Промокоды для продавцов»
+    const promoToggle = document.getElementById('promoEnabled');
+    const promoLabel = document.getElementById('promoEnabledLabel');
+    function syncPromoLabel() {
+        promoLabel.textContent = promoToggle.checked ? 'Включено' : 'Выключено';
+    }
+    promoToggle.addEventListener('change', function() {
+        syncPromoLabel();
+        const fd = new FormData();
+        fd.append('enabled', promoToggle.checked ? '1' : '0');
+        fetch('{{ url_for("admin.loyalty_promo_toggle") }}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+            body: fd,
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                alert('Не удалось сохранить состояние тумблера');
+                promoToggle.checked = !promoToggle.checked;
+                syncPromoLabel();
+            }
+        })
+        .catch(() => {
+            promoToggle.checked = !promoToggle.checked;
+            syncPromoLabel();
+        });
+    });
+    syncPromoLabel();
+
+    // Сброс модалки при закрытии
+    const addRateModalEl = document.getElementById('addRateModal');
+    addRateModalEl.addEventListener('hidden.bs.modal', function() {
+        document.getElementById('addRateForm').reset();
+        document.getElementById('addRateId').value = '';
+        document.getElementById('addRateAvailable').checked = true;
+        document.querySelector('#addRateModalLabel').textContent = 'Новый курс начисления';
+    });
+
+    // Кнопки «Изменить»
+    document.querySelectorAll('.js-edit-rate').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.getElementById('addRateId').value = this.dataset.id || '';
+            document.getElementById('addRateTitle').value = this.dataset.title || '';
+            document.getElementById('addRatePoints').value = this.dataset.points || '';
+            document.getElementById('addRateDescription').value = this.dataset.description || '';
+            document.getElementById('addRateAvailable').checked = this.dataset.active === '1';
+            document.querySelector('#addRateModalLabel').textContent = 'Редактирование курса';
+            const modal = new bootstrap.Modal(addRateModalEl);
+            modal.show();
+        });
+    });
+
+    // Сохранение (создание/обновление)
+    document.getElementById('addRateForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const rateId = document.getElementById('addRateId').value;
+        const fd = new FormData(this);
+        if (document.getElementById('addRateAvailable').checked) {
+            fd.set('is_active', '1');
+        } else {
+            fd.set('is_active', '0');
+        }
+        const url = rateId
+            ? `{{ url_for('admin.loyalty_rate_update', rate_id=0) }}`.replace('/0/update', `/${rateId}/update`)
+            : '{{ url_for("admin.loyalty_rate_create") }}';
+        fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+            body: fd,
+        })
+        .then(r => r.json().then(j => ({ status: r.status, body: j })))
+        .then(({ status, body }) => {
+            if (body.success) {
+                location.reload();
+            } else {
+                alert(body.error || 'Ошибка сохранения');
+            }
+        })
+        .catch(() => alert('Ошибка соединения'));
+    });
+
+    // Кнопки «Показать/скрыть»
+    document.querySelectorAll('.js-toggle-rate').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            const url = `{{ url_for('admin.loyalty_rate_toggle', rate_id=0) }}`.replace('/0/toggle', `/${id}/toggle`);
+            fetch(url, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || 'Ошибка');
+            })
+            .catch(() => alert('Ошибка соединения'));
+        });
+    });
+
+    // Кнопки «Удалить» — открываем модалку подтверждения
+    let pendingDeleteId = null;
+    const confirmDeleteEl = document.getElementById('confirmDeleteModal');
+    document.querySelectorAll('.js-delete-rate').forEach(btn => {
+        btn.addEventListener('click', function() {
+            pendingDeleteId = this.dataset.id;
+            document.getElementById('deleteRateTitle').textContent = this.dataset.title;
+            const m = new bootstrap.Modal(confirmDeleteEl);
+            m.show();
+        });
+    });
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+        if (!pendingDeleteId) return;
+        const url = `{{ url_for('admin.loyalty_rate_delete', rate_id=0) }}`.replace('/0/delete', `/${pendingDeleteId}/delete`);
+        fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+        })
+        .then(r => r.json().then(j => ({ status: r.status, body: j })))
+        .then(({ status, body }) => {
+            if (body.success) {
+                bootstrap.Modal.getInstance(confirmDeleteEl).hide();
+                location.reload();
+            } else {
+                alert(body.error || 'Ошибка удаления');
+            }
+        })
+        .catch(() => alert('Ошибка соединения'));
+    });
+});
+</script>
+{% endblock %}

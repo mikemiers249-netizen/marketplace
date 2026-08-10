@@ -1,0 +1,378 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ title }} - Админ-панель{% endblock %}
+
+{% block header_title %}{{ title }}{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+{# Вкладки #}
+<div class="tariff-tabs">
+    <a href="{{ url_for('admin.tariffs', tab='clients') }}"
+       class="tariff-tab{% if tab == 'clients' %} active{% endif %}">
+        <i class="bi bi-people"></i> Клиенты
+    </a>
+    <a href="{{ url_for('admin.tariffs', tab='settlements') }}"
+       class="tariff-tab{% if tab == 'settlements' %} active{% endif %}">
+        <i class="bi bi-receipt"></i> Расчёты
+    </a>
+    <a href="{{ url_for('admin.info_tariffs') }}"
+       class="tariff-tab">
+        <i class="bi bi-stack"></i> Управление тарифами
+        <i class="bi bi-box-arrow-up-right" style="font-size: 11px; opacity: 0.6;"></i>
+    </a>
+</div>
+
+{% if tab == 'clients' %}
+{# ===== Сводка по сегментам ===== #}
+<div class="tariff-segments-summary">
+    <div class="tariff-segment-card tariff-segment-paid">
+        <i class="bi bi-check-circle"></i>
+        <div class="tariff-segment-info">
+            <div class="tariff-segment-count">{{ paid_sellers|length }}</div>
+            <div class="tariff-segment-label">Оплатили</div>
+        </div>
+    </div>
+    <div class="tariff-segment-card tariff-segment-global">
+        <i class="bi bi-globe2"></i>
+        <div class="tariff-segment-info">
+            <div class="tariff-segment-count">{{ global_sellers|length }}</div>
+            <div class="tariff-segment-label">На глобальном</div>
+        </div>
+    </div>
+    <div class="tariff-segment-card tariff-segment-no-tariff">
+        <i class="bi bi-exclamation-circle"></i>
+        <div class="tariff-segment-info">
+            <div class="tariff-segment-count">{{ no_tariff_sellers|length }}</div>
+            <div class="tariff-segment-label">Без тарифа / истёк</div>
+        </div>
+    </div>
+</div>
+
+{# ===== Макрос для строки селлера в любой секции ===== #}
+{% macro seller_row(info, seller) %}
+{% set cur = info.current_subscription %}
+<tr class="tariff-seller-row" data-seller-id="{{ seller.id }}">
+    <td class="tariff-toggle-cell">
+        {% if info.subscriptions %}
+        <button type="button" class="tariff-expand-btn"
+                aria-label="Развернуть" aria-expanded="false">
+            <i class="bi bi-chevron-right"></i>
+        </button>
+        {% endif %}
+    </td>
+    <td>
+        <a class="tariff-seller-link"
+           href="{{ url_for('main.seller_store', seller_slug=seller.store_slug) }}"
+           target="_blank" rel="noopener">
+            <strong>{{ seller.store_name }}</strong>
+            <span class="tariff-seller-login">@{{ seller.login }}</span>
+        </a>
+    </td>
+    <td>{{ seller.email }}</td>
+    <td>
+        {% if info.state == 'paid' %}
+            <span class="tariff-status tariff-status-active">Действует</span>
+            {% if info.days_to_expire is defined and info.days_to_expire <= 5 %}
+                <div class="tariff-row-hint">осталось {{ info.days_to_expire }} дн.</div>
+            {% endif %}
+        {% elif info.state == 'grace' %}
+            <span class="tariff-status tariff-status-paused">Грейс</span>
+            <div class="tariff-row-hint">осталось {{ info.days_to_grace_end }} дн.</div>
+        {% elif info.state == 'global' %}
+            <span class="tariff-status tariff-status-info">Глобальный</span>
+            {% if info.days_to_expire %}
+                <div class="tariff-row-hint">осталось {{ info.days_to_expire }} дн.</div>
+            {% endif %}
+        {% elif info.state == 'locked' %}
+            <span class="tariff-status tariff-status-disabled">Истёк</span>
+        {% else %}
+            <span class="tariff-status tariff-status-disabled">Нет тарифа</span>
+        {% endif %}
+    </td>
+    <td>
+        {% if cur %}
+            <strong>{{ cur.plan.name }}</strong>
+            {% if cur.plan.price_amount %}
+                <div class="tariff-row-hint">{{ '%.2f'|format(cur.plan.price_amount) }} ₽ / {{ cur.plan.duration_days }} дн.</div>
+            {% else %}
+                <div class="tariff-row-hint">по обороту</div>
+            {% endif %}
+        {% else %}
+            <span class="tariff-row-empty">—</span>
+        {% endif %}
+    </td>
+    <td>
+        <a class="tariff-icon-btn"
+           href="{{ url_for('messages.chat', partner_type='seller', partner_id=seller.id) }}"
+           target="_blank" rel="noopener"
+           title="Открыть диалог с продавцом">
+            <i class="bi bi-chat-dots"></i>
+        </a>
+    </td>
+</tr>
+{# Раскрывающиеся строки — все подписки селлера (включая истёкшие) #}
+{% for sub in info.subscriptions %}
+<tr class="tariff-detail-row" data-seller-id="{{ seller.id }}" hidden>
+    <td></td>
+    <td colspan="5">
+        <div class="tariff-detail-card">
+            <div class="tariff-detail-grid">
+                <div class="tariff-detail-item">
+                    <span class="tariff-detail-label">Тариф</span>
+                    <span class="tariff-detail-value">{{ sub.plan.name }}</span>
+                </div>
+                <div class="tariff-detail-item">
+                    <span class="tariff-detail-label">Стоимость</span>
+                    <span class="tariff-detail-value">
+                        {% if sub.plan.price_amount %}
+                            {{ '%.2f'|format(sub.plan.price_amount) }} ₽
+                        {% else %}
+                            по обороту
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="tariff-detail-item">
+                    <span class="tariff-detail-label">Активирован</span>
+                    <span class="tariff-detail-value">{{ sub.activated_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                </div>
+                <div class="tariff-detail-item">
+                    <span class="tariff-detail-label">Истекает</span>
+                    <span class="tariff-detail-value">{{ sub.expires_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                </div>
+                <div class="tariff-detail-item">
+                    <span class="tariff-detail-label">Состояние</span>
+                    <span class="tariff-detail-value">
+                        {% if sub.is_locked %}
+                            <span class="tariff-status tariff-status-disabled">Истёк</span>
+                        {% elif sub.is_in_grace %}
+                            <span class="tariff-status tariff-status-paused">Грейс</span>
+                        {% elif sub.status == 'paused' %}
+                            <span class="tariff-status tariff-status-paused">Приостановлен</span>
+                        {% else %}
+                            <span class="tariff-status tariff-status-active">Активен</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="tariff-detail-actions">
+                <form method="POST"
+                      action="{{ url_for('admin.tariff_subscription_disable', subscription_id=sub.id) }}"
+                      onsubmit="return confirm('Отключить тариф «{{ sub.plan.name|e }}» у {{ seller.store_name|e }}?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="bi bi-x-octagon"></i> Отключить
+                    </button>
+                </form>
+                <form method="POST"
+                      action="{{ url_for('admin.tariff_subscription_pause', subscription_id=sub.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-sm btn-warning">
+                        <i class="bi bi-pause-circle"></i> Приостановить
+                    </button>
+                </form>
+                <form method="POST"
+                      action="{{ url_for('admin.tariff_subscription_resume', subscription_id=sub.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-sm btn-success">
+                        <i class="bi bi-play-circle"></i> Возобновить
+                    </button>
+                </form>
+            </div>
+        </div>
+    </td>
+</tr>
+{% endfor %}
+{% endmacro %}
+
+{# ===== Секция «Оплатили» (paid/grace) ===== #}
+<section class="tariff-segment-section">
+    <h3 class="tariff-segment-title">
+        <i class="bi bi-check-circle"></i> Оплатили
+        <span class="tariff-segment-count-badge">{{ paid_sellers|length }}</span>
+    </h3>
+    {% if paid_sellers %}
+    <div class="admin-table-container">
+        <table class="admin-table tariff-table">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"></th>
+                    <th>Селлер</th>
+                    <th>Email</th>
+                    <th style="width: 200px;">Состояние</th>
+                    <th>Текущий тариф</th>
+                    <th style="width: 60px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for info in paid_sellers %}
+                {{ seller_row(info, info.seller) }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="tariff-empty-section">
+        <i class="bi bi-inbox"></i>
+        <p>Нет селлеров с оплаченным тарифом.</p>
+    </div>
+    {% endif %}
+</section>
+
+{# ===== Секция «На глобальном» (global) ===== #}
+<section class="tariff-segment-section">
+    <h3 class="tariff-segment-title">
+        <i class="bi bi-globe2"></i> На глобальном
+        <span class="tariff-segment-count-badge">{{ global_sellers|length }}</span>
+    </h3>
+    {% if global_sellers %}
+    <div class="admin-table-container">
+        <table class="admin-table tariff-table">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"></th>
+                    <th>Селлер</th>
+                    <th>Email</th>
+                    <th style="width: 200px;">Состояние</th>
+                    <th>Текущий тариф</th>
+                    <th style="width: 60px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for info in global_sellers %}
+                {{ seller_row(info, info.seller) }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="tariff-empty-section">
+        <i class="bi bi-inbox"></i>
+        <p>Нет селлеров, активировавших глобальный процент.</p>
+    </div>
+    {% endif %}
+</section>
+
+{# ===== Секция «Без тарифа / истёк» (none/locked) ===== #}
+<section class="tariff-segment-section">
+    <h3 class="tariff-segment-title">
+        <i class="bi bi-exclamation-circle"></i> Без тарифа / истёк
+        <span class="tariff-segment-count-badge">{{ no_tariff_sellers|length }}</span>
+    </h3>
+    {% if no_tariff_sellers %}
+    <div class="admin-table-container">
+        <table class="admin-table tariff-table">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"></th>
+                    <th>Селлер</th>
+                    <th>Email</th>
+                    <th style="width: 200px;">Состояние</th>
+                    <th>Текущий тариф</th>
+                    <th style="width: 60px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for info in no_tariff_sellers %}
+                {{ seller_row(info, info.seller) }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="tariff-empty-section">
+        <i class="bi bi-inbox"></i>
+        <p>Все селлеры с активным тарифом.</p>
+    </div>
+    {% endif %}
+</section>
+{% else %}
+{# Вкладка «Расчёты» #}
+<div class="admin-table-container">
+    <table class="admin-table tariff-table">
+        <thead>
+            <tr>
+                <th>Селлер</th>
+                <th>Тариф</th>
+                <th style="width: 160px;">Сумма</th>
+                <th style="width: 180px;">Дата оплаты</th>
+                <th style="width: 60px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tx in transactions %}
+            <tr>
+                <td>
+                    <a class="tariff-seller-link"
+                       href="{{ url_for('main.seller_store', seller_slug=tx.seller.store_slug) }}"
+                       target="_blank" rel="noopener">
+                        <strong>{{ tx.seller.store_name }}</strong>
+                        <span class="tariff-seller-login">@{{ tx.seller.login }}</span>
+                    </a>
+                </td>
+                <td>{{ tx.plan.name }}</td>
+                <td><strong>{{ '%.2f'|format(tx.amount) }} ₽</strong></td>
+                <td>{{ tx.paid_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                <td>
+                    <a class="tariff-icon-btn"
+                       href="{{ url_for('messages.chat', partner_type='seller', partner_id=tx.seller_id) }}"
+                       target="_blank" rel="noopener"
+                       title="Открыть диалог с продавцом">
+                        <i class="bi bi-chat-dots"></i>
+                    </a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" class="tariff-empty">
+                    <i class="bi bi-inbox"></i>
+                    <p>Транзакций по тарифам пока нет.</p>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tariffs_admin.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+    // Раскрытие/закрытие строки тарифов у селлера.
+    document.querySelectorAll('.tariff-expand-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var row = btn.closest('tr');
+            if (!row) return;
+            var sellerId = row.getAttribute('data-seller-id');
+            var details = document.querySelectorAll(
+                '.tariff-detail-row[data-seller-id="' + sellerId + '"]'
+            );
+            var isOpen = btn.getAttribute('aria-expanded') === 'true';
+            details.forEach(function (d) {
+                d.hidden = isOpen;
+            });
+            btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+            btn.querySelector('i').className = isOpen
+                ? 'bi bi-chevron-right'
+                : 'bi bi-chevron-down';
+            row.classList.toggle('tariff-seller-row-open', !isOpen);
+        });
+    });
+})();
+</script>
+{% endblock %}

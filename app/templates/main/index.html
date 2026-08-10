@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Маркетплейс - Главная страница{% endblock %}
+
+{% block content %}
+{# Баннеры #}
+{% if banners %}
+<div class="hero-slider">
+    <div class="slider-container">
+        {% for banner in banners %}
+        <div class="slide">
+            {% if banner.link %}
+            <a href="{{ banner.link }}">
+                <img src="{{ url_for('static', filename=banner.image_path) }}" alt="{{ banner.title or 'Баннер' }}">
+            </a>
+            {% else %}
+            <img src="{{ url_for('static', filename=banner.image_path) }}" alt="{{ banner.title or 'Баннер' }}">
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    <div class="slider-controls">
+        <button class="slider-prev">&lt;</button>
+        <div class="slider-dots">
+            {% for banner in banners %}
+            <span class="dot{% if loop.first %} active{% endif %}"></span>
+            {% endfor %}
+        </div>
+        <button class="slider-next">&gt;</button>
+    </div>
+</div>
+{% endif %}
+
+<div class="container">
+    {# Новинки.
+       Правило показа: если новинок < 5 — блок скрываем (узкий ряд выглядит пусто).
+       Иначе показываем N, где N = count // 5 * 5 — округление вниз к
+       ближайшему кратному 5. Например: 5–9 → 5, 10–14 → 10, 15–19 → 15. #}
+    {% set new_total = new_products|length %}
+    {% if new_total >= 5 %}
+        {% set new_to_show = (new_total // 5) * 5 %}
+        <section class="products-section">
+            <div class="section-header">
+                <h2>
+                    <a href="{{ url_for('main.catalog') }}?sort=new">Новинки</a>
+                </h2>
+            </div>
+            <div class="products-grid products-grid-5">
+                {% for product in new_products[:new_to_show] %}
+                    {% include 'components/product_card.html' %}
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
+    
+    {# Скидки #}
+    {% if discounted_products %}
+    <section class="products-section">
+        <div class="section-header">
+            <h2>
+                <a href="{{ url_for('main.catalog') }}?sort=discount">Скидки</a>
+            </h2>
+        </div>
+        <div class="products-grid products-grid-5">
+            {% for product in discounted_products %}
+                {% include 'components/product_card.html' %}
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+    
+    {# Все товары #}
+    {% if products %}
+    <section class="products-section">
+        <div class="section-header">
+            <h2>
+                <a href="{{ url_for('main.catalog') }}">Все товары</a>
+            </h2>
+        </div>
+        <div class="products-grid products-grid-5">
+            {% for product in products[:10] %}
+                {% include 'components/product_card.html' %}
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+    
+    {# Акции #}
+    {% if promotions %}
+    <section class="promotions-section">
+        <h2>Акции</h2>
+        <div class="promotions-grid">
+            {% for promotion in promotions %}
+            <div class="promotion-card">
+                <div class="promotion-icon">
+                    {% if promotion.icon_path %}
+                    <img src="{{ url_for('static', filename=promotion.icon_path) }}" alt="{{ promotion.name }}">
+                    {% else %}
+                    <div class="promotion-icon-placeholder">{{ promotion.name|first|upper }}</div>
+                    {% endif %}
+                </div>
+                <div class="promotion-info">
+                    <h3>{{ promotion.name }}</h3>
+                    <p>До {{ promotion.end_date.strftime('%d.%m.%Y') }}</p>
+                    <span class="promotion-badge">{{ promotion.scheme }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/slider.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/slider.js') }}"></script>
+{% endblock %}

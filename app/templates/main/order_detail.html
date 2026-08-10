@@ -1,0 +1,562 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+<style>
+    .order-detail-page {
+        padding: 30px 20px;
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+    
+    .page-header {
+        margin-bottom: 24px;
+    }
+    
+    .page-header h1 {
+        font-size: 28px;
+        font-weight: 600;
+        margin: 0 0 8px 0;
+    }
+    
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #666;
+        text-decoration: none;
+        font-size: 14px;
+    }
+    
+    .back-link:hover {
+        color: #333;
+    }
+    
+    /* Order Card */
+    .order-card {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 24px;
+    }
+    
+    .order-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 24px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e5e5e5;
+    }
+    
+    .order-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .order-number {
+        font-size: 20px;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .order-date {
+        color: #888;
+        font-size: 14px;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+    
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .status-processing {
+        background: #cce5ff;
+        color: #004085;
+    }
+    
+    .status-paid {
+        background: #e0a800;
+        color: #fff;
+    }
+    
+    .status-shipped {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .status-delivered {
+        background: #d1e7dd;
+        color: #0a3622;
+    }
+
+    .status-received {
+        background: #198754;
+        color: #fff;
+    }
+    
+    .status-cancelled {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    /* Delivery Info */
+    .delivery-section {
+        padding: 20px 24px;
+        border-bottom: 1px solid #e5e5e5;
+    }
+    
+    .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0 0 12px 0;
+        color: #333;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .delivery-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+    }
+    
+    .delivery-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .delivery-label {
+        font-size: 12px;
+        color: #888;
+        text-transform: uppercase;
+    }
+    
+    .delivery-value {
+        font-size: 14px;
+        color: #333;
+    }
+    
+    /* Order Items */
+    .items-section {
+        padding: 20px 24px;
+    }
+    
+    .items-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .order-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    
+    .item-image {
+        width: 80px;
+        height: 80px;
+        border-radius: 8px;
+        overflow: hidden;
+        flex-shrink: 0;
+        background: #fff;
+    }
+    
+    .item-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .no-image {
+        width: 100%;
+        height: 100%;
+        background: #f0f0f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        color: #999;
+    }
+    
+    .item-details {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .item-name {
+        font-size: 16px;
+        font-weight: 500;
+        color: #333;
+        margin: 0 0 4px 0;
+        text-decoration: none;
+    }
+    
+    .item-name:hover {
+        color: #0d6efd;
+    }
+    
+    .item-seller {
+        font-size: 13px;
+        color: #888;
+        margin: 0 0 8px 0;
+    }
+    
+    .item-meta {
+        display: flex;
+        gap: 16px;
+        font-size: 14px;
+        color: #666;
+    }
+    
+    .item-quantity {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .item-price {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+    }
+    
+    .price-unit {
+        font-size: 14px;
+        color: #888;
+    }
+    
+    .price-total {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    /* Order Summary */
+    .summary-section {
+        padding: 20px 24px;
+        background: #f8f9fa;
+        border-top: 1px solid #e5e5e5;
+    }
+    
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        font-size: 15px;
+    }
+    
+    .summary-row .label {
+        color: #666;
+    }
+    
+    .summary-row .value {
+        color: #333;
+    }
+    
+    .summary-row.total {
+        margin-top: 8px;
+        padding-top: 16px;
+        border-top: 2px solid #ddd;
+        font-size: 18px;
+    }
+    
+    .summary-row.total .label {
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .summary-row.total .value {
+        font-size: 22px;
+        font-weight: 700;
+        color: #333;
+    }
+    
+    /* Actions */
+    .actions-section {
+        padding: 20px 24px;
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        border-top: 1px solid #e5e5e5;
+    }
+    
+    .btn {
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .btn-secondary {
+        background: #f5f5f5;
+        color: #555;
+    }
+    
+    .btn-secondary:hover {
+        background: #e8e8e8;
+        color: #333;
+    }
+    
+    .btn-primary {
+        background: #0d6efd;
+        color: #fff;
+    }
+    
+    .btn-primary:hover {
+        background: #0b5ed7;
+    }
+    
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="order-detail-page">
+    <div class="page-header">
+        <a href="{{ url_for('main.profile_orders') }}" class="back-link">
+            <i class="bi bi-arrow-left"></i>
+            Вернуться к списку заказов
+        </a>
+        <h1>Заказ #{{ order.order_number }}</h1>
+    </div>
+    
+    {% if order %}
+    <div class="order-card">
+        {# Header #}
+        <div class="order-header">
+            <div class="order-info">
+                <span class="order-number">Заказ #{{ order.order_number }}</span>
+                <span class="order-date">{{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+            </div>
+            <div class="order-status">
+                {% if order.status == 'pending' %}
+                <span class="status-badge status-pending">Ожидает оформления</span>
+                {% elif order.status == 'processing' %}
+                <span class="status-badge status-processing">В обработке</span>
+                {% elif order.status == 'paid' %}
+                <span class="status-badge status-paid">Оплачен</span>
+                {% elif order.status == 'in_assembly' or order.status == 'assembled' %}
+                <span class="status-badge status-processing">Собирается</span>
+                {% elif order.status == 'shipped' or order.status == 'in_transit' %}
+                <span class="status-badge status-shipped">Отправлен</span>
+                {% elif order.status == 'delivered' %}
+                <span class="status-badge status-delivered">Доставлен</span>
+                {% elif order.status == 'received' %}
+                <span class="status-badge status-received">Получено</span>
+                {% elif order.status == 'cancelled' or order.status == 'canceled' %}
+                <span class="status-badge status-cancelled">Отменён</span>
+                {% else %}
+                <span class="status-badge">{{ order.status }}</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        {# Delivery Info #}
+        <div class="delivery-section">
+            <h3 class="section-title">
+                <i class="bi bi-truck"></i>
+                Информация о доставке
+            </h3>
+            <div class="delivery-info">
+                {% if order.delivery_service %}
+                <div class="delivery-item">
+                    <span class="delivery-label">Служба доставки</span>
+                    <span class="delivery-value">{{ order.delivery_service.name }}</span>
+                </div>
+                {% endif %}
+                {% if order.pvz_code %}
+                <div class="delivery-item">
+                    <span class="delivery-label">Пункт выдачи</span>
+                    <span class="delivery-value">{{ order.pvz_code }}</span>
+                </div>
+                {% endif %}
+                {% if order.delivery_address %}
+                <div class="delivery-item">
+                    <span class="delivery-label">Адрес</span>
+                    <span class="delivery-value">{{ order.delivery_address }}</span>
+                </div>
+                {% endif %}
+                {% if order.track_number %}
+                <div class="delivery-item">
+                    <span class="delivery-label">Трек-номер</span>
+                    <span class="delivery-value"><strong>{{ order.track_number }}</strong></span>
+                </div>
+                {% endif %}
+                {% if order.seller %}
+                <div class="delivery-item">
+                    <span class="delivery-label">Продавец</span>
+                    <span class="delivery-value">{{ order.seller.store_name }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        {# Order Items #}
+        <div class="items-section">
+            <h3 class="section-title">
+                <i class="bi bi-box-seam"></i>
+                Состав заказа
+            </h3>
+            <div class="items-list">
+                {% for item in order.items %}
+                {% set item_bonus_share = 0 %}
+                {% if order.bonus_used and order.bonus_used > 0 and order.total_price and order.total_price > 0 %}
+                    {% set item_bonus_share = (item.total_price / order.total_price) * order.bonus_used %}
+                {% endif %}
+                {% set item_paid = item.total_price - item_bonus_share %}
+                <div class="order-item">
+                    <div class="item-image">
+                        {% if item.product and item.product.main_photo %}
+                        <img src="{{ url_for('static', filename='uploads/products/' + item.product.main_photo.path) }}" alt="{{ item.product.name }}">
+                        {% else %}
+                        <div class="no-image">Нет фото</div>
+                        {% endif %}
+                    </div>
+                    <div class="item-details">
+                        {% if item.product %}
+                        <a href="{{ url_for('main.product', product_id=item.product_id) }}" class="item-name">{{ item.product.name }}</a>
+                        {% else %}
+                        <span class="item-name">{{ item.product_name or 'Товар' }}</span>
+                        {% endif %}
+                        {% if item.product and item.product.seller %}
+                        <p class="item-seller">{{ item.product.seller.store_name }}</p>
+                        {% endif %}
+                        <div class="item-meta">
+                            <span class="item-quantity">
+                                <i class="bi bi-dash"></i>
+                                {{ item.quantity }} шт.
+                            </span>
+                        </div>
+                    </div>
+                    <div class="item-price">
+                        <span class="price-unit">{{ '%.2f'|format(item_paid) }} ₽</span>
+                        <span class="price-total">{{ '%.2f'|format(item_paid) }} ₽</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        {# Summary #}
+        <div class="summary-section">
+            {# 3-ступенчатая расшифровка: оригинал → скидка по товару → скидка по промо → после всех скидок #}
+            {% set items_subtotal_orig = order.items | sum(attribute='line_subtotal') %}
+            {% set items_product_discount = order.items | sum(attribute='line_product_discount') %}
+            {% set items_promo_discount = order.items | sum(attribute='line_promo_discount_amount') %}
+            {% set items_discount_total = items_product_discount + items_promo_discount %}
+            <div class="summary-row">
+                <span class="label">Сумма товаров (до скидок)</span>
+                <span class="value">{{ '%.2f'|format(items_subtotal_orig) }} ₽</span>
+            </div>
+            {% if items_product_discount > 0 %}
+            <div class="summary-row" style="color: #16a34a;">
+                <span class="label">Скидка по товару</span>
+                <span class="value">− {{ '%.2f'|format(items_product_discount) }} ₽</span>
+            </div>
+            {% endif %}
+            {% if items_promo_discount > 0 %}
+            <div class="summary-row" style="color: #16a34a;">
+                <span class="label">Скидка по промо-акции</span>
+                <span class="value">− {{ '%.2f'|format(items_promo_discount) }} ₽</span>
+            </div>
+            {% endif %}
+            <div class="summary-row">
+                <span class="label">Товары ({{ order.items.all()|length }})</span>
+                <span class="value">{{ order.total_price }} ₽</span>
+            </div>
+            {% if order.delivery_price and order.delivery_price > 0 %}
+            <div class="summary-row">
+                <span class="label">Доставка</span>
+                <span class="value">{{ order.delivery_price }} ₽</span>
+            </div>
+            {% endif %}
+            {% if order.bonus_used and order.bonus_used > 0 %}
+            <div class="summary-row" style="color: #16a34a;">
+                <span class="label"><i class="bi bi-coin"></i> Списано баллами</span>
+                <span class="value">− {{ '%.2f'|format(order.bonus_used) }} ₽</span>
+            </div>
+            {% endif %}
+            {% if order.promo_discount and order.promo_discount > 0 %}
+            <div class="summary-row" style="color: #b45309;">
+                <span class="label">
+                    <i class="bi bi-ticket-perforated"></i>
+                    Скидка по промокоду
+                    {% if order.promo_code_text %}
+                        <small style="color:#6b7280;">({{ order.promo_code_text }})</small>
+                    {% endif %}
+                </span>
+                <span class="value">− {{ '%.2f'|format(order.promo_discount) }} ₽</span>
+            </div>
+            {% endif %}
+            <div class="summary-row total">
+                <span class="label">Итого</span>
+                <span class="value">{{ order.grand_total }} ₽</span>
+            </div>
+        </div>
+        
+        {# Actions #}
+        <div class="actions-section">
+            <a href="{{ url_for('main.profile_orders') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i>
+                К списку заказов
+            </a>
+            {% if order.status == 'delivered' %}
+            <form method="POST" action="{{ url_for('main.order_mark_received', order_id=order.id) }}" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-bag-check"></i>
+                    Товар получен
+                </button>
+            </form>
+            {% elif order.status == 'received' %}
+            <a href="{{ url_for('main.profile', section='purchases') }}" class="btn btn-primary">
+                <i class="bi bi-chat-left-text"></i>
+                Оставить отзыв
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="order-card">
+        <div class="empty-state">
+            <i class="bi bi-exclamation-triangle" style="font-size: 48px; color: #ccc;"></i>
+            <h3>Заказ не найден</h3>
+            <p>Возможно, заказ был удалён или у вас нет прав для просмотра</p>
+            <a href="{{ url_for('main.profile_orders') }}" class="btn btn-primary">К списку заказов</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

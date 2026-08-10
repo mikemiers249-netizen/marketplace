@@ -1,0 +1,149 @@
+{% if not promo_enabled %}
+    <h2>Промокоды</h2>
+    <div class="promo-section-empty">
+        <i class="bi bi-ticket-perforated" style="font-size: 36px; opacity: .3;"></i>
+        <p>Промокоды сейчас выключены администратором. Загляните позже.</p>
+    </div>
+{% elif not promos %}
+    <h2>Промокоды</h2>
+    <div class="promo-section-empty">
+        <i class="bi bi-ticket-perforated" style="font-size: 36px; opacity: .3;"></i>
+        <p>В данный момент промокоды отсутствуют.</p>
+    </div>
+{% else %}
+    <h2>Промокоды</h2>
+    <p class="promo-section-sub">
+        Доступно вам сейчас: {{ promos|length }} {{ 'промокод' if promos|length in [1,21,31,41] else ('промокода' if 2 <= promos|length % 10 <= 4 and promos|length % 100 not in [12,13,14] else 'промокодов') }}.
+        Вводите код при оформлении заказа в корзине — скидка применится автоматически.
+    </p>
+
+    <div class="promo-buyer-table-wrap">
+        <table class="promo-buyer-table">
+            <thead>
+                <tr>
+                    <th>Промокод</th>
+                    <th>Магазин</th>
+                    <th>Скидка</th>
+                    <th>Условие</th>
+                    <th>Срок действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in promos %}
+                {% set seller_off = sellers_promo_on.get(p.seller_id) is sameas false %}
+                <tr>
+                    <td class="promo-buyer-code">{{ p.code }}</td>
+                    <td>
+                        {% if p.seller %}
+                            <a href="{{ url_for('main.seller_store', seller_slug=p.seller.store_slug) }}"
+                               class="promo-buyer-store-link"
+                               target="_blank" rel="noopener">
+                                <i class="bi bi-shop"></i> {{ p.seller.store_name }}
+                            </a>
+                        {% else %}
+                            <span class="promo-buyer-store-missing">Магазин #{{ p.seller_id }}</span>
+                        {% endif %}
+                        {% if seller_off %}
+                            <div class="promo-buyer-store-off">
+                                <i class="bi bi-exclamation-circle"></i> магазин временно приостановил выдачу промокодов
+                            </div>
+                        {% endif %}
+                    </td>
+                    <td class="promo-buyer-discount">{{ p.discount_label }}</td>
+                    <td>
+                        {% if p.min_order_amount %}
+                            от {{ '%.2f'|format(p.min_order_amount) }} ₽
+                        {% else %}
+                            на любой заказ
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p.validity_type == 'forever' %}
+                            <span class="promo-buyer-validity">Бессрочно</span>
+                        {% elif p.valid_until %}
+                            до {{ p.valid_until.strftime('%d.%m.%Y') }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endif %}
+
+<style>
+.promo-section-empty {
+    text-align: center;
+    color: #6b7280;
+    padding: 48px 16px;
+}
+.promo-section-empty i { display: block; margin-bottom: 12px; }
+.promo-section-empty p { margin: 0; font-size: 15px; }
+
+.promo-section-sub {
+    color: #6b7280;
+    font-size: 13px;
+    margin: 0 0 16px;
+}
+
+.promo-buyer-table-wrap {
+    overflow-x: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+}
+.promo-buyer-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+.promo-buyer-table th,
+.promo-buyer-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+.promo-buyer-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #475569;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.promo-buyer-table tr:last-child td { border-bottom: none; }
+.promo-buyer-table tr:hover td { background: #fafbff; }
+
+.promo-buyer-code {
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #1f2937;
+    font-size: 15px;
+}
+
+.promo-buyer-store-link {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.promo-buyer-store-link:hover { text-decoration: underline; }
+.promo-buyer-store-missing { color: #9ca3af; }
+.promo-buyer-store-off {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #b45309;
+}
+.promo-buyer-store-off i { margin-right: 4px; }
+
+.promo-buyer-discount {
+    font-weight: 600;
+    color: #16a34a;
+}
+.promo-buyer-validity { color: #6b7280; }
+</style>

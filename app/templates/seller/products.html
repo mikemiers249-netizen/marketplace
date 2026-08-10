@@ -1,0 +1,162 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}Товары - Панель продавца{% endblock %}
+
+{% block header_title %}
+<h1>Товары</h1>
+{% endblock %}
+
+{% block content %}
+<div class="products-page">
+    {# Filters #}
+    <div class="products-filters">
+        <div class="filter-tabs">
+            <a href="{{ url_for('seller.products') }}" class="filter-tab{% if not current_status %} active{% endif %}">
+                Все
+            </a>
+            <a href="{{ url_for('seller.products', status='active') }}" class="filter-tab{% if current_status == 'active' %} active{% endif %}">
+                Активные
+            </a>
+            <a href="{{ url_for('seller.products', status='on_moderation') }}" class="filter-tab{% if current_status == 'on_moderation' %} active{% endif %}">
+                На модерации
+            </a>
+            <a href="{{ url_for('seller.products', status='inactive') }}" class="filter-tab{% if current_status == 'inactive' %} active{% endif %}">
+                Неактивные
+            </a>
+            <a href="{{ url_for('seller.products', status='rejected') }}" class="filter-tab{% if current_status == 'rejected' %} active{% endif %}">
+                Отклонённые
+            </a>
+        </div>
+    </div>
+
+    {# Products list #}
+    <div class="products-list">
+        {% if products %}
+        <table class="products-table">
+            <thead>
+                <tr>
+                    <th>Фото</th>
+                    <th>Название</th>
+                    <th>Цена</th>
+                    <th>Остаток</th>
+                    <th>Статус</th>
+                    <th>Дата</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                <tr class="product-row">
+                    <td class="product-image">
+                        {% if product.main_photo %}
+                        <img src="{{ url_for('static', filename='uploads/products/' + product.main_photo.path) }}" alt="{{ product.name }}">
+                        {% else %}
+                        <div class="no-image">Нет фото</div>
+                        {% endif %}
+                    </td>
+                    <td class="product-name">
+                        <a href="{{ url_for('seller.product_edit', product_id=product.id) }}">
+                            {{ product.name }}
+                        </a>
+                        {% if product.category %}
+                        <span class="product-category">{{ product.category.name }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="product-price">
+                        {{ product.discounted_price if product.current_discount and product.current_discount > 0 else product.price }} ₽
+                        {% if product.current_discount and product.current_discount > 0 %}
+                        <span class="old-price">{{ product.price }} ₽</span>
+                        <span class="discount-badge">-{{ product.current_discount }}%</span>
+                        {% endif %}
+                    </td>
+                    <td class="product-stock">
+                        {% if product.stock_quantity > 0 %}
+                        <span class="in-stock">{{ product.stock_quantity }} шт.</span>
+                        {% else %}
+                        <span class="out-of-stock">Нет в наличии</span>
+                        {% endif %}
+                    </td>
+                    <td class="product-status">
+                        <span class="status-badge status-{{ product.status }}">
+                            {% if product.status == 'active' %}Активен
+                            {% elif product.status == 'on_moderation' %}На модерации
+                            {% elif product.status == 'inactive' %}Неактивен
+                            {% elif product.status == 'rejected' %}Отклонён
+                            {% else %}{{ product.status }}
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td class="product-date">
+                        {{ product.created_at.strftime('%d.%m.%Y') }}
+                    </td>
+                    <td class="product-actions">
+                        <a href="{{ url_for('seller.product_edit', product_id=product.id) }}" class="btn-action btn-edit" title="Редактировать">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form method="POST" action="{{ url_for('seller.product_toggle_status', product_id=product.id) }}" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            {% if product.status == 'active' %}
+                            <button type="submit" class="btn-action btn-deactivate" title="Деактивировать">
+                                <i class="bi bi-arrow-down-circle"></i>
+                            </button>
+                            {% else %}
+                            <button type="submit" class="btn-action btn-activate" title="Активировать">
+                                <i class="bi bi-arrow-up-circle"></i>
+                            </button>
+                            {% endif %}
+                        </form>
+                        <form method="POST" action="{{ url_for('seller.product_delete', product_id=product.id) }}" style="display: inline;" onsubmit="return confirm('Удалить товар?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn-action btn-delete" title="Удалить">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-box-seam" style="font-size: 56px; opacity: 0.3; margin-bottom: 16px;"></i>
+            <h3>Нет товаров</h3>
+            <p>Добавьте свой первый товар</p>
+            <a href="{{ url_for('seller.product_new') }}" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Добавить товар
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    {# Pagination #}
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+        {% if pagination.has_prev %}
+        <a href="{{ url_for('seller.products', page=pagination.prev_num, status=current_status) }}" class="pagination-link">
+            &laquo; Предыдущая
+        </a>
+        {% endif %}
+        
+        {% for page_num in pagination.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+            {% if page_num %}
+                {% if page_num == pagination.page %}
+                <span class="pagination-link active">{{ page_num }}</span>
+                {% else %}
+                <a href="{{ url_for('seller.products', page=page_num, status=current_status) }}" class="pagination-link">
+                    {{ page_num }}
+                </a>
+                {% endif %}
+            {% else %}
+            <span class="pagination-ellipsis">...</span>
+            {% endif %}
+        {% endfor %}
+        
+        {% if pagination.has_next %}
+        <a href="{{ url_for('seller.products', page=pagination.next_num, status=current_status) }}" class="pagination-link">
+            Следующая &raquo;
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

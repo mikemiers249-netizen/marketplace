@@ -1,0 +1,437 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}{{ title }} - Панель продавца{% endblock %}
+
+{% block header_title %}{{ title }}{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="tariff-tabs">
+    <a href="{{ url_for('seller.tariffs', tab='my') }}"
+       class="tariff-tab{% if tab == 'my' %} active{% endif %}">
+        <i class="bi bi-bag-check"></i> Мои тарифы
+    </a>
+    <a href="{{ url_for('seller.tariffs', tab='shop') }}"
+       class="tariff-tab{% if tab == 'shop' %} active{% endif %}">
+        <i class="bi bi-shop"></i> Магазин тарифов
+    </a>
+</div>
+
+{# ===== Баннер глобальных правил площадки ===== #}
+{% if global_rules %}
+<div class="tariff-global-banner">
+    <div class="tariff-global-banner-head">
+        <i class="bi bi-globe2"></i>
+        <strong>Глобальные правила площадки</strong>
+    </div>
+    <p class="tariff-global-banner-hint">
+        Чтобы глобальный процент начал действовать на ваш магазин,
+        нажмите «Активировать» ниже. Пока не активировано — магазин
+        работает в демо-режиме и не виден покупателям.
+    </p>
+    <ul class="tariff-global-list">
+        {% for rule in global_rules %}
+        <li>
+            <span class="tariff-kind-badge tariff-kind-{{ rule.kind }}">
+                {{ rule.kind_label }}
+            </span>
+            <strong>{{ rule.name }}</strong>
+            {% if rule.percent_rate %}
+            — <strong>{{ '%.2f'|format(rule.percent_rate) }} %</strong>
+            {% endif %}
+            {% if rule.kind == 'category_sale' and rule.subject_category %}
+                ({{ rule.subject_category.full_path }})
+            {% endif %}
+            {% if rule.billing_period %}
+            · <span class="tariff-global-period">{{ rule.billing_period_label }}</span>
+            {% endif %}
+            {% if rule.description %}
+            <div class="tariff-global-desc">{{ rule.description }}</div>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{# ===== Плашка «Текущий тариф» =====
+   Правила показа:
+   • tab=my  — всегда (если tariff_state задан).
+   • tab=shop — только если нужно что-то срочно оплатить / продлить:
+       state in ('grace', 'locked') или (state='global' и near_expiry).
+       В «спокойном» state='global' (запас > 5 дней) на shop плашка
+       не показывается, чтобы не дублировать вкладку «Мои тарифы». #}
+{% if tariff_state and (tab == 'my' or tariff_state.state in ('grace', 'locked') or (tariff_state.state == 'global' and tariff_state.near_expiry)) %}
+    {% set st = tariff_state %}
+    {% if st.state == 'paid' and st.subscription %}
+        {# --- Оплаченный тариф, всё ОК --- #}
+        {% set sub = st.subscription %}
+        <div class="tariff-current-card tariff-current-card--ok">
+            <div class="tariff-current-card-head">
+                <i class="bi bi-shield-check"></i>
+                <strong>Текущий тариф: {{ sub.plan.name }}</strong>
+                <span class="tariff-current-card-status">Действует</span>
+            </div>
+            <div class="tariff-current-card-body">
+                {% if sub.plan.is_purchasable %}
+                    Фиксированный тариф, оплачен до
+                    <strong>{{ sub.expires_at.strftime('%d.%m.%Y') }}</strong>.
+                {% else %}
+                    Глобальное правило:
+                    <strong>{{ '%.2f'|format(sub.plan.percent_rate) }} %</strong>
+                    {% if sub.plan.kind == 'category_sale' and sub.plan.subject_category %}
+                        по категории «{{ sub.plan.subject_category.full_path }}»
+                    {% endif %}
+                    · списание
+                    {% if sub.plan.billing_period == 'monthly' %}ежемесячно
+                    {% else %}по факту продажи
+                    {% endif %}.
+                    Пересчёт за период: <strong>{{ '%.2f'|format(st.billed_amount) }} ₽</strong>.
+                {% endif %}
+            </div>
+            {% if st.days_to_expire is defined and st.days_to_expire <= 5 %}
+            <div class="tariff-current-card-warn">
+                <i class="bi bi-exclamation-triangle"></i>
+                До окончания тарифа осталось <strong>{{ st.days_to_expire }}</strong> дн.
+            </div>
+            {% endif %}
+        </div>
+    {% elif st.state in ('global', 'grace', 'locked', 'none') %}
+        {# --- Глобальный процент: единая плашка для global/grace/locked/none --- #}
+        {# В state=='grace'/'locked' — ст.subscription существует, но подписка
+           истекла, и в billed_amount уже лежит сумма за прошлый 30-дневный
+           период. В state=='global' — подписка есть (source='global_auto').
+           В state=='none' — подписки нет, магазин не виден покупателям;
+           селлер должен нажать «Активировать», чтобы зафиксировать
+           глобальный процент. #}
+        {% set rules = st.subscription.row if st.subscription and st.subscription.row else (st.global_rules|first if st.global_rules else None) %}
+        {% set show_amount = st.billed_amount and st.billed_amount > 0 %}
+        <div class="tariff-current-card {% if st.state == 'locked' %}tariff-current-card--danger{% elif st.state == 'grace' %}tariff-current-card--warn{% else %}tariff-current-card--info{% endif %}"
+             id="{% if st.state == 'grace' %}grace{% elif st.state == 'locked' %}blocked{% endif %}">
+            <div class="tariff-current-card-head">
+                <i class="bi bi-globe2"></i>
+                <strong>
+                    {% if st.state == 'locked' %}Магазин заморожен — оплатите глобальный процент
+                    {% elif st.state == 'grace' %}Грейс-период — оплатите глобальный процент
+                    {% elif st.state == 'none' %}Магазин не активирован
+                    {% else %}Глобальный процент
+                    {% endif %}
+                </strong>
+                <span class="tariff-current-card-status">
+                    {% if st.state == 'locked' %}Locked
+                    {% elif st.state == 'grace' %}Грейс
+                    {% elif st.state == 'none' %}Не активирован
+                    {% else %}Бесплатно
+                    {% endif %}
+                </span>
+            </div>
+            <div class="tariff-current-card-body">
+                <ul class="tariff-current-card-rules">
+                {% for rule in (st.global_rules or []) %}
+                    <li>
+                        <strong>{{ rule.name }}</strong>
+                        — <strong>{{ '%.2f'|format(rule.percent_rate) }} %</strong>
+                        {% if rule.kind == 'category_sale' and rule.subject_category %}
+                            ({{ rule.subject_category.full_path }})
+                        {% endif %}
+                        от оборота в месяц
+                    </li>
+                {% endfor %}
+                </ul>
+                {% if show_amount %}
+                <p class="tariff-current-card-billed">
+                    <i class="bi bi-cash-coin"></i>
+                    За прошлый месяц начислено:
+                    <strong>{{ '%.2f'|format(st.billed_amount) }} ₽</strong>.
+                    {% if st.state == 'grace' %}
+                        У вас <strong>{{ st.days_to_grace_end }}</strong> дн., чтобы оплатить.
+                    {% elif st.state == 'locked' %}
+                        Грейс-период истёк. Оплатите, чтобы разморозить магазин.
+                    {% endif %}
+                </p>
+                {% else %}
+                <p class="tariff-current-card-hint">
+                    {% if st.state == 'none' %}
+                        Чтобы магазин стал виден покупателям, активируйте
+                        глобальный процент ниже — это зафиксирует правило
+                        на 30 дней.
+                    {% elif st.state == 'global' and st.subscription %}
+                        Глобальный процент зафиксирован до
+                        <strong>{{ st.subscription.expires_at.strftime('%d.%m.%Y') }}</strong>.
+                        {% if st.near_expiry %}
+                            Через 5 дней начнётся грейс — продлите заранее, чтобы не терять доступ.
+                        {% else %}
+                            Продление появится за 5 дней до конца срока.
+                        {% endif %}
+                    {% else %}
+                        Оборот за прошлый месяц — 0 ₽, к оплате 0 ₽.
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+            <div class="tariff-current-card-actions">
+                {# Кнопка «Продлить» показывается ТОЛЬКО когда есть что продлевать:
+                   • state in ('grace', 'locked') — срок истёк / грейс, надо платить;
+                   • state='global' и near_expiry=True — скоро грейс, пора продлить.
+                   В остальных случаях (state='global' с запасом, state='none') кнопка
+                   не нужна: для 'global' с запасом — рано, для 'none' — отдельная
+                   кнопка «Активировать» в ветке ниже. #}
+                {% if st.subscription and (st.state in ('grace', 'locked') or (st.state == 'global' and st.near_expiry)) %}
+                <form method="POST"
+                      action="{{ url_for('seller.tariff_subscription_extend', subscription_id=st.subscription.id) }}"
+                      class="tariff-inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn {% if st.state == 'locked' %}btn-danger{% elif st.state == 'grace' %}btn-warning{% else %}btn-primary{% endif %}">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        {% if st.state == 'locked' %}Оплатить {{ '%.2f'|format(st.billed_amount) }} ₽ и разблокировать
+                        {% elif st.state == 'grace' %}Оплатить {{ '%.2f'|format(st.billed_amount) }} ₽ и продлить
+                        {% else %}Продлить ещё на 30 дней
+                        {% endif %}
+                    </button>
+                </form>
+                {% elif not st.subscription %}
+                <form method="POST" action="{{ url_for('seller.tariff_activate_global') }}"
+                      class="tariff-inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-pin-angle-fill"></i>
+                        Активировать
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+{% endif %}
+
+{% if tab == 'my' %}
+{# ===== Мои тарифы: текущие подписки продавца ===== #}
+<div class="admin-table-container">
+    <table class="admin-table tariff-table">
+        <thead>
+            <tr>
+                <th>Тариф</th>
+                <th style="width: 140px;">Стоимость</th>
+                <th style="width: 170px;">Активирован</th>
+                <th style="width: 170px;">Истекает</th>
+                <th style="width: 150px;">Статус</th>
+                <th style="width: 220px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub in subscriptions %}
+            <tr>
+                <td>
+                    <strong>{{ sub.plan.name }}</strong>
+                    {% if sub.plan.description %}
+                    <div class="tariff-plan-desc">{{ sub.plan.description }}</div>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if sub.plan.price_amount %}
+                    <strong>{{ '%.2f'|format(sub.plan.price_amount) }} ₽</strong>
+                    {% else %}
+                    <span class="tariff-plan-by-turnover">по обороту</span>
+                    {% endif %}
+                </td>
+                <td>{{ sub.activated_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                <td>{{ sub.expires_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                <td>
+                    {# Реальный статус: учитываем не только sub.status, но и даты.
+                       sub.status='active' в БД означает "не отключён админом",
+                       но если expires_at прошёл — подписка в локе. Показываем
+                       соответствующий бейдж. #}
+                    {% if sub.is_locked %}
+                        <span class="tariff-status tariff-status-disabled">Истёк</span>
+                    {% elif sub.is_in_grace %}
+                        <span class="tariff-status tariff-status-paused">Грейс</span>
+                    {% elif sub.status == 'paused' %}
+                        <span class="tariff-status tariff-status-paused">Приостановлен</span>
+                    {% elif sub.status == 'active' %}
+                        <span class="tariff-status tariff-status-active">Активен</span>
+                    {% else %}
+                        <span class="tariff-status tariff-status-disabled">Отключён</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form method="POST"
+                          action="{{ url_for('seller.tariff_subscription_renew', subscription_id=sub.id) }}"
+                          class="tariff-inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-sm btn-primary"
+                                title="Продлить тариф ещё на {{ sub.plan.duration_days }} дней">
+                            <i class="bi bi-arrow-clockwise"></i> Продлить
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" class="tariff-empty">
+                    <i class="bi bi-inbox"></i>
+                    <p>У вас пока нет активных тарифов.</p>
+                    <p class="tariff-empty-hint">
+                        Перейдите во вкладку «Магазин тарифов», чтобы выбрать и оплатить тариф.
+                    </p>
+                    <a href="{{ url_for('seller.tariffs', tab='shop') }}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-shop"></i> Открыть магазин тарифов
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+{# ===== Магазин тарифов: плашки TariffRow (только is_purchasable) ===== #}
+{% if rows %}
+<div class="tariff-shop-grid">
+    {% for row in rows %}
+    {% if row.is_purchasable %}
+    <div class="tariff-plan-card" data-row-id="{{ row.id }}">
+        <div class="tariff-plan-card-head">
+            <h3 class="tariff-plan-card-title">{{ row.name }}</h3>
+            <div class="tariff-plan-card-price">
+                <strong>{{ '%.2f'|format(row.price_amount) }} ₽</strong>
+                <span class="tariff-plan-card-period">
+                    / {% if row.duration_days >= 30 and row.duration_days % 30 == 0 %}
+                        {{ (row.duration_days // 30) }} мес.
+                    {% else %}
+                        {{ row.duration_days }} дн.
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+        {% if row.description %}
+        <div class="tariff-plan-card-body">
+            <p>{{ row.description }}</p>
+        </div>
+        {% endif %}
+        <div class="tariff-plan-card-foot">
+            <button type="button"
+                    class="btn btn-primary tariff-plan-buy-btn"
+                    data-open-modal="modal-row-{{ row.id }}">
+                <i class="bi bi-credit-card"></i> Купить
+            </button>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+
+{# Модалки оплаты для каждой плашки #}
+{% for row in rows %}
+{% if row.is_purchasable %}
+<div class="modal-overlay" id="modal-row-{{ row.id }}" hidden>
+    <div class="modal-window" role="dialog" aria-modal="true">
+        <button type="button" class="modal-close" data-close-modal aria-label="Закрыть">
+            <i class="bi bi-x-lg"></i>
+        </button>
+        <h2 class="modal-title">
+            <i class="bi bi-credit-card"></i> Оплата тарифа
+        </h2>
+        <div class="modal-body">
+            <p class="modal-plan-name"><strong>{{ row.name }}</strong></p>
+            {% if row.description %}
+            <p class="modal-plan-desc">{{ row.description }}</p>
+            {% endif %}
+            <ul class="modal-plan-meta">
+                <li>
+                    <i class="bi bi-cash"></i>
+                    Стоимость: <strong>{{ '%.2f'|format(row.price_amount) }} ₽</strong>
+                </li>
+                <li>
+                    <i class="bi bi-calendar-range"></i>
+                    Срок действия:
+                    <strong>
+                        {% if row.duration_days >= 30 and row.duration_days % 30 == 0 %}
+                            {{ (row.duration_days // 30) }} мес.
+                        {% else %}
+                            {{ row.duration_days }} дн.
+                        {% endif %}
+                    </strong>
+                </li>
+            </ul>
+            <p class="modal-payment-hint">
+                <i class="bi bi-info-circle"></i>
+                Платёжный модуль в разработке. Нажмите «Оплатить», чтобы сымитировать успешную оплату.
+            </p>
+        </div>
+        <form method="POST" action="{{ url_for('seller.tariff_buy', row_id=row.id) }}"
+              class="modal-actions">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="button" class="btn btn-secondary" data-close-modal>Отмена</button>
+            <button type="submit" class="btn btn-success">
+                <i class="bi bi-check2-circle"></i> Оплатить
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% else %}
+<div class="tariff-empty">
+    <i class="bi bi-inbox"></i>
+    <p>В магазине пока нет доступных тарифов.</p>
+    <p class="tariff-empty-hint">
+        Загляните сюда позже — администратор уже готовит предложения.
+    </p>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tariffs_admin.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tariffs_seller_shop.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    // Раскрытие модальных окон по data-open-modal / data-close-modal
+    function openModal(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.hidden = false;
+        document.body.classList.add('modal-open');
+    }
+    function closeModal(el) {
+        el.hidden = true;
+        document.body.classList.remove('modal-open');
+    }
+    document.querySelectorAll('[data-open-modal]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            openModal(btn.getAttribute('data-open-modal'));
+        });
+    });
+    document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var m = btn.closest('.modal-overlay');
+            if (m) closeModal(m);
+        });
+    });
+    document.querySelectorAll('.modal-overlay').forEach(function (m) {
+        m.addEventListener('click', function (e) {
+            if (e.target === m) closeModal(m);
+        });
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay').forEach(closeModal);
+        }
+    });
+})();
+</script>
+{% endblock %}

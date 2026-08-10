@@ -1,0 +1,160 @@
+{#
+    Компонент карточки товара
+    Используется в: каталог, главная, избранное, рекомендации, мои покупки
+
+    Параметры контекста:
+        product            — модель Product
+        favorite_ids       — список id избранного (опц.)
+        purchase_mode      — True если карточка в разделе «Мои покупки» (опц.)
+        reviewed_product_ids — set id товаров, на которые у пользователя уже есть
+                                активный (pending/approved) отзыв (опц., для purchase_mode)
+        order_id           — id заказа (опц., для purchase_mode — для привязки отзыва)
+        reviewed_pairs     — set пар (product_id, order_id) — для purchase_mode
+                             определяет, на какие позиции уже оставлен отзыв
+                             и плашку «Оставить отзыв» показывать не нужно
+#}
+{% set promo = promo_info(product) %}
+
+<div class="product-card" data-product-id="{{ product.id }}">
+    <div class="product-card-inner">
+        {# Фото товара #}
+        <a href="{{ url_for('main.product', product_id=product.id) }}" class="product-photo">
+            {% if product.main_photo %}
+            <img src="{{ url_for('static', filename='uploads/products/' ~ product.main_photo.path) }}" alt="{{ product.name }}">
+            {% else %}
+            <div class="product-photo-placeholder">
+                <span>Нет фото</span>
+            </div>
+            {% endif %}
+
+            {# Бейджи #}
+            <div class="product-badges">
+                {% if product.is_new %}
+                <span class="badge badge-new">Новинка</span>
+                {% endif %}
+                {% if promo.has_promotion %}
+                    {% if promo.percent %}
+                    <span class="badge badge-sale">-{{ promo.percent }}%</span>
+                    {% else %}
+                    <span class="badge badge-sale">{{ promo.scheme_label or 'Акция' }}</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+
+            {# Плашка с названием акции (правый нижний угол фото) #}
+            {% if promo.has_promotion and promo.name %}
+            <div class="product-promo-corner" title="{{ promo.name }}">
+                {{ promo.name }}
+            </div>
+            {% endif %}
+
+            {# Кнопка избранного #}
+            {% set is_in_favorite = (in_favorite is defined and in_favorite) or (favorite_ids is defined and product.id in favorite_ids) %}
+            <button class="favorite-btn{% if is_in_favorite %} active{% endif %}"
+                    data-product-id="{{ product.id }}"
+                    title="{% if is_in_favorite %}Удалить из избранного{% else %}Добавить в избранное{% endif %}">
+                <svg viewBox="0 0 24 24" width="24" height="24" class="heart-icon">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                </svg>
+            </button>
+        </a>
+
+        {# Информация о товаре #}
+        <div class="product-info">
+            {# Название #}
+            <a href="{{ url_for('main.product', product_id=product.id) }}" class="product-name">
+                {{ product.name }}
+            </a>
+
+            {# Цена #}
+            <div class="product-price">
+                <div class="current-price">{{ format_price(promo.final_price if promo.final_price is not none else product.price) }}</div>
+                {% if promo.has_promotion and promo.old_price %}
+                <div class="old-price">{{ format_price(promo.old_price) }}</div>
+                {% endif %}
+            </div>
+
+            {# Рейтинг ИЛИ плашка «Оставить отзыв» #}
+            {# Связка (product, order) — один отзыв на заказ. Если reviewed_pairs
+               передан — проверяем пару; иначе (для обратной совместимости)
+               проверяем по reviewed_product_ids (старый формат). #}
+            {% if purchase_mode %}
+                {% if reviewed_pairs is defined %}
+                    {% set already_reviewed = (order_id is defined and (product.id, order_id) in reviewed_pairs) %}
+                {% elif reviewed_product_ids is defined %}
+                    {% set already_reviewed = (product.id in reviewed_product_ids) %}
+                {% else %}
+                    {% set already_reviewed = false %}
+                {% endif %}
+            {% else %}
+                {% set already_reviewed = false %}
+            {% endif %}
+            {% if purchase_mode and not already_reviewed %}
+                <button type="button"
+                        class="review-pill"
+                        data-review-pill
+                        data-product-id="{{ product.id }}"
+                        {% if order_id is defined %}data-order-id="{{ order_id }}"{% endif %}>
+                    <i class="bi bi-chat-left-text"></i>
+                    Оставить отзыв
+                </button>
+            {% else %}
+                <div class="product-rating">
+                    <span class="rating-stars">
+                        <span class="star">★</span>
+                    </span>
+                    <span class="rating-value">{{ product.average_rating }}</span>
+                    <span class="reviews-count">({{ product.reviews_count }} {{ 'отзывов' if product.reviews_count % 100 in [11,12,13,14] or product.reviews_count % 10 not in [1,2,3,4] else ('отзыв' if product.reviews_count % 10 == 1 else 'отзыва') }})</span>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if purchase_mode %}
+<style>
+    .review-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+        justify-content: center;
+        margin-top: 8px;
+        padding: 8px 12px;
+        background: #198754;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .review-pill:hover { background: #146c43; }
+    .review-pill i { font-size: 14px; }
+</style>
+{% endif %}
+
+<style>
+    .product-promo-corner {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        max-width: calc(100% - 16px);
+        background: #b45309;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.2;
+        padding: 4px 8px;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        pointer-events: none;
+    }
+    .product-price .discount-badge {
+        display: none;
+    }
+</style>

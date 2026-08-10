@@ -1,0 +1,163 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Панель администратора{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h1>Обзор системы</h1>
+    </div>
+    
+    {# Статистика #}
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <span>👥</span>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ buyers_count }}</span>
+                <span class="stat-label">Покупателей</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <span>🏪</span>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ sellers_count }}</span>
+                <span class="stat-label">Продавцов</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon warning">
+                <span>📦</span>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ products_count }}</span>
+                <span class="stat-label">Товаров</span>
+            </div>
+        </div>
+        
+        <div class="stat-card clickable" onclick="window.location='{{ url_for('admin.products_moderation') }}'">
+            <div class="stat-icon danger">
+                <span>⏳</span>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ pending_products }}</span>
+                <span class="stat-label">На модерации</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon info">
+                <span>📅</span>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ today_orders }}</span>
+                <span class="stat-label">Заказов сегодня</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon success">
+                <span>💰</span>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ format_price(today_revenue) }}</span>
+                <span class="stat-label">Выручка сегодня</span>
+            </div>
+        </div>
+    </div>
+    
+    {# Последние заказы #}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2>Последние заказы</h2>
+            <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary">Все заказы</a>
+        </div>
+        
+        {% if recent_orders %}
+        <div class="orders-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Номер</th>
+                        <th>Дата</th>
+                        <th>Покупатель</th>
+                        <th>Продавец</th>
+                        <th>Сумма</th>
+                        <th>Статус</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in recent_orders %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('admin.order_detail', order_id=order.id) }}">
+                                {{ order.order_number }}
+                            </a>
+                        </td>
+                        <td>{{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td>{{ order.buyer.login }}</td>
+                        <td>{{ order.seller.store_name }}</td>
+                        <td>{{ format_price(order.grand_total) }}</td>
+                        <td>
+                            <span class="status-badge status-{{ order.status }}">
+                                {{ order.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('admin.order_detail', order_id=order.id) }}" 
+                               class="btn btn-secondary btn-sm">
+                                Просмотр
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>Заказов пока нет</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    {# Быстрые действия #}
+    <div class="dashboard-section">
+        <h2>Быстрые действия</h2>
+        <div class="quick-actions">
+            <a href="{{ url_for('admin.products_moderation') }}" class="action-card">
+                <span class="action-icon">📋</span>
+                <span class="action-label">Модерация товаров</span>
+                {% if pending_products > 0 %}
+                <span class="action-badge">{{ pending_products }}</span>
+                {% endif %}
+            </a>
+            
+            <a href="{{ url_for('admin.categories') }}" class="action-card">
+                <span class="action-icon">📁</span>
+                <span class="action-label">Управление категориями</span>
+            </a>
+            
+            <a href="{{ url_for('admin.promotions') }}" class="action-card">
+                <span class="action-icon">🏷️</span>
+                <span class="action-label">Создать акцию</span>
+            </a>
+            
+            <a href="{{ url_for('admin.settings') }}" class="action-card">
+                <span class="action-icon">⚙️</span>
+                <span class="action-label">Настройки системы</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}

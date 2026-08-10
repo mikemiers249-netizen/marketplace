@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="search-container">
+    {# Хлебные крошки #}
+    <div class="breadcrumbs">
+        <a href="{{ url_for('main.index') }}">Главная</a>
+        <span class="separator">/</span>
+        <span>Поиск</span>
+    </div>
+
+    <div class="search-header">
+        <h1>Результаты поиска: "{{ query }}"</h1>
+        
+        {# Форма повторного поиска #}
+        <form action="{{ url_for('main.search') }}" method="get" class="search-form">
+            <input type="text" name="q" value="{{ query }}" placeholder="Введите запрос..." class="search-input">
+            <button type="submit" class="search-btn">Найти</button>
+        </form>
+    </div>
+
+    {% if products %}
+    <div class="search-results-info">
+        Найдено товаров: {{ pagination.total }}
+    </div>
+    
+    <div class="products-grid products-grid-5">
+        {% for product in products %}
+            {% include 'components/product_card.html' %}
+        {% endfor %}
+    </div>
+
+    {# Пагинация #}
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+        {% if pagination.has_prev %}
+        <a href="{{ url_for('main.search', q=query, page=pagination.prev_num) }}" 
+           class="pagination-link">&laquo; Предыдущая</a>
+        {% endif %}
+        
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}
+                <a href="{{ url_for('main.search', q=query, page=page_num) }}" 
+                   class="pagination-link {% if page_num == pagination.page %}active{% endif %}">
+                    {{ page_num }}
+                </a>
+            {% else %}
+                <span class="pagination-ellipsis">...</span>
+            {% endif %}
+        {% endfor %}
+        
+        {% if pagination.has_next %}
+        <a href="{{ url_for('main.search', q=query, page=pagination.next_num) }}" 
+           class="pagination-link">Следующая &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-search">
+        <div class="empty-icon">🔍</div>
+        <h2>Ничего не найдено</h2>
+        <p>Попробуйте изменить поисковый запрос</p>
+        <a href="{{ url_for('main.index') }}" class="btn btn-primary">На главную</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.search-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px 40px;
+}
+
+.breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: #666;
+}
+
+.breadcrumbs a {
+    color: #4a6cf7;
+    text-decoration: none;
+}
+
+.breadcrumbs a:hover {
+    text-decoration: underline;
+}
+
+.breadcrumbs .separator {
+    color: #999;
+}
+
+.search-header {
+    margin-bottom: 30px;
+}
+
+.search-header h1 {
+    font-size: 24px;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.search-form {
+    display: flex;
+    gap: 12px;
+    max-width: 600px;
+}
+
+.search-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.2s;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #4a6cf7;
+}
+
+.search-btn {
+    padding: 12px 24px;
+    background: #4a6cf7;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.search-btn:hover {
+    background: #3a5ce5;
+}
+
+.search-results-info {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 20px;
+}
+
+.products-grid {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: repeat(5, 1fr);
+}
+
+@media (max-width: 1024px) {
+    .products-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .products-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .products-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .search-form {
+        flex-direction: column;
+    }
+    
+    .search-btn {
+        width: 100%;
+    }
+}
+
+.empty-search {
+    text-align: center;
+    padding: 60px 20px;
+    background: #f9f9f9;
+    border-radius: 12px;
+}
+
+.empty-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+.empty-search h2 {
+    font-size: 24px;
+    color: #333;
+    margin-bottom: 12px;
+}
+
+.empty-search p {
+    font-size: 16px;
+    color: #666;
+    margin-bottom: 24px;
+}
+
+.btn-primary {
+    display: inline-block;
+    padding: 12px 24px;
+    background: #4a6cf7;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btn-primary:hover {
+    background: #3a5ce5;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 40px;
+}
+
+.pagination-link {
+    display: inline-block;
+    padding: 8px 14px;
+    color: #555;
+    text-decoration: none;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.pagination-link:hover {
+    border-color: #4a6cf7;
+    color: #4a6cf7;
+}
+
+.pagination-link.active {
+    background: #4a6cf7;
+    border-color: #4a6cf7;
+    color: #fff;
+}
+
+.pagination-ellipsis {
+    padding: 8px;
+    color: #999;
+}
+</style>
+{% endblock %}

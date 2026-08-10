@@ -1,0 +1,103 @@
+# ===== Python =====
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# ===== Окружение и секреты =====
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ===== Локальная БД (SQLite) =====
+instance/
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+
+# ===== Логи =====
+logs/
+*.log
+
+# ===== IDE и системные =====
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ===== PyInstaller / сборки =====
+build/
+dist/
+*.spec
+*.exe
+__pycache__/
+
+# ===== PaaS / деплой =====
+.minimax/
+.session/
+.agent/
+*.tar.gz
+*.zip
+
+# ===== Загруженные пользователями файлы (НЕ коммитим — там реальные данные) =====
+app/static/uploads/messages/
+app/static/uploads/products/
+app/static/uploads/sellers/
+app/static/uploads/avatars/
+app/static/uploads/brands/
+app/static/uploads/categories/
+app/static/uploads/*.jpg
+app/static/uploads/*.jpeg
+app/static/uploads/*.png
+app/static/uploads/*.gif
+app/static/uploads/*.webp
+app/static/uploads/*.pdf
+app/static/uploads/*.svg
+
+# Держим дефолтные картинки и логотипы доставок
+!app/static/uploads/delivery_logos/
+!app/static/img/
+
+# ===== Временные отладочные скрипты (не часть проекта) =====
+_check_*.py
+__check_*.py
+_smoke_*.py
+_e2e_*.py
+_decode_*.py
+_init_db.py
+_diag*.py
+_inspect_*.py
+_stamp_*.py
+_seed_*.py
+_migrate_*.py
+_orders_schema.txt
+pasted-text-*.txt
+*.txt
+!README.md
+
+# ===== Локальный парсер Ozon (dev-инструмент, на проде не нужен) =====
+ozon_parser/
+
+# ===== Миграции: alembic-кеш и пр. =====
+migrations/__pycache__/

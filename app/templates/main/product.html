@@ -1,0 +1,517 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Маркетплейс{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/product.css') }}">
+<style>
+    /* На странице товара уменьшаем верхний отступ от шапки:
+       .main-content даёт 30px, .breadcrumbs ещё 15px → было 45px,
+       оставляем 5px сверху у контейнера. */
+    .main-content { padding-top: 0; }
+    .breadcrumbs { padding-top: 5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    {# Хлебные крошки #}
+    {% if breadcrumbs %}
+    <nav class="breadcrumbs">
+        <a href="{{ url_for('main.index') }}">Главная</a>
+        {% for crumb in breadcrumbs %}
+            <span class="separator">/</span>
+            {% if crumb.url %}
+                <a href="{{ crumb.url }}">{{ crumb.name }}</a>
+            {% else %}
+                <span class="current">{{ crumb.name }}</span>
+            {% endif %}
+        {% endfor %}
+    </nav>
+    {% endif %}
+
+    {# Основная информация о товаре #}
+    <div class="product-detail">
+        {# Галерея фото #}
+        <div class="product-gallery">
+            <div class="main-photo">
+                {% if product.main_photo %}
+                    <img src="{{ url_for('static', filename='uploads/products/' ~ product.main_photo.path) }}" 
+                         alt="{{ product.name }}" id="main-product-image">
+                {% else %}
+                    <div class="photo-placeholder">
+                        <span>Нет фото</span>
+                    </div>
+                {% endif %}
+                
+                {# Бейджи #}
+                {% set promo = promo_info(product) %}
+                <div class="product-badges">
+                    {% if product.is_new %}
+                        <span class="badge badge-new">Новинка</span>
+                    {% endif %}
+                    {% if promo.has_promotion %}
+                        {% if promo.percent %}
+                            <span class="badge badge-sale">-{{ promo.percent }}%</span>
+                        {% else %}
+                            <span class="badge badge-sale">{{ promo.scheme_label or 'Акция' }}</span>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            
+            {# Миниатюры #}
+            {% set photos_list = product.photos|list %}
+            {% if photos_list|length > 1 %}
+            <div class="photo-thumbnails">
+                {% for photo in photos_list %}
+                <div class="thumbnail {% if photo == product.main_photo %}active{% endif %}"
+                     data-image="{{ url_for('static', filename='uploads/products/' ~ photo.path) }}">
+                    <img src="{{ url_for('static', filename='uploads/products/' ~ photo.path) }}" alt="Фото {{ loop.index }}">
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        {# Информация о товаре #}
+        <div class="product-info-detail">
+            <h1 class="product-title">{{ product.name }}</h1>
+            
+            {# Артикул #}
+            {% if product.article %}
+            <div class="product-article">
+                Артикул: <span>{{ product.article }}</span>
+            </div>
+            {% endif %}
+            
+            {# Мини-галерея товаров из карточки #}
+            {% if card_products and card_products|length > 0 %}
+            <div class="product-card-gallery">
+                <div class="product-card-gallery-title">Другие варианты этого товара:</div>
+                <div class="card-gallery-container">
+                    <button class="card-gallery-nav prev" id="card-gallery-prev" aria-label="Прокрутить влево">
+                        <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                    </button>
+                    <div class="card-gallery" id="card-gallery">
+                        {% for card_product in card_products %}
+                        <a href="{{ url_for('main.product', product_id=card_product.id) }}" 
+                           class="card-gallery-item"
+                           title="{{ card_product.name }}">
+                            {% if card_product.main_photo %}
+                                <img src="{{ url_for('static', filename='uploads/products/' ~ card_product.main_photo.path) }}" 
+                                     alt="{{ card_product.name }}">
+                            {% else %}
+                                <div class="photo-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999;">
+                                    Нет фото
+                                </div>
+                            {% endif %}
+                        </a>
+                        {% endfor %}
+                    </div>
+                    <button class="card-gallery-nav next" id="card-gallery-next" aria-label="Прокрутить вправо">
+                        <svg viewBox="0 0 24 24"><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+            
+            {# Рейтинг #}
+            <div class="product-rating-detail">
+                <span class="rating-stars">
+                    {% for i in range(5) %}
+                    <span class="star{% if i < product.average_rating|int %} filled{% endif %}">★</span>
+                    {% endfor %}
+                </span>
+                <span class="rating-value">{{ product.average_rating }}</span>
+                <a href="#reviews" class="reviews-link">({{ product.reviews_count }} отзывов)</a>
+            </div>
+            
+            {# Цена #}
+            <div class="product-price-detail">
+                <span class="current-price">{{ format_price(promo.final_price if promo.final_price is not none else product.price) }}</span>
+                {% if promo.has_promotion and promo.old_price %}
+                <span class="old-price">{{ format_price(promo.old_price) }}</span>
+                {% if promo.percent %}
+                <span class="discount-percent">-{{ promo.percent }}%</span>
+                {% endif %}
+                {% endif %}
+            </div>
+
+            {# Информация об акции #}
+            {% if promo.has_promotion %}
+            <div class="product-promo-block">
+                <div class="product-promo-title">
+                    {% if promo.scheme_label %}{{ promo.scheme_label }}{% endif %}{% if promo.name %}: {{ promo.name }}{% endif %}
+                </div>
+                {% if promo.old_price and promo.percent %}
+                <div class="product-promo-prices">
+                    <span class="promo-old">{{ format_price(promo.old_price) }}</span>
+                    <span class="promo-arrow">→</span>
+                    <span class="promo-new">{{ format_price(promo.final_price) }}</span>
+                    <span class="promo-save">экономия {{ format_price((promo.old_price or 0) - (promo.final_price or 0)) }}</span>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            {# Наличие #}
+            <div class="product-availability">
+                {% if product.stock_quantity > 0 %}
+                    <span class="in-stock">В наличии: {{ product.stock_quantity }} шт.</span>
+                {% else %}
+                    <span class="out-of-stock">Нет в наличии</span>
+                {% endif %}
+            </div>
+            
+            {# Кнопки действий #}
+            <div class="product-actions">
+                {% if product.stock_quantity > 0 %}
+                    {% if in_cart %}
+                    <div class="cart-controls">
+                        <button class="btn btn-quantity minus" data-product-id="{{ product.id }}">-</button>
+                        <span class="quantity-display">{{ cart_quantity }}</span>
+                        <button class="btn btn-quantity plus" data-product-id="{{ product.id }}">+</button>
+                        <a href="{{ url_for('main.cart') }}" class="btn btn-primary">В корзине</a>
+                    </div>
+                    {% else %}
+                    <button class="btn btn-primary add-to-cart-btn" data-product-id="{{ product.id }}" data-quantity="1">
+                        В корзину
+                    </button>
+                    {% endif %}
+                {% else %}
+                    <button class="btn btn-disabled" disabled>Нет в наличии</button>
+                {% endif %}
+                
+                <button class="btn btn-favorite{% if in_favorite %} active{% endif %}" 
+                        data-product-id="{{ product.id }}">
+                    <svg viewBox="0 0 24 24" width="24" height="24">
+<path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    </svg>
+                    <span>{% if in_favorite %}В избранном{% else %}В избранное{% endif %}</span>
+                </button>
+            </div>
+            
+            {# Продавец #}
+            {% if product.seller %}
+            <div class="product-seller">
+                <span class="seller-label">Продавец:</span>
+                <span class="seller-name">{{ product.seller.company_name or product.seller.login }}</span>
+            </div>
+            {% endif %}
+            
+            {# Способ оплаты #}
+            <div class="product-payment">
+                <span class="payment-label">Способ оплаты:</span>
+                <span class="payment-value">наложенный платеж</span>
+            </div>
+            
+            {# Способы доставки #}
+            {% if seller_delivery_services %}
+            <div class="product-delivery">
+                <span class="delivery-label">Способы доставки:</span>
+                <div class="delivery-services">
+                    {% for service in seller_delivery_services %}
+                    <div class="delivery-service-item" title="{{ service.name }}">
+                        {% if service.logo_path %}
+                        <img src="{{ url_for('static', filename='uploads/delivery_logos/' ~ service.logo_path.split('/')[-1]) }}" 
+                             alt="{{ service.name }}" 
+                             class="delivery-logo">
+                        {% else %}
+                        <span class="delivery-service-code">{{ service.code|upper }}</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Описание и характеристики #}
+    <div class="product-tabs">
+        <div class="tabs-header">
+            <button class="tab-btn active" data-tab="description">Описание</button>
+            <button class="tab-btn" data-tab="params">Характеристики</button>
+            <button class="tab-btn" data-tab="seller">Продавец</button>
+            <button class="tab-btn" data-tab="reviews">Отзывы ({{ product.reviews_count }})</button>
+        </div>
+        
+        <div class="tabs-content">
+            {# Описание #}
+            <div class="tab-panel active" id="description">
+                <div class="product-description">
+                    {{ product.description|safe if product.description else 'Описание отсутствует' }}
+                </div>
+            </div>
+            
+            {# Характеристики #}
+            <div class="tab-panel" id="params">
+                {% if params %}
+                <table class="params-table">
+                    <tbody>
+                        {% for param in params %}
+                        <tr>
+                            <td class="param-name">{{ param.parameter.name }}</td>
+                            <td class="param-value">{{ param.value }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="no-params">Характеристики не указаны</p>
+                {% endif %}
+            </div>
+            
+            {# Продавец #}
+            <div class="tab-panel" id="seller">
+                {% if product.seller %}
+                <div class="seller-tab-content">
+                    {# Название магазина #}
+                    <div class="seller-store-header">
+                        <a href="{{ url_for('main.seller_store', seller_slug=product.seller.store_slug) }}" 
+                           class="seller-store-link" 
+                           target="_blank">
+                            {{ product.seller.store_name }}
+                        </a>
+                    </div>
+                    
+                    {# Контактная информация #}
+                    <div class="seller-contacts">
+                        <h4>Контактная информация</h4>
+                        {% if product.seller.phone %}
+                        <div class="seller-contact-item">
+                            <span class="contact-label">Телефон:</span>
+                            <span class="contact-value">{{ product.seller.phone }}</span>
+                        </div>
+                        {% endif %}
+                        {% if product.seller.email %}
+                        <div class="seller-contact-item">
+                            <span class="contact-label">Email:</span>
+                            <span class="contact-value">{{ product.seller.email }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {# Информация о магазине #}
+                    <div class="seller-info">
+                        <h4>О магазине</h4>
+                        <div class="seller-info-item">
+                            <span class="info-label">Рейтинг:</span>
+                            <span class="info-value">
+                                <span class="rating-stars">
+                                    {% for i in range(5) %}
+                                    <span class="star{% if i < product.seller.rating|int %} filled{% endif %}">★</span>
+                                    {% endfor %}
+                                </span>
+                                <span class="rating-num">{{ product.seller.rating }}</span>
+                                <span class="reviews-count">({{ product.seller.reviews_count }} отзывов)</span>
+                            </span>
+                        </div>
+                        <div class="seller-info-item">
+                            <span class="info-label">Товаров:</span>
+                            <span class="info-value">{{ product.seller.products_count }}</span>
+                        </div>
+                        <div class="seller-info-item">
+                            <span class="info-label">Зарегистрирован:</span>
+                            <span class="info-value">{{ product.seller.created_at.strftime('%d.%m.%Y') }}</span>
+                        </div>
+                        {% if product.seller.store_description %}
+                        <div class="seller-info-item seller-description">
+                            <span class="info-label">Описание:</span>
+                            <span class="info-value">{{ product.seller.store_description }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {# Кнопка написать продавцу #}
+                    <div class="seller-actions">
+                        <a href="{{ url_for('main.profile', section='messages', filter='stores') }}&partner_type=seller&partner_id={{ product.seller.id }}" 
+                           class="btn btn-primary btn-message-seller">
+                            <svg viewBox="0 0 24 24" width="20" height="20">
+                                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                            </svg>
+                            Написать продавцу
+                        </a>
+                    </div>
+                </div>
+                {% else %}
+                <p class="no-seller">Информация о продавце недоступна</p>
+                {% endif %}
+            </div>
+            
+            {# Отзывы #}
+            <div class="tab-panel" id="reviews">
+                {% if reviews %}
+                <div class="reviews-list">
+                    {% for review in reviews %}
+                    <div class="review-item">
+                        <div class="review-header">
+                            <span class="review-author">{{ review.buyer.login }}</span>
+                            <span class="review-date">{{ review.created_at.strftime('%d.%m.%Y') }}</span>
+                        </div>
+                        <div class="review-rating">
+                            {% for i in range(5) %}
+                            <span class="star{% if i < review.rating %} filled{% endif %}">★</span>
+                            {% endfor %}
+                        </div>
+                        {% if review.text %}
+                        <div class="review-text">{{ review.text }}</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="no-reviews">Отзывов пока нет. Будьте первым!</p>
+                {% endif %}
+                
+                {# Форма отзыва — только если ещё нет активного (pending/approved) отзыва #}
+                {% if current_user.is_authenticated and isinstance(current_user, Buyer) and has_purchased and not has_active_review %}
+                <div class="review-form-container">
+                    <h3>Оставить отзыв</h3>
+                    <form action="{{ url_for('main.add_review', product_id=product.id) }}" method="POST" class="review-form">
+                        <div class="form-group">
+                            <label>Оценка:</label>
+                            <div class="rating-input">
+                                {% for i in range(5, 0, -1) %}
+                                <input type="radio" name="rating" value="{{ i }}" id="rating-{{ i }}" required>
+                                <label for="rating-{{ i }}">★</label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="review-text">Комментарий:</label>
+                            <textarea name="text" id="review-text" rows="4" placeholder="Поделитесь впечатлениями о товаре..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Отправить отзыв</button>
+                    </form>
+                </div>
+                {% elif current_user.is_authenticated and isinstance(current_user, Buyer) and has_active_review %}
+                <p class="text-muted" style="margin-top:12px;color:#888;">Вы уже оставляли отзыв на этот товар.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# Похожие товары #}
+    {% if similar_products %}
+    <section class="similar-products">
+        <h2>Похожие</h2>
+        <div class="products-grid products-grid-5">
+            {% for product in similar_products %}
+                {% include 'components/product_card.html' %}
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Переключение фото
+    const thumbnails = document.querySelectorAll('.thumbnail');
+    const mainImage = document.getElementById('main-product-image');
+    
+    thumbnails.forEach(thumb => {
+        thumb.addEventListener('click', function() {
+            thumbnails.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            if (mainImage) {
+                mainImage.src = this.dataset.image;
+            }
+        });
+    });
+    
+    // Переключение вкладок
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+    
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tabId = this.dataset.tab;
+            
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabPanels.forEach(p => p.classList.remove('active'));
+            
+            this.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        });
+    });
+    
+    // Якорь на отзывы
+    if (window.location.hash === '#reviews') {
+        document.querySelector('[data-tab="reviews"]').click();
+    }
+    
+    // Мини-галерея карточки товара
+    const cardGallery = document.getElementById('card-gallery');
+    const prevBtn = document.getElementById('card-gallery-prev');
+    const nextBtn = document.getElementById('card-gallery-next');
+    
+    if (cardGallery) {
+        const scrollAmount = 100;
+        
+        // Проверка видимости кнопок
+        function updateNavVisibility() {
+            const maxScrollLeft = cardGallery.scrollWidth - cardGallery.clientWidth;
+            
+            // Кнопка влево - видна если прокручено вправо
+            if (prevBtn) {
+                if (cardGallery.scrollLeft > 0) {
+                    prevBtn.classList.add('visible');
+                } else {
+                    prevBtn.classList.remove('visible');
+                }
+            }
+            
+            // Кнопка вправо - видна если есть куда прокручивать
+            if (nextBtn) {
+                // Небольшой допуск (1px) для учёта subpixel rendering
+                if (cardGallery.scrollLeft < maxScrollLeft - 1) {
+                    nextBtn.classList.add('visible');
+                } else {
+                    nextBtn.classList.remove('visible');
+                }
+            }
+        }
+        
+        // Прокрутка вправо
+        if (nextBtn) {
+            nextBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                cardGallery.scrollBy({
+                    left: scrollAmount,
+                    behavior: 'smooth'
+                });
+            });
+        }
+        
+        // Прокрутка влево
+        if (prevBtn) {
+            prevBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                cardGallery.scrollBy({
+                    left: -scrollAmount,
+                    behavior: 'smooth'
+                });
+            });
+        }
+        
+        // Обновление кнопок при прокрутке
+        cardGallery.addEventListener('scroll', function() {
+            updateNavVisibility();
+        });
+        
+        // Инициализация видимости
+        updateNavVisibility();
+        
+        // Пересчёт при изменении размера окна
+        window.addEventListener('resize', function() {
+            updateNavVisibility();
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,331 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Заказ #{{ order.id }} - Админ-панель{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Order Items Grid - как в корзине */
+.order-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.order-item {
+    display: grid;
+    grid-template-columns: 80px 1fr auto auto;
+    gap: 16px;
+    align-items: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 12px 16px;
+}
+
+.order-item .item-image {
+    width: 80px;
+    height: 80px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.order-item .item-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.order-item .item-details {
+    min-width: 0;
+}
+
+.order-item .item-details h4 {
+    font-size: 15px;
+    font-weight: 500;
+    margin: 0 0 4px 0;
+}
+
+.order-item .item-details h4 a {
+    color: #333;
+    text-decoration: none;
+}
+
+.order-item .item-details h4 a:hover {
+    color: #0d6efd;
+}
+
+.order-item .item-details p {
+    font-size: 13px;
+    color: #666;
+    margin: 0;
+}
+
+.order-item .item-quantity {
+    font-size: 15px;
+    font-weight: 500;
+    color: #333;
+    min-width: 40px;
+    text-align: center;
+}
+
+.order-item .item-price {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    min-width: 80px;
+    text-align: right;
+}
+
+.order-item .no-image {
+    color: #999;
+    font-size: 11px;
+}
+
+/* Seller card links */
+.seller-details a {
+    color: #333;
+    text-decoration: none;
+}
+
+.seller-details a:hover {
+    color: #0d6efd;
+}
+
+.seller-chat-link {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    color: #666;
+    vertical-align: middle;
+}
+
+.seller-chat-link:hover {
+    color: #0d6efd;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="order-detail-header">
+    <div class="header-left">
+        <h1>Заказ #{{ order.id }}</h1>
+        <span class="status-badge status-{{ order.status }}">{{ order.status_display }}</span>
+    </div>
+    <div class="header-right">
+        <span class="order-date">Создан: {{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+    </div>
+</div>
+
+<div class="order-detail-grid">
+    <div class="order-main-info">
+        <div class="info-card">
+            <h3>Товары в заказе</h3>
+            <div class="order-items-list">
+                {% for item in order.items %}
+                {% set item_bonus_share = 0 %}
+                {% if order.bonus_used and order.bonus_used > 0 and order.total_price and order.total_price > 0 %}
+                    {% set item_bonus_share = (item.total_price / order.total_price) * order.bonus_used %}
+                {% endif %}
+                {% set item_paid = item.total_price - item_bonus_share %}
+                <div class="order-item">
+                    <div class="item-image">
+                        {% if item.product.main_photo %}
+                        <a href="{{ url_for('main.product', product_id=item.product.id) }}" target="_blank">
+                            <img src="{{ url_for('static', filename='uploads/products/' + item.product.main_photo.path) }}" 
+                                 alt="{{ item.product.name }}" style="max-width: 80px; max-height: 80px; object-fit: contain;">
+                        </a>
+                        {% else %}
+                        <div class="no-image">Нет фото</div>
+                        {% endif %}
+                    </div>
+                    <div class="item-details">
+                        <h4><a href="{{ url_for('main.product', product_id=item.product.id) }}" target="_blank">{{ item.product.name }}</a></h4>
+                        <p class="item-sku">Артикул: {{ item.product.article }}</p>
+                        <p class="item-seller">Продавец: {{ item.product.seller.store_name }}</p>
+                    </div>
+                    <div class="item-quantity">x{{ item.quantity }}</div>
+                    <div class="item-price">{{ format_price(item_paid) }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <div class="order-totals">
+                {% set items_subtotal_orig = order.items | sum(attribute='line_subtotal') %}
+                {% set items_product_discount = order.items | sum(attribute='line_product_discount') %}
+                {% set items_promo_discount = order.items | sum(attribute='line_promo_discount_amount') %}
+                <div class="total-row">
+                    <span>Сумма товаров (до скидок):</span>
+                    <span>{{ format_price(items_subtotal_orig) }}</span>
+                </div>
+                {% if items_product_discount > 0 %}
+                <div class="total-row discount">
+                    <span>Скидка по товару:</span>
+                    <span>-{{ format_price(items_product_discount) }}</span>
+                </div>
+                {% endif %}
+                {% if items_promo_discount > 0 %}
+                <div class="total-row discount">
+                    <span>Скидка по промо:</span>
+                    <span>-{{ format_price(items_promo_discount) }}</span>
+                </div>
+                {% endif %}
+                <div class="total-row">
+                    <span>Сумма товаров:</span>
+                    <span>{{ format_price(order.total_price) }}</span>
+                </div>
+                <div class="total-row">
+                    <span>Доставка:</span>
+                    <span>{{ format_price(order.delivery_price) }}</span>
+                </div>
+                {% if order.bonus_used and order.bonus_used > 0 %}
+                <div class="total-row discount">
+                    <span>Списано бонусов:</span>
+                    <span>-{{ format_price(order.bonus_used) }}</span>
+                </div>
+                {% endif %}
+                {% if order.promo_discount and order.promo_discount > 0 %}
+                <div class="total-row discount">
+                    <span>
+                        Скидка по промокоду
+                        {% if order.promo_code_text %}
+                            <small style="color:#6b7280;">({{ order.promo_code_text }})</small>
+                        {% endif %}:
+                    </span>
+                    <span>-{{ format_price(order.promo_discount) }}</span>
+                </div>
+                {% endif %}
+                <div class="total-row final">
+                    <span>Итого:</span>
+                    <span>{{ format_price(order.grand_total) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="order-side-info">
+        <div class="info-card">
+            <h3>Покупатель</h3>
+            <div class="customer-details">
+                <p>
+                    <a href="{{ url_for('admin.buyer_profile', buyer_id=order.buyer.id) }}" target="_blank">
+                        <strong>{{ order.buyer.name or order.buyer.login }}</strong>
+                    </a>
+                    <a href="{{ url_for('admin.messages', tab='buyers', dialog_id=order.buyer.id) }}" 
+                       class="seller-chat-link" title="Написать покупателю" target="_blank">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                    </a>
+                </p>
+                <p>{{ order.buyer.email }}</p>
+                <p>{{ order.buyer.phone or 'Телефон не указан' }}</p>
+                <p class="user-orders">Всего заказов: {{ order.buyer.orders.count() if order.buyer.orders else 0 }}</p>
+            </div>
+        </div>
+        
+        <div class="info-card">
+            <h3>Доставка</h3>
+            <div class="delivery-details">
+                <p><strong>{{ order.delivery_service.name }}</strong></p>
+                {% if order.delivery_address %}
+                <p>{{ order.delivery_address }}</p>
+                {% endif %}
+                {% if order.pvz_address %}
+                <p>ПВЗ: {{ order.pvz_address }}</p>
+                {% endif %}
+                <p class="delivery-price">Стоимость: {{ format_price(order.delivery_price) }}</p>
+                <p class="delivery-status">
+                    Статус: 
+                    {% if order.delivery_track_number %}
+                    {{ order.delivery_status or 'В пути' }} ({{ order.delivery_track_number }})
+                    {% else %}
+                    Трек не назначен
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+        
+        <div class="info-card">
+            <h3>Продавец</h3>
+            <div class="seller-details">
+                <p>
+                    <a href="{{ url_for('main.seller_store', seller_slug=order.seller.store_slug) }}" target="_blank">
+                        <strong>{{ order.seller.store_name }}</strong>
+                    </a>
+                    <a href="{{ url_for('messages.admin_messages', tab='sellers', dialog_type='seller', dialog_id=order.seller_id, filter='sellers', partner_type='seller', partner_id=order.seller_id) }}" 
+                       class="seller-chat-link" title="Написать продавцу" target="_blank">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                    </a>
+                </p>
+                <p>{{ order.seller.email }}</p>
+            </div>
+        </div>
+        
+        {% if order.comment %}
+        <div class="info-card">
+            <h3>Комментарий</h3>
+            <p class="order-comment">{{ order.comment }}</p>
+        </div>
+        {% endif %}
+        
+        <div class="info-card">
+            <h3>Изменить статус</h3>
+            <form method="POST" action="{{ url_for('admin.update_order_status', order_id=order.id) }}" 
+                  class="status-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select name="status" class="status-select">
+                    <option value="pending" {% if order.status == 'pending' %}selected{% endif %}>Ожидает</option>
+                    <option value="confirmed" {% if order.status == 'confirmed' %}selected{% endif %}>Подтверждён</option>
+                    <option value="in_assembly" {% if order.status == 'in_assembly' %}selected{% endif %}>В сборке</option>
+                    <option value="assembled" {% if order.status == 'assembled' %}selected{% endif %}>Собран</option>
+                    <option value="shipped" {% if order.status == 'shipped' %}selected{% endif %}>Отправлен</option>
+                    <option value="in_transit" {% if order.status == 'in_transit' %}selected{% endif %}>В пути</option>
+                    <option value="delivered" {% if order.status == 'delivered' %}selected{% endif %}>Доставлен</option>
+                    <option value="cancelled" {% if order.status == 'cancelled' %}selected{% endif %}>Отменён</option>
+                </select>
+                <button type="submit" class="btn btn-primary btn-block">Обновить</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="admin-actions-bar">
+    <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary">← К списку заказов</a>
+    <form method="POST" action="{{ url_for('admin.order_delete', order_id=order.id) }}"
+          class="admin-delete-order-form"
+          onsubmit="return confirm('Удалить заказ {{ order.order_number }}? Это действие нельзя отменить.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-danger">Удалить заказ</button>
+    </form>
+</div>
+
+<style>
+.admin-actions-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.admin-delete-order-form {
+    margin: 0;
+}
+.btn-danger {
+    background: #dc3545;
+    color: #fff;
+    border: 1px solid #dc3545;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.btn-danger:hover {
+    background: #c82333;
+    border-color: #bd2130;
+}
+</style>
+{% endblock %}

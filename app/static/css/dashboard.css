@@ -1,0 +1,24 @@
+/* ===========================================================================
+   dashboard.css — стили для admin/dashboard.html.
+   Раньше файл отсутствовал и admin/dashboard.html ругался на 404,
+   из-за чего не подгружались ВСЕ стили страницы, включая подсветку
+   пункта «Сообщения» при наличии непрочитанных.
+   =========================================================================== */
+
+/* --- Подсветка пункта «Сообщения» при наличии непрочитанных ------------- */
+.nav-link.has-unread,
+.nav-link.has-unread span { color: #ff4d4f; }
+
+.nav-link.has-unread .nav-icon { color: #ff4d4f; }
+
+.nav-link .unread-dot { display: none; }
+
+.nav-link.has-unread .unread-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-left: auto;
+    border-radius: 50%;
+    background: #ff4d4f;
+    box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.2);
+}

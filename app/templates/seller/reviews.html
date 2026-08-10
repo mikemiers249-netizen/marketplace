@@ -1,0 +1,322 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}Отзывы{% endblock %}
+
+{% block header_title %}
+<h1>Отзывы о товарах</h1>
+{% endblock %}
+
+{% block content %}
+<div class="reviews-page">
+    {# Статистика отзывов #}
+    {% if reviews %}
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="bi bi-chat-dots"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ reviews|length }}</span>
+                <span class="stat-label">Всего отзывов</span>
+            </div>
+        </div>
+        
+        {% set avg_rating = reviews|sum(attribute='rating') / reviews|length if reviews else 0 %}
+        <div class="stat-card">
+            <div class="stat-icon success">
+                <i class="bi bi-bar-chart"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ "%.1f"|format(avg_rating) }}</span>
+                <span class="stat-label">Средний рейтинг</span>
+            </div>
+        </div>
+        
+        {% set five_star = reviews|selectattr('rating', 'equalto', 5)|list|length %}
+        <div class="stat-card">
+            <div class="stat-icon warning">
+                <i class="bi bi-star-fill"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">{{ five_star }}</span>
+                <span class="stat-label">Пятизвёздочных</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {# Список отзывов по товарам #}
+    <div class="dashboard-section">
+        <div class="section-header">
+            <h2>Все отзывы</h2>
+        </div>
+        
+        {% if reviews %}
+        <div class="reviews-list">
+            {% for product_id, product_reviews in reviews_by_product.items() %}
+            <div class="product-reviews">
+                <div class="product-header">
+                    <h3>{{ product_reviews[0].product.name }}</h3>
+                    <span class="reviews-count">{{ product_reviews|length }} отзывов</span>
+                </div>
+                
+                {% for review in product_reviews %}
+                <div class="review-card">
+                    <div class="review-header">
+                        <div class="review-rating">
+                            {% for i in range(5) %}
+                                {% if i < review.rating %}
+                                <i class="bi bi-star-fill"></i>
+                                {% else %}
+                                <i class="bi bi-star"></i>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <span class="review-date">{{ review.created_at.strftime('%d.%m.%Y') if review.created_at else 'Дата неизвестна' }}</span>
+                    </div>
+                    
+                    <div class="review-body">
+                        <p class="review-text">{{ review.text or 'Без текста' }}</p>
+                        
+                        {% if review.advantages %}
+                        <div class="review-section">
+                            <strong>Достоинства:</strong>
+                            <p>{{ review.advantages }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if review.disadvantages %}
+                        <div class="review-section">
+                            <strong>Недостатки:</strong>
+                            <p>{{ review.disadvantages }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {# Ответ продавца #}
+                    {% if review.seller_response %}
+                    <div class="seller-response">
+                        <strong>Ответ продавца:</strong>
+                        <p>{{ review.seller_response }}</p>
+                        <span class="response-date">{{ review.seller_response_at.strftime('%d.%m.%Y') if review.seller_response_at else '' }}</span>
+                    </div>
+                    {% elif review.status == 'approved' %}
+                    <div class="respond-form">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="showRespondForm({{ review.id }})">
+                            <i class="bi bi-reply"></i> Ответить
+                        </button>
+                        
+                        <div id="respondForm{{ review.id }}" class="response-form" style="display: none;">
+                            <form method="POST" action="{{ url_for('seller.review_respond', review_id=review.id) }}">
+                                <textarea name="response" rows="3" placeholder="Ваш ответ на отзыв..." required></textarea>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary btn-sm">Отправить</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="hideRespondForm({{ review.id }})">Отмена</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="review-footer">
+                        <span class="review-status status-{{ review.status }}">
+                            {% if review.status == 'pending' %}
+                                На модерации
+                            {% elif review.status == 'approved' %}
+                                Одобрен
+                            {% elif review.status == 'rejected' %}
+                                Отклонён
+                            {% else %}
+                                {{ review.status }}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-chat-dots" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i>
+            <p>Отзывов пока нет</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function showRespondForm(reviewId) {
+    document.getElementById('respondForm' + reviewId).style.display = 'block';
+}
+
+function hideRespondForm(reviewId) {
+    document.getElementById('respondForm' + reviewId).style.display = 'none';
+}
+</script>
+
+<style>
+.reviews-page .stats-grid {
+    margin-bottom: 24px;
+}
+
+.product-reviews {
+    margin-bottom: 24px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+}
+
+.product-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.product-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 16px;
+}
+
+.reviews-count {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.review-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.review-card:last-child {
+    margin-bottom: 0;
+}
+
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.review-rating {
+    color: #fbbf24;
+    font-size: 16px;
+}
+
+.review-date {
+    color: var(--text-light);
+    font-size: 13px;
+}
+
+.review-body {
+    margin-bottom: 12px;
+}
+
+.review-text {
+    margin: 0;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.review-section {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.review-section strong {
+    color: var(--text-secondary);
+}
+
+.review-section p {
+    margin: 5px 0 0 0;
+    color: var(--text-primary);
+}
+
+.seller-response {
+    background: #dcfce7;
+    border-left: 3px solid #16a34a;
+    padding: 12px 16px;
+    margin-top: 12px;
+    border-radius: var(--radius-sm);
+}
+
+.seller-response strong {
+    color: #16a34a;
+}
+
+.seller-response p {
+    margin: 6px 0 0 0;
+    color: var(--text-primary);
+}
+
+.response-date {
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+.respond-form {
+    margin-top: 12px;
+}
+
+.response-form {
+    margin-top: 12px;
+}
+
+.response-form textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.response-form textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.form-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+}
+
+.review-footer {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.review-status {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+.status-pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-approved {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-rejected {
+    background: #fee2e2;
+    color: #991b1b;
+}
+</style>
+{% endblock %}
