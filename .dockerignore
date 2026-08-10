@@ -1,0 +1,43 @@
+# ===== Что НЕ копировать в Docker-образ =====
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.*
+*.db
+*.sqlite
+*.sqlite3
+instance/
+logs/
+*.log
+.idea
+.vscode
+.DS_Store
+.idea/
+.minimax/
+.session/
+.agent/
+build/
+dist/
+Marketplace.exe
+Marketplace.spec
+*.tar.gz
+*.zip
+
+# Документация и dev-скрипты
+pasted-text-*.txt
+README.md
+
+# Загруженные пользователями файлы
+app/static/uploads/messages
+app/static/uploads/products
+app/static/uploads/sellers
+
+# Nixpacks-конфиг (раз используем Dockerfile)
+nixpacks.toml
+runtime.txt
