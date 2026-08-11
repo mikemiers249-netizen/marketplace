@@ -93,6 +93,27 @@ def create_app(config_class=None):
     from app.commands import reset_public_schema_command
     app.cli.add_command(reset_public_schema_command)
 
+    # Санитизация коннектов к PostgreSQL: если PgBouncer (Coolify)
+    # отдаёт коннект в состоянии "transaction aborted", любой первый
+    # SQL падает. Перехватываем on_connect и сбрасываем состояние,
+    # переключая в AUTOCOMMIT. Это заставляет каждую команду быть
+    # отдельной транзакцией — сломанная не висит на всю сессию.
+    from sqlalchemy import event as _sa_event
+    from sqlalchemy.engine import Engine as _SAEngine
+
+    @_sa_event.listens_for(_SAEngine, "connect")
+    def _pgbouncer_sanitizer(dbapi_connection, connection_record):
+        try:
+            # Если есть открытая битая транзакция — откатываем
+            dbapi_connection.rollback()
+        except Exception:
+            pass
+        try:
+            # Переключаем psycopg2 в autocommit
+            dbapi_connection.set_isolation_level(0)  # 0 = AUTOCOMMIT
+        except Exception:
+            pass
+
     return app
 
 

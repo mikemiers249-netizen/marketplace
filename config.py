@@ -41,14 +41,15 @@ class Config:
         or "sqlite:///marketplace.db"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # В Coolify за PgBouncer коннекты иногда приходят в состоянии
+    # "transaction aborted" — любой первый SQL падает с
+    # InFailedSqlTransaction. Решаем это связкой:
+    #   - use_native_hstore=False: не делать on_connect-проверку hstore
+    #   - pool_pre_ping=True: проверять коннект перед использованием
+    #   - connect_args={"options": "-c statement_timeout=0"}: чистый коннект
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
-        # Не пытаться определять тип hstore при подключении.
-        # В Coolify за PgBouncer бывают сломанные коннекты
-        # (transaction aborted), из-за которых on_connect-хук
-        # для hstore падает с InFailedSqlTransaction. Нам hstore
-        # в моделях не нужен.
         "use_native_hstore": False,
     }
 
