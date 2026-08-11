@@ -14,7 +14,6 @@ Create Date: 2026-08-11 22:15:00.000000
 down_revision = None делает её самой первой в цепочке.
 """
 
-import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -25,18 +24,33 @@ depends_on = None
 
 
 def upgrade():
-    # Берём все модели из BaseUser / db.Model и создаём таблицы.
-    # Чтобы это сработало, нужно, чтобы все модели были импортированы.
+    # Создаём ВСЕ таблицы по текущему состоянию моделей.
+    # Импортируем модели ДО create_all, чтобы они зарегистрировались
+    # в Base.metadata.
     from app import db
-    from app.models import (
-        users, products, orders, communications, loyalty, promo, tariffs,
-    )
-    db.create_all()
+    # Импорт именно модулей (не пакета) — иначе __init__ пакета
+    # может не выполниться.
+    from app.models import users  # noqa
+    from app.models import products  # noqa
+    from app.models import orders  # noqa
+    from app.models import communications  # noqa
+    from app.models import loyalty  # noqa
+    from app.models import promo  # noqa
+    from app.models import tariffs  # noqa
+
+    bind = op.get_bind()
+    db.metadata.create_all(bind=bind)
 
 
 def downgrade():
     from app import db
-    from app.models import (
-        users, products, orders, communications, loyalty, promo, tariffs,
-    )
-    db.drop_all()
+    from app.models import users  # noqa
+    from app.models import products  # noqa
+    from app.models import orders  # noqa
+    from app.models import communications  # noqa
+    from app.models import loyalty  # noqa
+    from app.models import promo  # noqa
+    from app.models import tariffs  # noqa
+
+    bind = op.get_bind()
+    db.metadata.drop_all(bind=bind)
