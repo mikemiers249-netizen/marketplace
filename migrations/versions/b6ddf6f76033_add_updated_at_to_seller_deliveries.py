@@ -1,7 +1,7 @@
 """Add updated_at to seller_deliveries
 
 Revision ID: b6ddf6f76033
-Revises: 
+Revises: 000000000000
 Create Date: 2026-03-09 22:43:55.133336
 
 """
