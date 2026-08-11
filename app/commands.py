@@ -38,8 +38,23 @@ def reset_public_schema_command(yes):
     # DROP SCHEMA db.session становится бесполезным.
     click.echo("Dropping schema public...")
     with db.engine.begin() as conn:
+        # Закрываем ВСЕ текущие коннекты к этой БД, чтобы PgBouncer
+        # не отдавал кешированный стейт (alembic_version) после дропа.
+        try:
+            conn.execute(db.text(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = current_database() AND pid <> pg_backend_pid()"
+            ))
+        except Exception as e:
+            click.echo(f"  warn: pg_terminate_backend failed: {e}")
+
         conn.execute(db.text("DROP SCHEMA public CASCADE"))
         conn.execute(db.text("CREATE SCHEMA public"))
         conn.execute(db.text("GRANT ALL ON SCHEMA public TO postgres"))
         conn.execute(db.text("GRANT ALL ON SCHEMA public TO public"))
+
+    # Сбрасываем кеш SQLAlchemy-пула, чтобы он не использовал
+    # тот же физический коннект, что и в момент дропа.
+    db.engine.dispose()
+
     click.echo("Schema public recreated. Now run: flask db upgrade")
