@@ -44,6 +44,12 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
+        # Не пытаться определять тип hstore при подключении.
+        # В Coolify за PgBouncer бывают сломанные коннекты
+        # (transaction aborted), из-за которых on_connect-хук
+        # для hstore падает с InFailedSqlTransaction. Нам hstore
+        # в моделях не нужен.
+        "use_native_hstore": False,
     }
 
     # ===== Поддомены =====
