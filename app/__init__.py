@@ -89,9 +89,10 @@ def create_app(config_class=None):
     # Для локальной разработки миграции можно прогнать вручную через
     # `flask db upgrade` или `db.create_all()` в shell.
 
-    # Регистрация кастомных CLI-команд (например, reset-public-schema)
-    from app.commands import reset_public_schema_command
+    # Регистрация кастомных CLI-команд
+    from app.commands import reset_public_schema_command, db_init_command
     app.cli.add_command(reset_public_schema_command)
+    app.cli.add_command(db_init_command)
 
     # Санитизация коннектов к PostgreSQL: если PgBouncer (Coolify)
     # отдаёт коннект в состоянии "transaction aborted", любой первый
