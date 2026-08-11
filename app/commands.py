@@ -16,29 +16,30 @@ from app import db
 
 
 @click.command("reset-public-schema")
+@click.option("--yes", "-y", is_flag=True, help="Подтверждение — без этого не выполнится")
 @with_appcontext
-def reset_public_schema_command():
+def reset_public_schema_command(yes):
     """
     Дропает и пересоздаёт схему `public` в PostgreSQL.
     БЕЗОПАСНО ТОЛЬКО ДЛЯ СВЕЖЕЙ БД без данных!
 
-    Использование (внутри контейнера):
-        FLASK_APP=wsgi.py flask reset-public-schema
+    Использование:
+        FLASK_APP=wsgi.py flask reset-public-schema --yes
         flask db upgrade
     """
-    # Проверяем, не мигрирована ли БД
-    inspector = db.inspect(db.engine)
-    if "alembic_version" in inspector.get_table_names():
+    if not yes:
         click.echo(
-            "ABORT: alembic_version table already exists. "
-            "БД уже мигрирована — дропать схему НЕЛЬЗЯ, потеряешь данные."
+            "ABORT: требуется --yes для подтверждения. "
+            "БД будет полностью очищена!"
         )
         raise click.Abort()
 
+    # Дропаем схему. Используем engine напрямую, потому что после
+    # DROP SCHEMA db.session становится бесполезным.
     click.echo("Dropping schema public...")
-    db.session.execute(db.text("DROP SCHEMA public CASCADE"))
-    db.session.execute(db.text("CREATE SCHEMA public"))
-    db.session.execute(db.text("GRANT ALL ON SCHEMA public TO postgres"))
-    db.session.execute(db.text("GRANT ALL ON SCHEMA public TO public"))
-    db.session.commit()
+    with db.engine.begin() as conn:
+        conn.execute(db.text("DROP SCHEMA public CASCADE"))
+        conn.execute(db.text("CREATE SCHEMA public"))
+        conn.execute(db.text("GRANT ALL ON SCHEMA public TO postgres"))
+        conn.execute(db.text("GRANT ALL ON SCHEMA public TO public"))
     click.echo("Schema public recreated. Now run: flask db upgrade")
