@@ -5,6 +5,7 @@
 
 import os
 from datetime import timedelta
+from sqlalchemy.pool import NullPool
 from werkzeug.security import generate_password_hash
 
 
@@ -41,16 +42,18 @@ class Config:
         or "sqlite:///marketplace.db"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    # В Coolify за PgBouncer коннекты иногда приходят в состоянии
-    # "transaction aborted" — любой первый SQL падает с
-    # InFailedSqlTransaction. Решаем это связкой:
-    #   - use_native_hstore=False: не делать on_connect-проверку hstore
-    #   - pool_pre_ping=True: проверять коннект перед использованием
-    #   - connect_args={"options": "-c statement_timeout=0"}: чистый коннект
+    # В Coolify за PgBouncer коннекты приходят грязные (transaction
+    # aborted, stale state). Решаем так:
+    #   - use_native_hstore=False: пропускаем on_connect-проверку hstore
+    #   - pool_pre_ping=True: проверяем коннект перед использованием
+    #   - poolclass=NullPool: не держим коннекты — каждый запрос = новый.
+    #     Это убирает stale-state из PgBouncer-кэша, чуть замедляет,
+    #     но для нашего размера БД это ок.
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
         "use_native_hstore": False,
+        "poolclass": NullPool,
     }
 
     # ===== Поддомены =====
