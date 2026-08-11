@@ -1,18 +1,36 @@
 """
 Кастомные Flask CLI-команды.
-
-Используется только в аварийных случаях, когда БД в Coolify
-застряла в сломанном состоянии (например, после частично
-выполненного db.create_all()).
-
-После того, как схема очищена и миграции прогнаны, эту команду
-больше вызывать не нужно.
 """
 
 import click
 from flask.cli import with_appcontext
 
 from app import db
+
+
+@click.command("db-init")
+@with_appcontext
+def db_init_command():
+    """
+    Создаёт ВСЕ таблицы по текущему состоянию моделей
+    через db.create_all(). Безопасно для пустой БД.
+
+    Использование:
+        FLASK_APP=wsgi.py flask db-init
+    """
+    # Импортируем все модули моделей, чтобы они зарегистрировались
+    # в Base.metadata.
+    from app.models import users  # noqa
+    from app.models import products  # noqa
+    from app.models import orders  # noqa
+    from app.models import communications  # noqa
+    from app.models import loyalty  # noqa
+    from app.models import promo  # noqa
+    from app.models import tariffs  # noqa
+
+    click.echo("Creating all tables via db.create_all()...")
+    db.create_all()
+    click.echo("Done. Tables created.")
 
 
 @click.command("reset-public-schema")
@@ -25,7 +43,6 @@ def reset_public_schema_command(yes):
 
     Использование:
         FLASK_APP=wsgi.py flask reset-public-schema --yes
-        flask db upgrade
     """
     if not yes:
         click.echo(
@@ -34,12 +51,8 @@ def reset_public_schema_command(yes):
         )
         raise click.Abort()
 
-    # Дропаем схему. Используем engine напрямую, потому что после
-    # DROP SCHEMA db.session становится бесполезным.
     click.echo("Dropping schema public...")
     with db.engine.begin() as conn:
-        # Закрываем ВСЕ текущие коннекты к этой БД, чтобы PgBouncer
-        # не отдавал кешированный стейт (alembic_version) после дропа.
         try:
             conn.execute(db.text(
                 "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
@@ -53,8 +66,5 @@ def reset_public_schema_command(yes):
         conn.execute(db.text("GRANT ALL ON SCHEMA public TO postgres"))
         conn.execute(db.text("GRANT ALL ON SCHEMA public TO public"))
 
-    # Сбрасываем кеш SQLAlchemy-пула, чтобы он не использовал
-    # тот же физический коннект, что и в момент дропа.
     db.engine.dispose()
-
-    click.echo("Schema public recreated. Now run: flask db upgrade")
+    click.echo("Schema public recreated. Now run: flask db-init && flask db upgrade heads")
