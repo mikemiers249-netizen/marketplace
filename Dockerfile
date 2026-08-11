@@ -27,6 +27,6 @@ RUN mkdir -p /app/app/static/uploads /app/logs
 # Порт приложения
 EXPOSE 5000
 
-# Запуск gunicorn
+# Запуск: сначала миграции Alembic, потом gunicorn
 # PORT, GUNICORN_WORKERS, APP_CONFIG — берутся из env Coolify
-CMD ["sh", "-c", "gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers ${GUNICORN_WORKERS:-2} --timeout 60 --access-logfile - --error-logfile -"]
+CMD ["sh", "-c", "FLASK_APP=wsgi.py flask db upgrade && gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers ${GUNICORN_WORKERS:-2} --timeout 60 --access-logfile - --error-logfile -"]

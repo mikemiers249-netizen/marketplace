@@ -81,11 +81,14 @@ def create_app(config_class=None):
     
     # Регистрация обработчиков ошибок
     register_error_handlers(app)
-    
-    # Создание таблиц БД (для разработки)
-    with app.app_context():
-        db.create_all()
-    
+
+    # На проде таблицы создаются миграциями Alembic (flask db upgrade),
+    # которые вызываются через release-фазу в Procfile. db.create_all()
+    # здесь НЕ вызываем: он конфликтует с миграциями и падает на hstore
+    # в PostgreSQL.
+    # Для локальной разработки миграции можно прогнать вручную через
+    # `flask db upgrade` или `db.create_all()` в shell.
+
     return app
 
 
