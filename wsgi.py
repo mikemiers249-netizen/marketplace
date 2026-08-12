@@ -24,9 +24,13 @@ print(f"[wsgi] APP_CONFIG={config_name} DB host={_safe}", flush=True)
 
 app = create_app(config_name)
 
-# Краткий лог: сколько маршрутов seller зарегистрировано в path-режиме.
+# Краткий лог: сколько маршрутов seller и auth_seller зарегистрировано.
 import logging as _logging
 _log = _logging.getLogger(__name__)
 _seller_rules = [r for r in app.url_map.iter_rules() if r.endpoint.startswith("seller.")]
+_auth_seller_rules = [r for r in app.url_map.iter_rules() if r.endpoint.startswith("auth_seller.")]
 _log.info(f"=== seller blueprint: {len(_seller_rules)} rules, sample: {str(_seller_rules[0].rule) if _seller_rules else 'none'} ===")
+_log.info(f"=== auth_seller blueprint: {len(_auth_seller_rules)} rules ===")
+for _r in _auth_seller_rules:
+    _log.info(f"    auth_seller route: {_r.rule} -> {_r.endpoint}")
 _log.info(f"=== SERVER_NAME={app.config.get('SERVER_NAME')}, USE_SELLER_SUBDOMAIN={os.environ.get('USE_SELLER_SUBDOMAIN')}")
