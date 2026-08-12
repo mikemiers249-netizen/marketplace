@@ -13,7 +13,9 @@ class BaseUser(UserMixin):
     
     id = db.Column(db.Integer, primary_key=True)
     login = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(128), nullable=False)
+    # password_hash — 256 символов хватает для pbkdf2/scrypt хэшей Werkzeug
+    # (раньше было 128, но scrypt-хэш длиннее и не влезал).
+    password_hash = db.Column(db.String(256), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     phone = db.Column(db.String(20), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

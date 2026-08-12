@@ -14,12 +14,7 @@ def db_init_command():
     """
     Создаёт ВСЕ таблицы по текущему состоянию моделей
     через db.create_all(). Безопасно для пустой БД.
-
-    Использование:
-        FLASK_APP=wsgi.py flask db-init
     """
-    # Импортируем все модули моделей, чтобы они зарегистрировались
-    # в Base.metadata.
     from app.models import users  # noqa
     from app.models import products  # noqa
     from app.models import orders  # noqa
@@ -33,6 +28,26 @@ def db_init_command():
     click.echo("Done. Tables created.")
 
 
+@click.command("fix-password-length")
+@with_appcontext
+def fix_password_length_command():
+    """
+    Увеличивает длину колонки password_hash до 256 символов.
+    Нужно после изменения модели, если таблица уже создана.
+    """
+    click.echo("Altering password_hash columns to VARCHAR(256)...")
+    with db.engine.begin() as conn:
+        for table in ("buyers", "sellers", "admins"):
+            try:
+                conn.execute(db.text(
+                    f"ALTER TABLE {table} ALTER COLUMN password_hash TYPE VARCHAR(256)"
+                ))
+                click.echo(f"  ok: {table}")
+            except Exception as e:
+                click.echo(f"  warn: {table}: {e}")
+    click.echo("Done.")
+
+
 @click.command("reset-public-schema")
 @click.option("--yes", "-y", is_flag=True, help="Подтверждение — без этого не выполнится")
 @with_appcontext
@@ -40,9 +55,6 @@ def reset_public_schema_command(yes):
     """
     Дропает и пересоздаёт схему `public` в PostgreSQL.
     БЕЗОПАСНО ТОЛЬКО ДЛЯ СВЕЖЕЙ БД без данных!
-
-    Использование:
-        FLASK_APP=wsgi.py flask reset-public-schema --yes
     """
     if not yes:
         click.echo(
@@ -67,4 +79,4 @@ def reset_public_schema_command(yes):
         conn.execute(db.text("GRANT ALL ON SCHEMA public TO public"))
 
     db.engine.dispose()
-    click.echo("Schema public recreated. Now run: flask db-init && flask db upgrade heads")
+    click.echo("Schema public recreated. Now run: flask db-init && flask db stamp heads")
