@@ -259,6 +259,18 @@ def register_blueprints(app):
         auth_seller_bp.add_url_rule('/signup', view_func=signup, methods=['GET', 'POST'])
         auth_seller_bp.add_url_rule('/seller/signup', view_func=seller_signup, methods=['GET', 'POST'])
         app.register_blueprint(auth_seller_bp, subdomain='seller')
+    else:
+        # Path-режим: тот же набор url-rules, но в основном домене
+        # (нужно, чтобы url_for('auth_seller.seller_login') работал в seller.py)
+        from flask import Blueprint
+        from app.blueprints.auth import login, seller_login, seller_logout, signup, seller_signup
+        auth_seller_bp = Blueprint('auth_seller', __name__, url_prefix='/auth')
+        auth_seller_bp.add_url_rule('/login', view_func=login, methods=['GET', 'POST'])
+        auth_seller_bp.add_url_rule('/seller/login', view_func=seller_login, methods=['GET', 'POST'])
+        auth_seller_bp.add_url_rule('/seller/logout', view_func=seller_logout, methods=['GET'])
+        auth_seller_bp.add_url_rule('/signup', view_func=signup, methods=['GET', 'POST'])
+        auth_seller_bp.add_url_rule('/seller/signup', view_func=seller_signup, methods=['GET', 'POST'])
+        app.register_blueprint(auth_seller_bp)
     
     # API для AJAX-запросов
     app.register_blueprint(api_bp, url_prefix='/api')
