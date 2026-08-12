@@ -24,10 +24,9 @@ print(f"[wsgi] APP_CONFIG={config_name} DB host={_safe}", flush=True)
 
 app = create_app(config_name)
 
-# Логируем зарегистрированные routes — помогает при дебаге path/subdomain
+# Краткий лог: сколько маршрутов seller зарегистрировано в path-режиме.
 import logging as _logging
 _log = _logging.getLogger(__name__)
-_log.info("=== Registered URL rules ===")
-for _rule in sorted(app.url_map.iter_rules(), key=lambda r: str(r)):
-    _log.info(f"  {sorted(_rule.subdomain or ['<no-subdomain>'])} {_rule.rule} -> {_rule.endpoint}")
-_log.info(f"=== SERVER_NAME={app.config.get('SERVER_NAME')}, NO_SELLER_SUBDOMAIN={os.environ.get('NO_SELLER_SUBDOMAIN')}")
+_seller_rules = [r for r in app.url_map.iter_rules() if r.endpoint.startswith("seller.")]
+_log.info(f"=== seller blueprint: {len(_seller_rules)} rules, sample: {str(_seller_rules[0].rule) if _seller_rules else 'none'} ===")
+_log.info(f"=== SERVER_NAME={app.config.get('SERVER_NAME')}, USE_SELLER_SUBDOMAIN={os.environ.get('USE_SELLER_SUBDOMAIN')}")

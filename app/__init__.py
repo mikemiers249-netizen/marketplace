@@ -217,10 +217,11 @@ def init_extensions(app):
 def register_blueprints(app):
     """Регистрация blueprints для модульной архитектуры."""
 
-    # Режим работы: subdomain (старый) или path (без поддомена).
-    # Если задан NO_SELLER_SUBDOMAIN=1 в env — seller работает как
-    # /seller/* на основном домене (без subdomain matching).
-    use_subdomain = not os.environ.get("NO_SELLER_SUBDOMAIN")
+    # Режим работы: subdomain или path.
+    # По умолчанию используем path-based (/seller/*) — он не требует SSL
+    # на поддомене, что критично для shared hosting'а типа Coolify.
+    # Чтобы вернуть subdomain-режим, поставь USE_SELLER_SUBDOMAIN=1 в env.
+    use_subdomain = bool(os.environ.get("USE_SELLER_SUBDOMAIN"))
 
     # Импорты blueprint'ов внутри функции для избежания циклических зависимостей
     from app.blueprints.main import bp as main_bp
