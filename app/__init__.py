@@ -237,8 +237,9 @@ def register_blueprints(app):
         # Поддомен продавца (старый режим)
         app.register_blueprint(seller_bp, subdomain='seller')
     else:
-        # Path-based режим: seller доступен на /seller/* основного домена
-        app.register_blueprint(seller_bp, url_prefix='/seller', subdomain='')
+        # Path-based режим: seller доступен на /seller/* основного домена.
+        # Не указываем subdomain — Flask по умолчанию матчит только основной хост.
+        app.register_blueprint(seller_bp, url_prefix='/seller')
 
     # Админ-панель
     app.register_blueprint(admin_bp, url_prefix='/main_admin')
