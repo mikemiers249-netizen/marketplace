@@ -216,7 +216,12 @@ def init_extensions(app):
 
 def register_blueprints(app):
     """Регистрация blueprints для модульной архитектуры."""
-    
+
+    # Режим работы: subdomain (старый) или path (без поддомена).
+    # Если задан NO_SELLER_SUBDOMAIN=1 в env — seller работает как
+    # /seller/* на основном домене (без subdomain matching).
+    use_subdomain = not os.environ.get("NO_SELLER_SUBDOMAIN")
+
     # Импорты blueprint'ов внутри функции для избежания циклических зависимостей
     from app.blueprints.main import bp as main_bp
     from app.blueprints.seller import bp as seller_bp
@@ -224,12 +229,16 @@ def register_blueprints(app):
     from app.blueprints.auth import bp as auth_bp
     from app.blueprints.api import bp as api_bp
     from app.blueprints.messages import bp as messages_bp
-    
+
     # Основной домен (покупатели)
     app.register_blueprint(main_bp)
 
-    # Поддомен продавца
-    app.register_blueprint(seller_bp, subdomain='seller')
+    if use_subdomain:
+        # Поддомен продавца (старый режим)
+        app.register_blueprint(seller_bp, subdomain='seller')
+    else:
+        # Path-based режим: seller доступен на /seller/* основного домена
+        app.register_blueprint(seller_bp, url_prefix='/seller', subdomain='')
 
     # Админ-панель
     app.register_blueprint(admin_bp, url_prefix='/main_admin')
@@ -237,21 +246,17 @@ def register_blueprints(app):
     # Авторизация — основной домен
     app.register_blueprint(auth_bp)
 
-    # Тот же auth-блюпринт, но на поддомене seller.
-    # Flask не позволяет регистрировать один блюпринт дважды с одним именем,
-    # поэтому делаем копию с другим именем (auth_seller) — все ссылки в
-    # шаблонах продолжат работать, потому что все views привязаны к самому
-    # объекту Blueprint и endpoint'ы (auth.login, auth.seller_login, …) уже
-    # разрешаются по subdomain-неймспейсу автоматически через второй блюпринт.
-    from flask import Blueprint
-    from app.blueprints.auth import login, seller_login, seller_logout, signup, seller_signup
-    auth_seller_bp = Blueprint('auth_seller', __name__, url_prefix='/auth')
-    auth_seller_bp.add_url_rule('/login', view_func=login, methods=['GET', 'POST'])
-    auth_seller_bp.add_url_rule('/seller/login', view_func=seller_login, methods=['GET', 'POST'])
-    auth_seller_bp.add_url_rule('/seller/logout', view_func=seller_logout, methods=['GET'])
-    auth_seller_bp.add_url_rule('/signup', view_func=signup, methods=['GET', 'POST'])
-    auth_seller_bp.add_url_rule('/seller/signup', view_func=seller_signup, methods=['GET', 'POST'])
-    app.register_blueprint(auth_seller_bp, subdomain='seller')
+    if use_subdomain:
+        # Тот же auth-блюпринт, но на поддомене seller.
+        from flask import Blueprint
+        from app.blueprints.auth import login, seller_login, seller_logout, signup, seller_signup
+        auth_seller_bp = Blueprint('auth_seller', __name__, url_prefix='/auth')
+        auth_seller_bp.add_url_rule('/login', view_func=login, methods=['GET', 'POST'])
+        auth_seller_bp.add_url_rule('/seller/login', view_func=seller_login, methods=['GET', 'POST'])
+        auth_seller_bp.add_url_rule('/seller/logout', view_func=seller_logout, methods=['GET'])
+        auth_seller_bp.add_url_rule('/signup', view_func=signup, methods=['GET', 'POST'])
+        auth_seller_bp.add_url_rule('/seller/signup', view_func=seller_signup, methods=['GET', 'POST'])
+        app.register_blueprint(auth_seller_bp, subdomain='seller')
     
     # API для AJAX-запросов
     app.register_blueprint(api_bp, url_prefix='/api')

@@ -57,7 +57,10 @@ class Config:
     }
 
     # ===== Поддомены =====
-    SERVER_NAME = _env("SERVER_NAME")
+    # В path-режиме (NO_SELLER_SUBDOMAIN=1) SERVER_NAME можно не задавать —
+    # Flask тогда матчит все запросы. По умолчанию читаем из env, иначе
+    # автодетект отключён (None).
+    SERVER_NAME = _env("SERVER_NAME") if not _env("NO_SELLER_SUBDOMAIN") else None
     SESSION_COOKIE_DOMAIN = _env("SESSION_COOKIE_DOMAIN")
 
     # ===== Сессия =====
