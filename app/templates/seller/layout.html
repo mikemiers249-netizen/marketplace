@@ -161,9 +161,15 @@
                 </div>
                 <div class="header-actions header-actions--icons">
                     {% if not can_work %}
-                    <a href="{{ url_for('seller.tariffs') }}#blocked" class="btn btn-warning">
-                        <i class="bi bi-cash-coin"></i> Активировать тариф
-                    </a>
+                    <form method="POST"
+                          action="{{ url_for('seller.tariff_activate_global') }}"
+                          class="tariff-inline-form"
+                          style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-cash-coin"></i> Активировать тариф
+                        </button>
+                    </form>
                     {% endif %}
                     <a href="{{ url_for('main.index') }}" class="header-icon-btn" target="_blank" title="Перейти на сайт" aria-label="Перейти на сайт">
                         <i class="bi bi-box-arrow-up-right"></i>
