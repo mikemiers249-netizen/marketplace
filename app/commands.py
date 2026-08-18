@@ -135,6 +135,57 @@ def grant_test_tariff_command(seller_id, days):
                f"row={row.id} ({row.name}), expires_at={sub.expires_at}")
 
 
+@click.command("clear-seller-subs")
+@click.option("--seller-id", type=int, default=None,
+              help="Чистить только этого продавца (по умолчанию — всех)")
+@click.option("--yes", "-y", is_flag=True,
+              help="Не спрашивать подтверждения")
+@with_appcontext
+def clear_seller_subs_command(seller_id, yes):
+    """
+    Удалить ВСЕ подписки (и связанные транзакции) для продавца.
+
+    Используется для отладки: подчистка БД от мусорных подписок после
+    многократных нажатий 'Активировать' / grant-test-tariff.
+
+    FLASK_APP=wsgi.py flask clear-seller-subs --seller-id 1 --yes
+    """
+    from app.models.tariffs import SellerTariffSubscription, TariffTransaction
+
+    sub_q = SellerTariffSubscription.query
+    if seller_id is not None:
+        sub_q = sub_q.filter(SellerTariffSubscription.seller_id == seller_id)
+    subs = sub_q.order_by(SellerTariffSubscription.id.asc()).all()
+
+    if not subs:
+        click.echo("No subscriptions found.")
+        return
+
+    click.echo(f"Found {len(subs)} subscription(s):")
+    for sub in subs:
+        click.echo(f"  id={sub.id} seller={sub.seller_id} row={sub.row_id} "
+                   f"source={sub.source} is_paid={sub.is_paid} status={sub.status} "
+                   f"expires_at={sub.expires_at}")
+
+    if not yes:
+        click.echo("ABORT: pass --yes to actually delete.")
+        raise click.Abort()
+
+    # Сначала удалим все связанные TariffTransaction (FK subscription_id
+    # может быть ON DELETE SET NULL, но удалим явно, чтобы не оставлять
+    # мусор).
+    sub_ids = [s.id for s in subs]
+    deleted_txs = TariffTransaction.query.filter(
+        TariffTransaction.subscription_id.in_(sub_ids)
+    ).delete(synchronize_session=False)
+
+    deleted_subs = 0
+    for sub in subs:
+        db.session.delete(sub)
+        deleted_subs += 1
+    db.session.commit()
+    click.echo(f"Deleted {deleted_subs} subscription(s) and {deleted_txs} transaction(s).")
+
 @click.command("clean-test-subs")
 @click.option("--seller-id", type=int, default=None,
               help="Чистить только этого продавца (по умолчанию — всех)")
