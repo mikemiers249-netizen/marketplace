@@ -7,6 +7,11 @@ WSGI entrypoint для продакшн-серверов (gunicorn, uwsgi) и Pa
 """
 
 import os
+import sys
+
+# Маркер версии кода — должен быть в каждом релизе, чтобы при дебаге
+# сразу видеть, какой код реально запущен.
+print(f"[wsgi] BOOT marker={os.environ.get('WSGI_BOOT_MARKER', 'NO-MARKER')} pid={os.getpid()}", flush=True)
 
 from app import create_app
 
@@ -33,4 +38,14 @@ _log.info(f"=== seller blueprint: {len(_seller_rules)} rules, sample: {str(_sell
 _log.info(f"=== auth_seller blueprint: {len(_auth_seller_rules)} rules ===")
 for _r in _auth_seller_rules:
     _log.info(f"    auth_seller route: {_r.rule} -> {_r.endpoint}")
+
+# Главное: печатаем URL, который url_for генерирует для seller.dashboard.
+# Если тут seller.marketplace.* — значит subdomain-режим всё ещё активен.
+try:
+    with app.test_request_context("/", base_url="https://marketplace.apps.hostim.app"):
+        _dashboard_url = app.url_for("seller.dashboard")
+        _log.info(f"=== url_for('seller.dashboard') = {_dashboard_url} ===")
+except Exception as _e:
+    _log.error(f"=== url_for test failed: {_e} ===")
+
 _log.info(f"=== SERVER_NAME={app.config.get('SERVER_NAME')}, USE_SELLER_SUBDOMAIN={os.environ.get('USE_SELLER_SUBDOMAIN')}")
