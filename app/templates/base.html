@@ -53,10 +53,10 @@
                                 <img src="{{ url_for('static', filename='img/main/logout.png') }}" alt="Выход">
                             </a>
                         {% elif isinstance(current_user, Seller) %}
-                            <a href="http://seller.marketplace.local:5000/dashboard/" class="menu-link">
+                            <a href="{{ url_for('seller.dashboard') }}" class="menu-link">
                                 <span>Панель продавца</span>
                             </a>
-                            <a href="http://seller.marketplace.local:5000/auth/seller/logout" class="menu-link">
+                            <a href="{{ url_for('auth_seller.seller_logout') }}" class="menu-link">
                                 <img src="{{ url_for('static', filename='img/main/logout.png') }}" alt="Выход">
                             </a>
                         {% endif %}
