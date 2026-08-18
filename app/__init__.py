@@ -295,6 +295,61 @@ def register_blueprints(app):
 
 def register_context_processors(app):
     """Регистрация контекстных процессоров."""
+
+    # ВАЖНО: tariff_state должен рассчитываться для Seller на ЛЮБОМ пути
+    # (path-режим /seller/* и main_admin/*). Раньше это было в
+    # @bp.before_request внутри blueprint `seller`, но в path-режиме
+    # мы пересоздаём blueprint без копирования before_request/
+    # context_processor — и tariff_state терялся, sidebar уходил
+    # в «can_work=False», кнопка «Активировать тариф» висела всегда.
+    # Решение: вешаем before_request и context_processor на уровне app,
+    # а внутри делаем проверку isinstance(current_user, Seller).
+
+    @app.before_request
+    def _app_seller_tariff_state():
+        from flask import g
+        from flask_login import current_user
+        from app.models.users import Seller
+        from app.models.orders import SellerDelivery, DeliveryService
+        from app.utils.loyalty import is_loyalty_enabled
+        from app.blueprints.seller import (
+            _resolve_tariff_state,
+        )
+
+        # Всегда инициализируем дефолты, чтобы context_processor
+        # не ловил AttributeError.
+        g.all_delivery_services = []
+        g.active_delivery_ids = []
+        g.tariff_state = None
+
+        if not current_user.is_authenticated or not isinstance(current_user, Seller):
+            return
+
+        # Эта логика раньше жила в @bp.before_request blueprint `seller`.
+        # Состояние тарифа — критично для layout (sidebar, баннеры).
+        try:
+            all_services = (
+                DeliveryService.query
+                .filter_by(is_active=True)
+                .order_by(DeliveryService.name)
+                .all()
+            )
+            active_ids = [
+                sd.delivery_service_id
+                for sd in SellerDelivery.query.filter_by(
+                    seller_id=current_user.id, is_active=True
+                ).all()
+            ]
+            g.all_delivery_services = all_services
+            g.active_delivery_ids = active_ids
+            g.tariff_state = _resolve_tariff_state(current_user)
+        except Exception as _e:
+            import logging as _log
+            _log.getLogger(__name__).exception(
+                "tariff_state before_request failed for seller=%s: %s",
+                getattr(current_user, 'id', None), _e,
+            )
+            g.tariff_state = None
     
     @app.context_processor
     def inject_global_variables():
@@ -377,6 +432,39 @@ def register_context_processors(app):
             # ключевых шаблонов. Помогает глазами увидеть в HTML, что именно
             # сейчас отдаёт сервер (и не кешируется ли у браузера).
             'build_marker': _build_marker,
+        }
+
+    @app.context_processor
+    def _app_seller_tariff_state_processor():
+        """Пробрасывает tariff_state / tariff_locked / tariff_warning_banner
+        в шаблоны на уровне app (а не blueprint'а seller). Это нужно для
+        path-режима, где blueprint пересоздаётся без context_processor'а.
+        """
+        from flask import g
+        state = getattr(g, 'tariff_state', None)
+        if state is None:
+            return {
+                'tariff_state': None,
+                'tariff_warning_banner': False,
+                'tariff_locked': False,
+            }
+        return {
+            'tariff_state': state,
+            'tariff_warning_banner': bool(state.get('show_warning_banner')),
+            'tariff_locked': state.get('state') == 'locked',
+        }
+
+    @app.context_processor
+    def _app_seller_delivery_processor():
+        """delivery context processor — на уровне app, чтобы был в шаблонах
+        в path-режиме.
+        """
+        from flask import g
+        from app.utils.loyalty import is_loyalty_enabled
+        return {
+            'all_delivery_services': getattr(g, 'all_delivery_services', []),
+            'active_delivery_ids': getattr(g, 'active_delivery_ids', []),
+            'loyalty_enabled': is_loyalty_enabled(),
         }
     
     @app.context_processor

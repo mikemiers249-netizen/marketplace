@@ -32,70 +32,32 @@ TARIFF_GRACE_DAYS = 5
 TARIFF_WARN_DAYS = 5
 
 
+# ВАЖНО: в path-режиме (по умолчанию) этот blueprint пересоздаётся в
+# register_blueprints() — копируются только view-функции (deferred_functions),
+# а before_request / context_processor — НЕТ. Поэтому реальные
+# реализации живут на уровне app в app/__init__.py:
+#   - @app.before_request  _app_seller_tariff_state
+#   - @app.context_processor _app_seller_tariff_state_processor
+#   - @app.context_processor _app_seller_delivery_processor
+# Здесь оставлены лишь безопасные no-op заглушки для subdomain-режима
+# (USE_SELLER_SUBDOMAIN=1) и чтобы тесты/импорты не падали.
 @bp.before_request
 def inject_delivery_context():
-    """
-    Before request handler to inject delivery services context.
-    Передаёт данные о доставках в каждый шаблон продавца.
-    Также вычисляет состояние тарифа селлера (g.tariff_state) — нужно
-    для баннера-предупреждения на всех страницах и для блокировок.
-    """
-    from flask import g
-
-    # Инициализация переменных по умолчанию
-    g.all_delivery_services = []
-    g.active_delivery_ids = []
-    g.tariff_state = None  # заполнится ниже для аутентифицированных Seller
-
-    if current_user.is_authenticated and isinstance(current_user, Seller):
-        # Получаем все активные службы доставки
-        all_services = DeliveryService.query.filter_by(is_active=True).order_by(DeliveryService.name).all()
-        g.all_delivery_services = all_services
-
-        # Получаем ID активных профилей доставки текущего продавца
-        active_ids = [sd.delivery_service_id for sd in
-                     SellerDelivery.query.filter_by(seller_id=current_user.id, is_active=True).all()]
-        g.active_delivery_ids = active_ids
-
-        # Состояние тарифа: paid / grace / locked / global / none.
-        g.tariff_state = _resolve_tariff_state(current_user)
+    # no-op: см. app/__init__.py
+    return None
 
 
 @bp.context_processor
 def delivery_context_processor():
-    """
-    Context processor for delivery services.
-    Делает переменные доставок доступными во всех шаблонах продавца.
-    """
-    from flask import g
-    from app.utils.loyalty import is_loyalty_enabled
-    return {
-        'all_delivery_services': getattr(g, 'all_delivery_services', []),
-        'active_delivery_ids': getattr(g, 'active_delivery_ids', []),
-        'loyalty_enabled': is_loyalty_enabled(),
-    }
+    return {}
 
 
 @bp.context_processor
 def tariff_state_processor():
-    """
-    Делает состояние тарифа селлера доступным во всех шаблонах:
-        tariff_state          — dict из _resolve_tariff_state
-        tariff_warning_banner — bool, показывать ли баннер
-        tariff_locked         — bool, магазин заблокирован
-    """
-    from flask import g
-    state = getattr(g, 'tariff_state', None)
-    if state is None:
-        return {
-            'tariff_state': None,
-            'tariff_warning_banner': False,
-            'tariff_locked': False,
-        }
     return {
-        'tariff_state': state,
-        'tariff_warning_banner': bool(state.get('show_warning_banner')),
-        'tariff_locked': state.get('state') == 'locked',
+        'tariff_state': None,
+        'tariff_warning_banner': False,
+        'tariff_locked': False,
     }
 
 
