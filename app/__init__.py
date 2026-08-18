@@ -239,8 +239,16 @@ def register_blueprints(app):
         app.register_blueprint(seller_bp, subdomain='seller')
     else:
         # Path-based режим: seller доступен на /seller/* основного домена.
-        # Не указываем subdomain — Flask по умолчанию матчит только основной хост.
-        app.register_blueprint(seller_bp, url_prefix='/seller')
+        # Пересоздаём blueprint БЕЗ subdomain, иначе Flask наследует
+        # subdomain='seller' из исходного Blueprint-объявления в seller.py
+        # и url_for генерирует URL с поддоменом даже в path-режиме.
+        from flask import Blueprint as _Blueprint
+        seller_bp_path = _Blueprint('seller', __name__)
+        # Копируем deferred_functions — это все view-функции, зарегистрированные
+        # через @bp.route(...) в seller.py. Flask их добавит при register_blueprint.
+        for _df in seller_bp.deferred_functions:
+            seller_bp_path.record(_df)
+        app.register_blueprint(seller_bp_path, url_prefix='/seller')
 
     # Админ-панель
     app.register_blueprint(admin_bp, url_prefix='/main_admin')
