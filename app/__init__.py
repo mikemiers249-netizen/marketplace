@@ -328,6 +328,7 @@ def register_context_processors(app):
         # Эта логика раньше жила в @bp.before_request blueprint `seller`.
         # Состояние тарифа — критично для layout (sidebar, баннеры).
         try:
+            from app.models.users import DeliveryService, SellerDelivery
             all_services = (
                 DeliveryService.query
                 .filter_by(is_active=True)
