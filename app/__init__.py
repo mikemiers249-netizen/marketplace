@@ -93,11 +93,13 @@ def create_app(config_class=None):
     from app.commands import (
         reset_public_schema_command, db_init_command,
         fix_password_length_command, grant_test_tariff_command,
+        clean_test_subs_command,
     )
     app.cli.add_command(reset_public_schema_command)
     app.cli.add_command(db_init_command)
     app.cli.add_command(fix_password_length_command)
     app.cli.add_command(grant_test_tariff_command)
+    app.cli.add_command(clean_test_subs_command)
 
     # Санитизация коннектов к PostgreSQL: если PgBouncer (Coolify)
     # отдаёт коннект в состоянии "transaction aborted", любой первый

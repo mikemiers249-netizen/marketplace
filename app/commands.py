@@ -133,3 +133,73 @@ def grant_test_tariff_command(seller_id, days):
     db.session.commit()
     click.echo(f"Granted test subscription id={sub.id} to seller={seller_id}, "
                f"row={row.id} ({row.name}), expires_at={sub.expires_at}")
+
+
+@click.command("clean-test-subs")
+@click.option("--seller-id", type=int, default=None,
+              help="Чистить только этого продавца (по умолчанию — всех)")
+@click.option("--yes", "-y", is_flag=True,
+              help="Не спрашивать подтверждения")
+@with_appcontext
+def clean_test_subs_command(seller_id, yes):
+    """
+    Удалить «тестовые» подписки grant-test-tariff, чтобы прибрать БД.
+
+    Условие «тестовости»:
+      • source='global_auto'
+      • is_paid=False
+      • НЕ привязана к TariffTransaction (то есть не было реального списания)
+
+    Удаляются и сами подписки, и связанные transactions, у которых
+    subscription_id указывает на удаляемую запись. Это безопасный
+    dry-cleanup: если подписка уже «обросла» транзакциями (не тестовыми),
+    она пропускается.
+
+    FLASK_APP=wsgi.py flask clean-test-subs --seller-id 1 --yes
+    """
+    from app.models.tariffs import SellerTariffSubscription, TariffTransaction
+
+    q = SellerTariffSubscription.query.filter(
+        SellerTariffSubscription.source == SellerTariffSubscription.SOURCE_GLOBAL_AUTO,
+        SellerTariffSubscription.is_paid.is_(False),
+    )
+    if seller_id is not None:
+        q = q.filter(SellerTariffSubscription.seller_id == seller_id)
+    subs = q.order_by(SellerTariffSubscription.id.asc()).all()
+
+    if not subs:
+        click.echo("No test subscriptions found.")
+        return
+
+    # Отфильтровать те, у которых есть транзакции (значит, не тестовая).
+    real_ids = set()
+    for sub in subs:
+        txs = sub.transactions.all()
+        if txs:
+            real_ids.add(sub.id)
+    subs = [s for s in subs if s.id not in real_ids]
+
+    if not subs:
+        click.echo("All global_auto subs have transactions — nothing to clean.")
+        return
+
+    click.echo(f"Found {len(subs)} test subscription(s):")
+    for sub in subs:
+        click.echo(f"  id={sub.id} seller={sub.seller_id} row={sub.row_id} "
+                   f"expires_at={sub.expires_at}")
+
+    if not yes:
+        click.echo("ABORT: pass --yes to actually delete.")
+        raise click.Abort()
+
+    deleted = 0
+    for sub in subs:
+        # Связанные транзакции удалятся каскадом, если у них
+        # subscription_id указывает на этот sub и нет cascade — удалим руками.
+        TariffTransaction.query.filter(
+            TariffTransaction.subscription_id == sub.id
+        ).delete(synchronize_session=False)
+        db.session.delete(sub)
+        deleted += 1
+    db.session.commit()
+    click.echo(f"Deleted {deleted} test subscription(s).")

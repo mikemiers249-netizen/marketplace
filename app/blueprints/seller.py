@@ -401,12 +401,23 @@ def tariffs():
         )
 
     # tab == 'my' — подписки текущего продавца.
+    # Показываем:
+    #   • оплаченные индивидуальные (is_paid=True) — это обычные «купленные» тарифы;
+    #   • «зафиксированные» глобальные правила (source='global_auto', status='active')
+    #     — они не оплачены (is_paid=False), но это тоже «мои тарифы», которые
+    #     зафиксированы за продавцом и открывают ему доступ к магазину.
     subscriptions = (
         SellerTariffSubscription.query
         .join(TariffRow, TariffRow.id == SellerTariffSubscription.row_id)
+        .filter(SellerTariffSubscription.seller_id == seller.id)
         .filter(
-            SellerTariffSubscription.seller_id == seller.id,
-            SellerTariffSubscription.is_paid.is_(True),
+            or_(
+                SellerTariffSubscription.is_paid.is_(True),
+                and_(
+                    SellerTariffSubscription.source == SellerTariffSubscription.SOURCE_GLOBAL_AUTO,
+                    SellerTariffSubscription.status == SellerTariffSubscription.STATUS_ACTIVE,
+                ),
+            )
         )
         .order_by(SellerTariffSubscription.expires_at.desc())
         .all()

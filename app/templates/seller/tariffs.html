@@ -235,6 +235,11 @@
                     {% if sub.plan.description %}
                     <div class="tariff-plan-desc">{{ sub.plan.description }}</div>
                     {% endif %}
+                    {% if sub.source == 'global_auto' %}
+                    <div class="tariff-plan-desc">
+                        <i class="bi bi-globe2"></i> Глобальное правило (зафиксировано)
+                    </div>
+                    {% endif %}
                 </td>
                 <td>
                     {% if sub.plan.price_amount %}
@@ -263,6 +268,19 @@
                     {% endif %}
                 </td>
                 <td>
+                    {% if sub.source == 'global_auto' %}
+                    {# Глобальное правило продлевается через /extend, а не /renew:
+                       у него нет фикс-цены, стоимость пересчитывается по обороту. #}
+                    <form method="POST"
+                          action="{{ url_for('seller.tariff_subscription_extend', subscription_id=sub.id) }}"
+                          class="tariff-inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-sm btn-primary"
+                                title="Продлить фиксацию глобального правила">
+                            <i class="bi bi-arrow-clockwise"></i> Продлить
+                        </button>
+                    </form>
+                    {% else %}
                     <form method="POST"
                           action="{{ url_for('seller.tariff_subscription_renew', subscription_id=sub.id) }}"
                           class="tariff-inline-form">
@@ -272,6 +290,7 @@
                             <i class="bi bi-arrow-clockwise"></i> Продлить
                         </button>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}
