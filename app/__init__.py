@@ -92,12 +92,11 @@ def create_app(config_class=None):
     # Регистрация кастомных CLI-команд
     from app.commands import (
         reset_public_schema_command, db_init_command,
-        fix_password_length_command, create_admin_command,
+        fix_password_length_command,
     )
     app.cli.add_command(reset_public_schema_command)
     app.cli.add_command(db_init_command)
     app.cli.add_command(fix_password_length_command)
-    app.cli.add_command(create_admin_command)
 
     # Санитизация коннектов к PostgreSQL: если PgBouncer (Coolify)
     # отдаёт коннект в состоянии "transaction aborted", любой первый
