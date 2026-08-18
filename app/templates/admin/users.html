@@ -60,11 +60,13 @@
                 <td>{{ buyer.created_at.strftime('%d.%m.%Y') }}</td>
                 <td class="actions-cell">
                     {% if buyer.is_active %}
-                    <a href="{{ url_for('admin.user_ban', user_id=buyer.id) }}" 
-                       class="btn btn-sm btn-danger"
-                       onclick="return confirm('Вы уверены, что хотите заблокировать этого пользователя?')">
-                        Заблокировать
-                    </a>
+                    <form method="POST"
+                          action="{{ url_for('admin.user_ban', user_id=buyer.id) }}"
+                          style="display:inline"
+                          onsubmit="return confirm('Вы уверены, что хотите заблокировать этого пользователя?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-danger">Заблокировать</button>
+                    </form>
                     {% else %}
                     <span 
                        class="btn btn-sm btn-success"
