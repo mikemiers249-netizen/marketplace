@@ -80,3 +80,56 @@ def reset_public_schema_command(yes):
 
     db.engine.dispose()
     click.echo("Schema public recreated. Now run: flask db-init && flask db stamp heads")
+
+
+@click.command("grant-test-tariff")
+@click.argument("seller_id", type=int)
+@click.option("--days", default=30, help="Срок подписки в днях")
+@with_appcontext
+def grant_test_tariff_command(seller_id, days):
+    """
+    Аварийно выдаёт seller'у тестовую global-подписку.
+
+    Используется для отладки — минует логику активации и эмулирует
+    уже существующую подписку source='global_auto', is_paid=False,
+    expires_at=now+days.
+
+    FLASK_APP=wsgi.py flask grant-test-tariff 1 --days 30
+    """
+    from app.models.tariffs import SellerTariffSubscription, TariffRow
+    from app.models.users import Seller
+    from datetime import datetime, timedelta
+
+    seller = Seller.query.get(seller_id)
+    if not seller:
+        click.echo(f"Seller {seller_id} not found")
+        return
+
+    # Берём первый подходящий глобальный тариф (cards_turnover/card_sale/category_sale)
+    row = (
+        TariffRow.query
+        .join(__import__("app.models.tariffs", fromlist=["TariffBlock"]).TariffBlock,
+              __import__("app.models.tariffs", fromlist=["TariffBlock"]).TariffBlock.id == TariffRow.block_id)
+        .filter(TariffRow.is_published.is_(True))
+        .filter(TariffRow.is_active.is_(True))
+        .first()
+    )
+    if not row:
+        click.echo("No published TariffRow found. Create one in admin first.")
+        return
+
+    now = datetime.utcnow()
+    sub = SellerTariffSubscription(
+        seller_id=seller_id,
+        row_id=row.id,
+        source=SellerTariffSubscription.SOURCE_GLOBAL_AUTO,
+        is_paid=False,
+        status=SellerTariffSubscription.STATUS_ACTIVE,
+        activated_at=now,
+        expires_at=now + timedelta(days=days),
+    )
+    sub.recompute_grace(5)
+    db.session.add(sub)
+    db.session.commit()
+    click.echo(f"Granted test subscription id={sub.id} to seller={seller_id}, "
+               f"row={row.id} ({row.name}), expires_at={sub.expires_at}")
