@@ -96,7 +96,8 @@ def grant_test_tariff_command(seller_id, days):
 
     FLASK_APP=wsgi.py flask grant-test-tariff 1 --days 30
     """
-    from app.models.tariffs import SellerTariffSubscription, TariffRow
+    from app.models.tariffs import SellerTariffSubscription
+    from app.models.communications import TariffRow, TariffBlock
     from app.models.users import Seller
     from datetime import datetime, timedelta
 
@@ -105,11 +106,10 @@ def grant_test_tariff_command(seller_id, days):
         click.echo(f"Seller {seller_id} not found")
         return
 
-    # Берём первый подходящий глобальный тариф (cards_turnover/card_sale/category_sale)
+    # Берём первый подходящий глобальный тариф
     row = (
         TariffRow.query
-        .join(__import__("app.models.tariffs", fromlist=["TariffBlock"]).TariffBlock,
-              __import__("app.models.tariffs", fromlist=["TariffBlock"]).TariffBlock.id == TariffRow.block_id)
+        .join(TariffBlock, TariffBlock.id == TariffRow.block_id)
         .filter(TariffRow.is_published.is_(True))
         .filter(TariffRow.is_active.is_(True))
         .first()
