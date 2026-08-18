@@ -80,3 +80,36 @@ def reset_public_schema_command(yes):
 
     db.engine.dispose()
     click.echo("Schema public recreated. Now run: flask db-init && flask db stamp heads")
+
+
+@click.command("create-admin")
+@click.option("--login", required=True, help="Логин админа")
+@click.option("--password", required=True, help="Пароль админа")
+@click.option("--email", required=True, help="Email админа")
+@click.option("--phone", default=None, help="Телефон (опционально)")
+@with_appcontext
+def create_admin_command(login, password, email, phone):
+    """
+    Создаёт абсолютного админа (MAIN_ADMIN).
+
+    Пример:
+        FLASK_APP=wsgi.py flask create-admin --login admin \\
+            --password 'mypassword' --email admin@example.com
+    """
+    from app.models.users import Admin
+
+    existing = Admin.query.filter_by(login=login).first()
+    if existing:
+        click.echo(f"Admin with login={login!r} already exists, updating password.")
+        existing.set_password(password)
+        existing.email = email
+        if phone:
+            existing.phone = phone
+        existing.is_active = True
+    else:
+        admin = Admin(login=login, email=email, phone=phone, is_active=True)
+        admin.set_password(password)
+        db.session.add(admin)
+
+    db.session.commit()
+    click.echo(f"Admin {login!r} created/updated. Login: {login} / Password: {password}")
