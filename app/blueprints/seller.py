@@ -1290,39 +1290,45 @@ def product_new():
         # Генерация slug с ID
         product.slug = f"{slugify(name)}-{product.id}"
         
+        # Pillow опционален: если установлен — масштабируем и оптимизируем,
+        # если нет — сохраняем как есть. Импорт НЕ должен валить POST
+        # целиком, иначе товар не создать без картинки.
+        try:
+            from PIL import Image
+        except ImportError:
+            Image = None
+
         # Обработка загрузки изображения с масштабированием
         if 'main_image' in request.files:
             file = request.files['main_image']
             if file and file.filename:
                 from werkzeug.utils import secure_filename
                 import os
-                from PIL import Image
                 from flask import current_app
-                
+
                 # Получаем абсолютный путь к директории загрузок
                 upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'products')
                 os.makedirs(upload_dir, exist_ok=True)
-                
+
                 # Генерируем уникальное имя файла
                 ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'jpg'
                 filename = f"{product.id}_{secure_filename(file.filename.rsplit('.', 1)[0])}.{ext}"
                 filepath = os.path.join(upload_dir, filename)
-                
+
                 # Читаем изображение и масштабируем
                 try:
-                    # Важно: сначала читаем данные, потом сохраняем
-                    img = Image.open(file)
-                    
-                    # Масштабируем до нужного размера (800x800 максимум, сохраняя пропорции)
-                    max_size = (800, 800)
-                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
-                    
-                    # Конвертируем в RGB если нужно (для PNG с прозрачностью)
-                    if img.mode in ('RGBA', 'P'):
-                        img = img.convert('RGB')
-                    
-                    # Сохраняем оптимизированное изображение
-                    img.save(filepath, 'JPEG', quality=85, optimize=True)
+                    if Image is not None:
+                        # Pillow установлен — масштабируем и сохраняем как JPEG.
+                        img = Image.open(file)
+                        max_size = (800, 800)
+                        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                        if img.mode in ('RGBA', 'P'):
+                            img = img.convert('RGB')
+                        img.save(filepath, 'JPEG', quality=85, optimize=True)
+                    else:
+                        # Pillow не установлен — сохраняем файл как есть.
+                        file.seek(0)
+                        file.save(filepath)
                 except Exception as e:
                     # Если не удалось обработать, пробуем сохранить как есть
                     try:
@@ -1330,7 +1336,7 @@ def product_new():
                         file.save(filepath)
                     except:
                         pass  # Если совсем не удалось - ну и ладно
-                
+
                 # Сохраняем фото в БД через ProductPhoto (основное изображение)
                 main_photo = ProductPhoto(
                     product_id=product.id,
@@ -1339,35 +1345,38 @@ def product_new():
                     sort_order=0
                 )
                 db.session.add(main_photo)
-        
+
         # Обработка дополнительных изображений (новый формат с additional_images[])
         additional_files = request.files.getlist('additional_images[]')
         for idx, file in enumerate(additional_files):
             if file and file.filename:
                 from werkzeug.utils import secure_filename
                 import os
-                from PIL import Image
                 from flask import current_app
-                
+
                 # Получаем абсолютный путь к директории загрузок
                 upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'products')
                 os.makedirs(upload_dir, exist_ok=True)
-                
+
                 # Генерируем уникальное имя файла с timestamp
                 import time
                 ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'jpg'
                 timestamp = str(int(time.time()))
                 filename = f"{product.id}_{timestamp}_{idx}_{secure_filename(file.filename.rsplit('.', 1)[0])}.{ext}"
                 filepath = os.path.join(upload_dir, filename)
-                
+
                 # Читаем изображение и масштабируем
                 try:
-                    img = Image.open(file)
-                    max_size = (800, 800)
-                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
-                    if img.mode in ('RGBA', 'P'):
-                        img = img.convert('RGB')
-                    img.save(filepath, 'JPEG', quality=85, optimize=True)
+                    if Image is not None:
+                        img = Image.open(file)
+                        max_size = (800, 800)
+                        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                        if img.mode in ('RGBA', 'P'):
+                            img = img.convert('RGB')
+                        img.save(filepath, 'JPEG', quality=85, optimize=True)
+                    else:
+                        file.seek(0)
+                        file.save(filepath)
                 except Exception as e:
                     try:
                         file.seek(0)
