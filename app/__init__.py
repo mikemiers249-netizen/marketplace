@@ -310,8 +310,6 @@ def register_context_processors(app):
         from flask import g
         from flask_login import current_user
         from app.models.users import Seller
-        from app.models.orders import SellerDelivery, DeliveryService
-        from app.utils.loyalty import is_loyalty_enabled
         from app.blueprints.seller import (
             _resolve_tariff_state,
         )
