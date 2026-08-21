@@ -254,3 +254,45 @@ def clean_test_subs_command(seller_id, yes):
         deleted += 1
     db.session.commit()
     click.echo(f"Deleted {deleted} test subscription(s).")
+
+
+@click.command("clean-missing-photos")
+@click.option("--yes", is_flag=True, help="Actually delete (without this flag — dry-run).")
+@with_appcontext
+def clean_missing_photos_command(yes):
+    """
+    Удаляет записи ProductPhoto, которые ссылаются на несуществующие файлы
+    в static/uploads/products/. Полезно после старых багов загрузки, когда
+    строка в БД записывалась, а файл на диск не сохранялся — в плитках тогда
+    бились картинки (404 на /static/uploads/...).
+
+    FLASK_APP=wsgi.py flask clean-missing-photos --yes
+    """
+    import os
+    from flask import current_app
+    from app.models.products import ProductPhoto
+
+    upload_dir = os.path.join(current_app.root_path, "static", "uploads", "products")
+    if not os.path.isdir(upload_dir):
+        click.echo(f"Upload dir not found: {upload_dir}")
+        return
+
+    photos = ProductPhoto.query.order_by(ProductPhoto.id.asc()).all()
+    missing = [p for p in photos if not os.path.exists(os.path.join(upload_dir, p.path))]
+
+    if not missing:
+        click.echo("All product photos exist on disk. Nothing to clean.")
+        return
+
+    click.echo(f"Found {len(missing)} ProductPhoto row(s) referencing missing files:")
+    for p in missing:
+        click.echo(f"  photo_id={p.id} product_id={p.product_id} path={p.path}")
+
+    if not yes:
+        click.echo("ABORT: pass --yes to actually delete.")
+        raise click.Abort()
+
+    for p in missing:
+        db.session.delete(p)
+    db.session.commit()
+    click.echo(f"Deleted {len(missing)} dangling ProductPhoto row(s).")

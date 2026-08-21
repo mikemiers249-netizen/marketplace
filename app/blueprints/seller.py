@@ -1316,6 +1316,7 @@ def product_new():
                 filepath = os.path.join(upload_dir, filename)
 
                 # Читаем изображение и масштабируем
+                saved_ok = False
                 try:
                     if Image is not None:
                         # Pillow установлен — масштабируем и сохраняем как JPEG.
@@ -1325,26 +1326,39 @@ def product_new():
                         if img.mode in ('RGBA', 'P'):
                             img = img.convert('RGB')
                         img.save(filepath, 'JPEG', quality=85, optimize=True)
+                        saved_ok = True
                     else:
                         # Pillow не установлен — сохраняем файл как есть.
                         file.seek(0)
                         file.save(filepath)
+                        saved_ok = True
                 except Exception as e:
                     # Если не удалось обработать, пробуем сохранить как есть
                     try:
                         file.seek(0)  # Возвращаемся в начало файла
                         file.save(filepath)
-                    except:
-                        pass  # Если совсем не удалось - ну и ладно
+                        saved_ok = os.path.exists(filepath) and os.path.getsize(filepath) > 0
+                    except Exception:
+                        saved_ok = False
 
-                # Сохраняем фото в БД через ProductPhoto (основное изображение)
-                main_photo = ProductPhoto(
-                    product_id=product.id,
-                    path=filename,
-                    is_main=True,
-                    sort_order=0
-                )
-                db.session.add(main_photo)
+                # Не пишем запись в БД, если файл реально не сохранился — иначе
+                # карточка товара будет показывать битый URL (404 на /static/uploads/...).
+                if not saved_ok or not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+                    if os.path.exists(filepath):
+                        try:
+                            os.remove(filepath)
+                        except OSError:
+                            pass
+                    flash('Не удалось сохранить основное фото — попробуйте другой файл (jpg/png, до ~10 МБ).', 'warning')
+                else:
+                    # Сохраняем фото в БД через ProductPhoto (основное изображение)
+                    main_photo = ProductPhoto(
+                        product_id=product.id,
+                        path=filename,
+                        is_main=True,
+                        sort_order=0
+                    )
+                    db.session.add(main_photo)
 
         # Обработка дополнительных изображений (новый формат с additional_images[])
         additional_files = request.files.getlist('additional_images[]')
@@ -1566,6 +1580,7 @@ def product_edit(product_id):
                 filename = f"{product.id}_{timestamp}_main_{secure_filename(file.filename.rsplit('.', 1)[0])}.{ext}"
                 filepath = os.path.join(upload_dir, filename)
                 
+                saved_ok = False
                 try:
                     img = Image.open(file)
                     max_size = (800, 800)
@@ -1573,21 +1588,31 @@ def product_edit(product_id):
                     if img.mode in ('RGBA', 'P'):
                         img = img.convert('RGB')
                     img.save(filepath, 'JPEG', quality=85, optimize=True)
-                except:
+                    saved_ok = True
+                except Exception:
                     try:
                         file.seek(0)
                         file.save(filepath)
-                    except:
-                        pass
-                
-                # Добавляем как основное фото
-                main_photo = ProductPhoto(
-                    product_id=product.id,
-                    path=filename,
-                    is_main=True,
-                    sort_order=0
-                )
-                db.session.add(main_photo)
+                        saved_ok = os.path.exists(filepath) and os.path.getsize(filepath) > 0
+                    except Exception:
+                        saved_ok = False
+
+                if not saved_ok or not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+                    if os.path.exists(filepath):
+                        try:
+                            os.remove(filepath)
+                        except OSError:
+                            pass
+                    flash('Не удалось сохранить новое основное фото — попробуйте другой файл.', 'warning')
+                else:
+                    # Добавляем как основное фото
+                    main_photo = ProductPhoto(
+                        product_id=product.id,
+                        path=filename,
+                        is_main=True,
+                        sort_order=0
+                    )
+                    db.session.add(main_photo)
         
         # Загрузка новых дополнительных изображений
         additional_files = request.files.getlist('additional_images[]')
@@ -1607,6 +1632,7 @@ def product_edit(product_id):
                 filename = f"{product.id}_{timestamp}_{idx}_{secure_filename(file.filename.rsplit('.', 1)[0])}.{ext}"
                 filepath = os.path.join(upload_dir, filename)
                 
+                saved_ok = False
                 try:
                     img = Image.open(file)
                     max_size = (800, 800)
@@ -1614,21 +1640,31 @@ def product_edit(product_id):
                     if img.mode in ('RGBA', 'P'):
                         img = img.convert('RGB')
                     img.save(filepath, 'JPEG', quality=85, optimize=True)
-                except:
+                    saved_ok = True
+                except Exception:
                     try:
                         file.seek(0)
                         file.save(filepath)
-                    except:
-                        pass
-                
-                # Добавляем как дополнительное фото
-                photo = ProductPhoto(
-                    product_id=product.id,
-                    path=filename,
-                    is_main=False,
-                    sort_order=idx + 100  # Чтобы не конфликтовать с существующими
-                )
-                db.session.add(photo)
+                        saved_ok = os.path.exists(filepath) and os.path.getsize(filepath) > 0
+                    except Exception:
+                        saved_ok = False
+
+                if not saved_ok or not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+                    if os.path.exists(filepath):
+                        try:
+                            os.remove(filepath)
+                        except OSError:
+                            pass
+                    flash(f'Не удалось сохранить дополнительное фото #{idx + 1} — попробуйте другой файл.', 'warning')
+                else:
+                    # Добавляем как дополнительное фото
+                    photo = ProductPhoto(
+                        product_id=product.id,
+                        path=filename,
+                        is_main=False,
+                        sort_order=idx + 100  # Чтобы не конфликтовать с существующими
+                    )
+                    db.session.add(photo)
         
         # Изменение параметров требует модерации
         param_ids = request.form.getlist('param_ids')
