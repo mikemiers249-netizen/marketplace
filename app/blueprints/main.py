@@ -4,7 +4,7 @@ Blueprint основного сайта (публичная часть для п
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
 from flask_login import login_required, current_user
-from sqlalchemy import or_, and_, func
+from sqlalchemy import or_, and_, func, case
 from datetime import datetime
 from app import db, cache
 from app.models.products import Category, Product, ProductPhoto, ProductParameter, ProductEvent
@@ -125,9 +125,14 @@ def _get_parameter_values(category, parameter_id):
             category_ids.append(sub2.id)
     
     # Получаем уникальные значения
-    values_query = db.session.query(
-        ProductParameter.value
-    ).join(Product).filter(
+    # `value` — JSON; psycopg2/PG не умеют DISTINCT/= по json-колонке
+    # ('could not identify an equality operator for type json'), поэтому кастим
+    # в text. Если `display_value` уже посчитан — предпочитаем его (он String).
+    value_expr = case(
+        (ProductParameter.display_value.isnot(None), ProductParameter.display_value),
+        else_=func.cast(ProductParameter.value, db.String),
+    )
+    values_query = db.session.query(value_expr).join(Product).filter(
         Product.category_id.in_(category_ids),
         Product.status == 'approved',
         ProductParameter.parameter_id == parameter_id
@@ -368,10 +373,18 @@ def catalog(category_id=None):
                 if param_id not in ('price_min', 'price_max'):
                     try:
                         param_id_int = int(param_id)
+                        # `value` — JSON; сравниваем через text-каст либо по
+                        # `display_value` (String), чтобы не упереться в
+                        # 'could not identify an equality operator for type json'.
+                        value_match = case(
+                            (ProductParameter.display_value.isnot(None),
+                             ProductParameter.display_value == value),
+                            else_=func.cast(ProductParameter.value, db.String) == value,
+                        )
                         query = query.join(ProductParameter).filter(
                             and_(
                                 ProductParameter.parameter_id == param_id_int,
-                                ProductParameter.value == value
+                                value_match,
                             )
                         )
                     except ValueError:
