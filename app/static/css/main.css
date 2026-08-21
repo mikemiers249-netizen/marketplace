@@ -263,14 +263,15 @@ ul, ol {
     position: relative;
     display: block;
     aspect-ratio: 2 / 3;
-    background: var(--bg-secondary);
+    background: #ffffff;
     overflow: hidden;
 }
 
 .product-photo img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+    background: #ffffff;
 }
 
 .product-photo-placeholder {
