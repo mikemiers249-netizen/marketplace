@@ -302,9 +302,9 @@ def clean_missing_photos_command(yes):
 @with_appcontext
 def seed_footer_links_command():
     """
-    Создаёт дефолтные ссылки в подвале (если их ещё нет).
-    Полезно для свежей БД — после `flask db-init` подвал будет пустым,
-    эта команда наполнит его типовыми страницами.
+    РЎРѕР·РґР°С‘С‚ РґРµС„РѕР»С‚РЅС‹Рµ СЃСЃС‹Р»РєРё РІ РїРѕРґРІР°Р»Рµ (РµСЃР»Рё РёС… РµС‰С‘ РЅРµС‚).
+    РџРѕР»РµР·РЅРѕ РґР»СЏ СЃРІРµР¶РµР№ Р‘Р” вЂ” РїРѕСЃР»Рµ `flask db-init` РїРѕРґРІР°Р» Р±СѓРґРµС‚ РїСѓСЃС‚С‹Рј,
+    СЌС‚Р° РєРѕРјР°РЅРґР° РЅР°РїРѕР»РЅРёС‚ РµРіРѕ С‚РёРїРѕРІС‹РјРё СЃС‚СЂР°РЅРёС†Р°РјРё.
 
     FLASK_APP=wsgi.py flask seed-footer-links
     """
@@ -312,60 +312,60 @@ def seed_footer_links_command():
 
     defaults = [
         {
-            'title': 'О нас',
+            'title': 'Рћ РЅР°СЃ',
             'slug': 'about',
             'column': FooterLink.COLUMN_INFO,
             'display_mode': FooterLink.DISPLAY_MODAL,
             'sort_order': 10,
-            'content': '<p>Информация о компании.</p>',
+            'content': '<p>РРЅС„РѕСЂРјР°С†РёСЏ Рѕ РєРѕРјРїР°РЅРёРё.</p>',
         },
         {
-            'title': 'Доставка',
+            'title': 'Р”РѕСЃС‚Р°РІРєР°',
             'slug': 'delivery',
             'column': FooterLink.COLUMN_INFO,
             'display_mode': FooterLink.DISPLAY_PAGE,
             'sort_order': 20,
-            'content': '<h2>Доставка</h2><p>Условия доставки.</p>',
+            'content': '<h2>Р”РѕСЃС‚Р°РІРєР°</h2><p>РЈСЃР»РѕРІРёСЏ РґРѕСЃС‚Р°РІРєРё.</p>',
         },
         {
-            'title': 'Политика обработки персональных данных',
+            'title': 'РџРѕР»РёС‚РёРєР° РѕР±СЂР°Р±РѕС‚РєРё РїРµСЂСЃРѕРЅР°Р»СЊРЅС‹С… РґР°РЅРЅС‹С…',
             'slug': 'privacy',
             'column': FooterLink.COLUMN_INFO,
             'display_mode': FooterLink.DISPLAY_PAGE,
             'sort_order': 30,
-            'content': '<h2>Политика обработки персональных данных</h2><p>Текст политики.</p>',
+            'content': '<h2>РџРѕР»РёС‚РёРєР° РѕР±СЂР°Р±РѕС‚РєРё РїРµСЂСЃРѕРЅР°Р»СЊРЅС‹С… РґР°РЅРЅС‹С…</h2><p>РўРµРєСЃС‚ РїРѕР»РёС‚РёРєРё.</p>',
         },
         {
-            'title': 'Публичная оферта',
+            'title': 'РџСѓР±Р»РёС‡РЅР°СЏ РѕС„РµСЂС‚Р°',
             'slug': 'offer',
             'column': FooterLink.COLUMN_INFO,
             'display_mode': FooterLink.DISPLAY_PAGE,
             'sort_order': 40,
-            'content': '<h2>Публичная оферта</h2><p>Текст оферты.</p>',
+            'content': '<h2>РџСѓР±Р»РёС‡РЅР°СЏ РѕС„РµСЂС‚Р°</h2><p>РўРµРєСЃС‚ РѕС„РµСЂС‚С‹.</p>',
         },
         {
-            'title': 'Контакты',
+            'title': 'РљРѕРЅС‚Р°РєС‚С‹',
             'slug': 'contacts',
             'column': FooterLink.COLUMN_SUPPORT,
             'display_mode': FooterLink.DISPLAY_MODAL,
             'sort_order': 10,
-            'content': '<h2>Контакты</h2><p>Свяжитесь с нами.</p>',
+            'content': '<h2>РљРѕРЅС‚Р°РєС‚С‹</h2><p>РЎРІСЏР¶РёС‚РµСЃСЊ СЃ РЅР°РјРё.</p>',
         },
         {
-            'title': 'Возврат товара',
+            'title': 'Р’РѕР·РІСЂР°С‚ С‚РѕРІР°СЂР°',
             'slug': 'return',
             'column': FooterLink.COLUMN_SUPPORT,
             'display_mode': FooterLink.DISPLAY_PAGE,
             'sort_order': 20,
-            'content': '<h2>Возврат товара</h2><p>Условия возврата.</p>',
+            'content': '<h2>Р’РѕР·РІСЂР°С‚ С‚РѕРІР°СЂР°</h2><p>РЈСЃР»РѕРІРёСЏ РІРѕР·РІСЂР°С‚Р°.</p>',
         },
         {
-            'title': 'Карта сайта',
+            'title': 'РљР°СЂС‚Р° СЃР°Р№С‚Р°',
             'slug': 'sitemap',
             'column': FooterLink.COLUMN_SUPPORT,
             'display_mode': FooterLink.DISPLAY_PAGE,
             'sort_order': 30,
-            'content': '<h2>Карта сайта</h2><p>Здесь будут разделы сайта.</p>',
+            'content': '<h2>РљР°СЂС‚Р° СЃР°Р№С‚Р°</h2><p>Р—РґРµСЃСЊ Р±СѓРґСѓС‚ СЂР°Р·РґРµР»С‹ СЃР°Р№С‚Р°.</p>',
         },
     ]
     created = 0

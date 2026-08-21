@@ -3429,12 +3429,12 @@ from app.models.users import Admin
 
 
 # ---------------------------------------------------------------------------
-# Подвал: ссылки (FooterLink)
+# РџРѕРґРІР°Р»: СЃСЃС‹Р»РєРё (FooterLink)
 # ---------------------------------------------------------------------------
 
 @bp.route('/settings/footer-links')
 def footer_links():
-    """Список ссылок подвала (CRUD), сгруппированный по колонкам."""
+    """РЎРїРёСЃРѕРє СЃСЃС‹Р»РѕРє РїРѕРґРІР°Р»Р° (CRUD), СЃРіСЂСѓРїРїРёСЂРѕРІР°РЅРЅС‹Р№ РїРѕ РєРѕР»РѕРЅРєР°Рј."""
     if not is_admin():
         return redirect(url_for('admin.login'))
     from app.models import FooterLink
@@ -3446,13 +3446,13 @@ def footer_links():
     for r in rows:
         grouped[r.column].append(r)
     columns = [
-        (FooterLink.COLUMN_INFO, 'Информация'),
-        (FooterLink.COLUMN_SUPPORT, 'Служба поддержки'),
-        (FooterLink.COLUMN_ADDITIONAL, 'Дополнительно'),
+        (FooterLink.COLUMN_INFO, 'РРЅС„РѕСЂРјР°С†РёСЏ'),
+        (FooterLink.COLUMN_SUPPORT, 'РЎР»СѓР¶Р±Р° РїРѕРґРґРµСЂР¶РєРё'),
+        (FooterLink.COLUMN_ADDITIONAL, 'Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕ'),
     ]
     return render_template(
         'admin/footer_links.html',
-        title='Ссылки в подвале',
+        title='РЎСЃС‹Р»РєРё РІ РїРѕРґРІР°Р»Рµ',
         grouped=grouped,
         columns=columns,
     )
@@ -3460,7 +3460,7 @@ def footer_links():
 
 @bp.route('/settings/footer-links/new', methods=['GET', 'POST'])
 def footer_link_new():
-    """Создание новой ссылки."""
+    """РЎРѕР·РґР°РЅРёРµ РЅРѕРІРѕР№ СЃСЃС‹Р»РєРё."""
     if not is_admin():
         return redirect(url_for('admin.login'))
     from app.models import FooterLink
@@ -3475,13 +3475,13 @@ def footer_link_new():
         is_active = bool(request.form.get('is_active'))
 
         if not title:
-            flash('Укажите заголовок ссылки.', 'error')
+            flash('РЈРєР°Р¶РёС‚Рµ Р·Р°РіРѕР»РѕРІРѕРє СЃСЃС‹Р»РєРё.', 'error')
         elif column not in FooterLink.COLUMNS:
-            flash(f'Неизвестная колонка: {column}', 'error')
+            flash(f'РќРµРёР·РІРµСЃС‚РЅР°СЏ РєРѕР»РѕРЅРєР°: {column}', 'error')
         elif display_mode not in FooterLink.DISPLAY_MODES:
-            flash(f'Неизвестный способ показа: {display_mode}', 'error')
+            flash(f'РќРµРёР·РІРµСЃС‚РЅС‹Р№ СЃРїРѕСЃРѕР± РїРѕРєР°Р·Р°: {display_mode}', 'error')
         elif FooterLink.query.filter_by(slug=slug).first():
-            flash(f'Ссылка со slug «{slug}» уже существует. Выберите другой slug.', 'error')
+            flash(f'РЎСЃС‹Р»РєР° СЃРѕ slug В«{slug}В» СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚. Р’С‹Р±РµСЂРёС‚Рµ РґСЂСѓРіРѕР№ slug.', 'error')
         else:
             link = FooterLink(
                 title=title,
@@ -3494,21 +3494,21 @@ def footer_link_new():
             )
             db.session.add(link)
             db.session.commit()
-            flash('Ссылка создана.', 'success')
+            flash('РЎСЃС‹Р»РєР° СЃРѕР·РґР°РЅР°.', 'success')
             return redirect(url_for('admin.footer_links'))
 
     column_choices = [
-        (FooterLink.COLUMN_INFO, 'Информация'),
-        (FooterLink.COLUMN_SUPPORT, 'Служба поддержки'),
-        (FooterLink.COLUMN_ADDITIONAL, 'Дополнительно'),
+        (FooterLink.COLUMN_INFO, 'РРЅС„РѕСЂРјР°С†РёСЏ'),
+        (FooterLink.COLUMN_SUPPORT, 'РЎР»СѓР¶Р±Р° РїРѕРґРґРµСЂР¶РєРё'),
+        (FooterLink.COLUMN_ADDITIONAL, 'Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕ'),
     ]
     display_choices = [
-        (FooterLink.DISPLAY_MODAL, 'В модальном окне (Bootstrap modal)'),
-        (FooterLink.DISPLAY_PAGE, 'На отдельной странице (/page/<slug>)'),
+        (FooterLink.DISPLAY_MODAL, 'Р’ РјРѕРґР°Р»СЊРЅРѕРј РѕРєРЅРµ (Bootstrap modal)'),
+        (FooterLink.DISPLAY_PAGE, 'РќР° РѕС‚РґРµР»СЊРЅРѕР№ СЃС‚СЂР°РЅРёС†Рµ (/page/<slug>)'),
     ]
     return render_template(
         'admin/footer_link_form.html',
-        title='Новая ссылка',
+        title='РќРѕРІР°СЏ СЃСЃС‹Р»РєР°',
         link=None,
         column_choices=column_choices,
         display_choices=display_choices,
@@ -3517,7 +3517,7 @@ def footer_link_new():
 
 @bp.route('/settings/footer-links/<int:link_id>/edit', methods=['GET', 'POST'])
 def footer_link_edit(link_id):
-    """Редактирование ссылки."""
+    """Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ СЃСЃС‹Р»РєРё."""
     if not is_admin():
         return redirect(url_for('admin.login'))
     from app.models import FooterLink
@@ -3532,11 +3532,11 @@ def footer_link_edit(link_id):
         is_active = bool(request.form.get('is_active'))
 
         if not title:
-            flash('Укажите заголовок ссылки.', 'error')
+            flash('РЈРєР°Р¶РёС‚Рµ Р·Р°РіРѕР»РѕРІРѕРє СЃСЃС‹Р»РєРё.', 'error')
         elif column not in FooterLink.COLUMNS:
-            flash(f'Неизвестная колонка: {column}', 'error')
+            flash(f'РќРµРёР·РІРµСЃС‚РЅР°СЏ РєРѕР»РѕРЅРєР°: {column}', 'error')
         elif display_mode not in FooterLink.DISPLAY_MODES:
-            flash(f'Неизвестный способ показа: {display_mode}', 'error')
+            flash(f'РќРµРёР·РІРµСЃС‚РЅС‹Р№ СЃРїРѕСЃРѕР± РїРѕРєР°Р·Р°: {display_mode}', 'error')
         else:
             link.title = title
             link.column = column
@@ -3545,21 +3545,21 @@ def footer_link_edit(link_id):
             link.sort_order = sort_order
             link.is_active = is_active
             db.session.commit()
-            flash('Ссылка обновлена.', 'success')
+            flash('РЎСЃС‹Р»РєР° РѕР±РЅРѕРІР»РµРЅР°.', 'success')
             return redirect(url_for('admin.footer_links'))
 
     column_choices = [
-        (FooterLink.COLUMN_INFO, 'Информация'),
-        (FooterLink.COLUMN_SUPPORT, 'Служба поддержки'),
-        (FooterLink.COLUMN_ADDITIONAL, 'Дополнительно'),
+        (FooterLink.COLUMN_INFO, 'РРЅС„РѕСЂРјР°С†РёСЏ'),
+        (FooterLink.COLUMN_SUPPORT, 'РЎР»СѓР¶Р±Р° РїРѕРґРґРµСЂР¶РєРё'),
+        (FooterLink.COLUMN_ADDITIONAL, 'Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕ'),
     ]
     display_choices = [
-        (FooterLink.DISPLAY_MODAL, 'В модальном окне (Bootstrap modal)'),
-        (FooterLink.DISPLAY_PAGE, 'На отдельной странице (/page/<slug>)'),
+        (FooterLink.DISPLAY_MODAL, 'Р’ РјРѕРґР°Р»СЊРЅРѕРј РѕРєРЅРµ (Bootstrap modal)'),
+        (FooterLink.DISPLAY_PAGE, 'РќР° РѕС‚РґРµР»СЊРЅРѕР№ СЃС‚СЂР°РЅРёС†Рµ (/page/<slug>)'),
     ]
     return render_template(
         'admin/footer_link_form.html',
-        title='Изменить ссылку',
+        title='РР·РјРµРЅРёС‚СЊ СЃСЃС‹Р»РєСѓ',
         link=link,
         column_choices=column_choices,
         display_choices=display_choices,
@@ -3568,12 +3568,12 @@ def footer_link_edit(link_id):
 
 @bp.route('/settings/footer-links/<int:link_id>/delete', methods=['POST'])
 def footer_link_delete(link_id):
-    """Удаление ссылки."""
+    """РЈРґР°Р»РµРЅРёРµ СЃСЃС‹Р»РєРё."""
     if not is_admin():
         return redirect(url_for('admin.login'))
     from app.models import FooterLink
     link = FooterLink.query.get_or_404(link_id)
     db.session.delete(link)
     db.session.commit()
-    flash('Ссылка удалена.', 'success')
+    flash('РЎСЃС‹Р»РєР° СѓРґР°Р»РµРЅР°.', 'success')
     return redirect(url_for('admin.footer_links'))
