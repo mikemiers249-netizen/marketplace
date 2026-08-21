@@ -1,0 +1,39 @@
+# amvera.yml — конфиг Amvera Cloud (https://amvera.ru)
+#
+# Amvera сама подхватывает этот файл, если в UI выбрать источник «Из репозитория»
+# и указать ветку. Поддерживает build через Dockerfile + persistent volume.
+
+meta:
+  project_name: marketplace
+  description: Flask marketplace (sellers + buyers) with PostgreSQL
+
+build:
+  dockerfile: Dockerfile
+  # Контекст сборки — корень репозитория (по умолчанию).
+
+run:
+  # PersistVolume — то, ради чего мы переезжаем с Hostim.
+  # Монтируется в /app/app/static/uploads, файлы там переживают редеплои.
+  # Размер: 5 ГБ (для MVP хватит, потом увеличим).
+  persistVolume:
+    - /app/app/static/uploads
+  # Amvera автоматически прокидывает свой $PORT в контейнер.
+  # Наш Dockerfile: gunicorn --bind 0.0.0.0:${PORT:-5000} — ок.
+  containerPort: 5000
+
+# env-переменные НЕ зашиваем сюда — задаём в UI Amvera (раздел «Переменные»).
+# В этом вся суть миграции: те же значения, что были в Hostim.
+#
+# Список обязательных env для Amvera UI:
+#   APP_CONFIG=prod
+#   SECRET_KEY=<тот же, что в Hostim>
+#   DATABASE_URI=postgresql+psycopg2://postgres:<пароль>@<хост>:5432/postgres
+#   MAIN_ADMIN_PASSWORD_HASH=<тот же>
+#   SESSION_COOKIE_SECURE=True
+#   GUNICORN_WORKERS=2
+#
+# Эти УБРАТЬ из env (они были отладочными для Hostim):
+#   PURGE_SELLER_SUBS_ON_BOOT   -- стирал подписки на каждом старте
+#   PURGE_SELLER_ID              -- только для Hostim
+#   RESET_DB                     -- дроп БД, опасно
+#   GRANT_TEST_TARIFF_SELLER_ID  -- спам подписок
