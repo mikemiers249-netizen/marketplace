@@ -377,6 +377,7 @@ def register_context_processors(app):
     @app.context_processor
     def inject_global_variables():
         """Добавление глобальных переменных в шаблоны."""
+        from flask import g
         from app.models.users import Buyer, Seller, Admin
         from app.models.communications import Message
         from app.utils.helpers import (
