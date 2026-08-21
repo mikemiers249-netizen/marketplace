@@ -1,0 +1,26 @@
+# docker-compose.yml для Coolify
+#
+# Coolify подхватит этот файл, если в UI создать сервис с типом
+# "Docker Compose" (вместо "Application"). Env-переменные (SECRET_KEY,
+# DATABASE_URI и т.д.) остаются в UI Coolify — Compose-режим прокидывает
+# их в контейнер автоматически.
+#
+# Persistent volume marketplace-uploads решает проблему "фото пропадают
+# после редеплоя": без него /app/app/static/uploads живёт в эфемерном слое
+# контейнера и обнуляется при каждом redeploy.
+
+services:
+  marketplace:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: marketplace
+    ports:
+      - "5000:5000"
+    volumes:
+      - marketplace-uploads:/app/app/static/uploads
+    restart: unless-stopped
+
+volumes:
+  marketplace-uploads:
+    driver: local
