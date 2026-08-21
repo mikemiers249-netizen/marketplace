@@ -47,7 +47,7 @@
     border-radius: 8px;
     overflow: hidden;
     background: #ffffff;
-    aspect-ratio: 1;
+    aspect-ratio: 1 / 1.5;
 }
 
 .main-photo img {

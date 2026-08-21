@@ -262,7 +262,7 @@ ul, ol {
 .product-photo {
     position: relative;
     display: block;
-    aspect-ratio: 2 / 3;
+    aspect-ratio: 1 / 1.5;
     background: #ffffff;
     overflow: hidden;
 }
