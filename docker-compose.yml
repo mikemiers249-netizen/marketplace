@@ -1,13 +1,12 @@
 # docker-compose.yml для Coolify
 #
-# Coolify подхватит этот файл, если в UI создать сервис с типом
-# "Docker Compose" (вместо "Application"). Env-переменные (SECRET_KEY,
-# DATABASE_URI и т.д.) остаются в UI Coolify — Compose-режим прокидывает
-# их в контейнер автоматически.
+# Long-syntax для volumes — некоторые версии Coolify игнорируют короткую
+# форму `volumes: ['name:/path']`, но long-syntax с `type: volume` и
+# `source: name` обрабатывают. Если и это не поможет — переключаемся
+# на bind с абсолютным путём (см. закомментированный вариант ниже).
 #
-# Persistent volume marketplace-uploads решает проблему "фото пропадают
-# после редеплоя": без него /app/app/static/uploads живёт в эфемерном слое
-# контейнера и обнуляется при каждом redeploy.
+# Env остаются в UI Coolify — Compose-режим прокидывает их в контейнер
+# автоматически.
 
 services:
   marketplace:
@@ -16,11 +15,25 @@ services:
       dockerfile: Dockerfile
     container_name: marketplace
     ports:
-      - "5000:5000"
+      - "3000:3000"
     volumes:
-      - marketplace-uploads:/app/app/static/uploads
+      - type: volume
+        source: marketplace-uploads
+        target: /app/app/static/uploads
     restart: unless-stopped
 
 volumes:
   marketplace-uploads:
-    driver: local
+    name: marketplace-uploads
+
+# === Альтернатива: bind mount, если named volume не подхватывается ===
+# Раскомментируй секцию volumes у сервиса и замени при необходимости путь
+# `/data/coolify/marketplace-uploads` на каталог, который существует на хосте.
+#
+#     volumes:
+#       - type: bind
+#         source: /data/coolify/marketplace-uploads
+#         target: /app/app/static/uploads
+#
+# Перед этим в хост-шелле:
+#   mkdir -p /data/coolify/marketplace-uploads
