@@ -95,6 +95,7 @@ def create_app(config_class=None):
         fix_password_length_command, grant_test_tariff_command,
         clean_test_subs_command, clear_seller_subs_command,
         clean_missing_photos_command,
+        seed_footer_links_command,
     )
     app.cli.add_command(reset_public_schema_command)
     app.cli.add_command(db_init_command)
@@ -103,6 +104,7 @@ def create_app(config_class=None):
     app.cli.add_command(clean_test_subs_command)
     app.cli.add_command(clear_seller_subs_command)
     app.cli.add_command(clean_missing_photos_command)
+    app.cli.add_command(seed_footer_links_command)
 
     # Санитизация коннектов к PostgreSQL: если PgBouncer (Coolify)
     # отдаёт коннект в состоянии "transaction aborted", любой первый
@@ -322,6 +324,25 @@ def register_context_processors(app):
         g.all_delivery_services = []
         g.active_delivery_ids = []
         g.tariff_state = None
+        g.footer_links_by_column = {}
+
+        # Ссылки подвала: грузим один раз на запрос, группируем по колонкам.
+        # Если таблицы ещё нет (миграция не применена) — не валим рендер.
+        try:
+            from app.models.footer import FooterLink
+            from collections import defaultdict
+            grouped = defaultdict(list)
+            for link in (
+                FooterLink.query
+                .filter_by(is_active=True)
+                .order_by(FooterLink.column, FooterLink.sort_order, FooterLink.id)
+                .all()
+            ):
+                grouped[link.column].append(link)
+            g.footer_links_by_column = dict(grouped)
+        except Exception:
+            # Если таблица не создана (до первого db-init) — пусто.
+            g.footer_links_by_column = {}
 
         if not current_user.is_authenticated or not isinstance(current_user, Seller):
             return
@@ -434,6 +455,9 @@ def register_context_processors(app):
             # ключевых шаблонов. Помогает глазами увидеть в HTML, что именно
             # сейчас отдаёт сервер (и не кешируется ли у браузера).
             'build_marker': _build_marker,
+            # Ссылки в подвале: сгруппированные по колонкам. Чтобы не дёргать
+            # БД на каждом запросе, кешируем на уровне `g` в before_request выше.
+            'footer_links': getattr(g, 'footer_links_by_column', {}),
         }
 
     @app.context_processor

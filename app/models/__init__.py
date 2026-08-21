@@ -29,6 +29,9 @@ from app.models.promo import (
 from app.models.tariffs import (
     SellerTariffSubscription, TariffTransaction
 )
+from app.models.footer import (
+    FooterLink
+)
 
 # Экспорт всех моделей
 __all__ = [
@@ -56,4 +59,7 @@ __all__ = [
 
     # Тарифы магазина (покупаемые селлерами)
     'SellerTariffSubscription', 'TariffTransaction',
+
+    # Подвал
+    'FooterLink',
 ]

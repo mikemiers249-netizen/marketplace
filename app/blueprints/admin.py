@@ -3426,3 +3426,154 @@ def is_admin():
 
 # РРјРїРѕСЂС‚ Admin РґР»СЏ РїСЂРѕРІРµСЂРєРё
 from app.models.users import Admin
+
+
+# ---------------------------------------------------------------------------
+# Подвал: ссылки (FooterLink)
+# ---------------------------------------------------------------------------
+
+@bp.route('/settings/footer-links')
+def footer_links():
+    """Список ссылок подвала (CRUD), сгруппированный по колонкам."""
+    if not is_admin():
+        return redirect(url_for('admin.login'))
+    from app.models import FooterLink
+    from collections import defaultdict
+    rows = (FooterLink.query
+            .order_by(FooterLink.column, FooterLink.sort_order, FooterLink.id)
+            .all())
+    grouped = defaultdict(list)
+    for r in rows:
+        grouped[r.column].append(r)
+    columns = [
+        (FooterLink.COLUMN_INFO, 'Информация'),
+        (FooterLink.COLUMN_SUPPORT, 'Служба поддержки'),
+        (FooterLink.COLUMN_ADDITIONAL, 'Дополнительно'),
+    ]
+    return render_template(
+        'admin/footer_links.html',
+        title='Ссылки в подвале',
+        grouped=grouped,
+        columns=columns,
+    )
+
+
+@bp.route('/settings/footer-links/new', methods=['GET', 'POST'])
+def footer_link_new():
+    """Создание новой ссылки."""
+    if not is_admin():
+        return redirect(url_for('admin.login'))
+    from app.models import FooterLink
+
+    if request.method == 'POST':
+        title = (request.form.get('title') or '').strip()
+        slug = (request.form.get('slug') or '').strip() or FooterLink.normalize_slug(title)
+        column = request.form.get('column') or FooterLink.COLUMN_INFO
+        display_mode = request.form.get('display_mode') or FooterLink.DISPLAY_MODAL
+        content = request.form.get('content') or ''
+        sort_order = int(request.form.get('sort_order') or 100)
+        is_active = bool(request.form.get('is_active'))
+
+        if not title:
+            flash('Укажите заголовок ссылки.', 'error')
+        elif column not in FooterLink.COLUMNS:
+            flash(f'Неизвестная колонка: {column}', 'error')
+        elif display_mode not in FooterLink.DISPLAY_MODES:
+            flash(f'Неизвестный способ показа: {display_mode}', 'error')
+        elif FooterLink.query.filter_by(slug=slug).first():
+            flash(f'Ссылка со slug «{slug}» уже существует. Выберите другой slug.', 'error')
+        else:
+            link = FooterLink(
+                title=title,
+                slug=slug,
+                column=column,
+                display_mode=display_mode,
+                content=content,
+                sort_order=sort_order,
+                is_active=is_active,
+            )
+            db.session.add(link)
+            db.session.commit()
+            flash('Ссылка создана.', 'success')
+            return redirect(url_for('admin.footer_links'))
+
+    column_choices = [
+        (FooterLink.COLUMN_INFO, 'Информация'),
+        (FooterLink.COLUMN_SUPPORT, 'Служба поддержки'),
+        (FooterLink.COLUMN_ADDITIONAL, 'Дополнительно'),
+    ]
+    display_choices = [
+        (FooterLink.DISPLAY_MODAL, 'В модальном окне (Bootstrap modal)'),
+        (FooterLink.DISPLAY_PAGE, 'На отдельной странице (/page/<slug>)'),
+    ]
+    return render_template(
+        'admin/footer_link_form.html',
+        title='Новая ссылка',
+        link=None,
+        column_choices=column_choices,
+        display_choices=display_choices,
+    )
+
+
+@bp.route('/settings/footer-links/<int:link_id>/edit', methods=['GET', 'POST'])
+def footer_link_edit(link_id):
+    """Редактирование ссылки."""
+    if not is_admin():
+        return redirect(url_for('admin.login'))
+    from app.models import FooterLink
+    link = FooterLink.query.get_or_404(link_id)
+
+    if request.method == 'POST':
+        title = (request.form.get('title') or '').strip()
+        column = request.form.get('column') or FooterLink.COLUMN_INFO
+        display_mode = request.form.get('display_mode') or FooterLink.DISPLAY_MODAL
+        content = request.form.get('content') or ''
+        sort_order = int(request.form.get('sort_order') or 100)
+        is_active = bool(request.form.get('is_active'))
+
+        if not title:
+            flash('Укажите заголовок ссылки.', 'error')
+        elif column not in FooterLink.COLUMNS:
+            flash(f'Неизвестная колонка: {column}', 'error')
+        elif display_mode not in FooterLink.DISPLAY_MODES:
+            flash(f'Неизвестный способ показа: {display_mode}', 'error')
+        else:
+            link.title = title
+            link.column = column
+            link.display_mode = display_mode
+            link.content = content
+            link.sort_order = sort_order
+            link.is_active = is_active
+            db.session.commit()
+            flash('Ссылка обновлена.', 'success')
+            return redirect(url_for('admin.footer_links'))
+
+    column_choices = [
+        (FooterLink.COLUMN_INFO, 'Информация'),
+        (FooterLink.COLUMN_SUPPORT, 'Служба поддержки'),
+        (FooterLink.COLUMN_ADDITIONAL, 'Дополнительно'),
+    ]
+    display_choices = [
+        (FooterLink.DISPLAY_MODAL, 'В модальном окне (Bootstrap modal)'),
+        (FooterLink.DISPLAY_PAGE, 'На отдельной странице (/page/<slug>)'),
+    ]
+    return render_template(
+        'admin/footer_link_form.html',
+        title='Изменить ссылку',
+        link=link,
+        column_choices=column_choices,
+        display_choices=display_choices,
+    )
+
+
+@bp.route('/settings/footer-links/<int:link_id>/delete', methods=['POST'])
+def footer_link_delete(link_id):
+    """Удаление ссылки."""
+    if not is_admin():
+        return redirect(url_for('admin.login'))
+    from app.models import FooterLink
+    link = FooterLink.query.get_or_404(link_id)
+    db.session.delete(link)
+    db.session.commit()
+    flash('Ссылка удалена.', 'success')
+    return redirect(url_for('admin.footer_links'))

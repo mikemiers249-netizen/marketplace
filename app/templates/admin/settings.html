@@ -7,6 +7,11 @@
     <h1>Настройки магазина</h1>
 </div>
 
+<div class="settings-tabs" style="display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;">
+    <a class="btn btn-secondary" href="{{ url_for('admin.settings') }}">Основные</a>
+    <a class="btn btn-primary" href="{{ url_for('admin.footer_links') }}">Ссылки в подвале</a>
+</div>
+
 {% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
 <div class="admin-flash-messages">

@@ -11,6 +11,7 @@ from app.models.products import Category, Product, ProductPhoto, ProductParamete
 from app.models.orders import CartItem, Favorite, Order, OrderItem, Banner, Promotion
 from app.models.users import Buyer, DeliveryService, BuyerDelivery, SellerDelivery, Seller
 from app.models.communications import Message, Review
+from app.models.footer import FooterLink
 from app.utils.helpers import (
     format_price, get_breadcrumbs, PaginationHelper,
     get_cart_total, get_cart_discount_breakdown, slugify
@@ -3526,3 +3527,37 @@ def get_fallback_pvz_list():
 
 
 # API РґР»СЏ РїРѕР»СѓС‡РµРЅРёСЏ СЃРїРёСЃРєР° РџР’Р— - РёСЃРїРѕР»СЊР·СѓРµРј СЂРѕСѓС‚ РёР· api.py
+
+
+# ---------------------------------------------------------------------------
+# Страницы подвала (FooterLink)
+# ---------------------------------------------------------------------------
+
+@bp.route('/page/<slug>')
+def footer_page(slug):
+    """
+    Открывает ссылку подвала в основном окне (display_mode=page).
+    Для модальных ссылок эта страница тоже работает (как fallback),
+    но шаблон подсказывает через data-display-mode, чтобы JS мог
+    сразу открыть модалку и не показывать страницу.
+    """
+    link = FooterLink.query.filter_by(slug=slug, is_active=True).first_or_404()
+    return render_template(
+        'main/footer_page.html',
+        title=link.title,
+        link=link,
+    )
+
+
+@bp.route('/api/footer-link/<slug>')
+def footer_link_data(slug):
+    """
+    Возвращает JSON с контентом ссылки — для JS-модалки.
+    """
+    link = FooterLink.query.filter_by(slug=slug, is_active=True).first_or_404()
+    return jsonify({
+        'id': link.id,
+        'title': link.title,
+        'content': link.content,
+        'display_mode': link.display_mode,
+    })

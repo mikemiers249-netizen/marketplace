@@ -296,3 +296,84 @@ def clean_missing_photos_command(yes):
         db.session.delete(p)
     db.session.commit()
     click.echo(f"Deleted {len(missing)} dangling ProductPhoto row(s).")
+
+
+@click.command("seed-footer-links")
+@with_appcontext
+def seed_footer_links_command():
+    """
+    Создаёт дефолтные ссылки в подвале (если их ещё нет).
+    Полезно для свежей БД — после `flask db-init` подвал будет пустым,
+    эта команда наполнит его типовыми страницами.
+
+    FLASK_APP=wsgi.py flask seed-footer-links
+    """
+    from app.models import FooterLink
+
+    defaults = [
+        {
+            'title': 'О нас',
+            'slug': 'about',
+            'column': FooterLink.COLUMN_INFO,
+            'display_mode': FooterLink.DISPLAY_MODAL,
+            'sort_order': 10,
+            'content': '<p>Информация о компании.</p>',
+        },
+        {
+            'title': 'Доставка',
+            'slug': 'delivery',
+            'column': FooterLink.COLUMN_INFO,
+            'display_mode': FooterLink.DISPLAY_PAGE,
+            'sort_order': 20,
+            'content': '<h2>Доставка</h2><p>Условия доставки.</p>',
+        },
+        {
+            'title': 'Политика обработки персональных данных',
+            'slug': 'privacy',
+            'column': FooterLink.COLUMN_INFO,
+            'display_mode': FooterLink.DISPLAY_PAGE,
+            'sort_order': 30,
+            'content': '<h2>Политика обработки персональных данных</h2><p>Текст политики.</p>',
+        },
+        {
+            'title': 'Публичная оферта',
+            'slug': 'offer',
+            'column': FooterLink.COLUMN_INFO,
+            'display_mode': FooterLink.DISPLAY_PAGE,
+            'sort_order': 40,
+            'content': '<h2>Публичная оферта</h2><p>Текст оферты.</p>',
+        },
+        {
+            'title': 'Контакты',
+            'slug': 'contacts',
+            'column': FooterLink.COLUMN_SUPPORT,
+            'display_mode': FooterLink.DISPLAY_MODAL,
+            'sort_order': 10,
+            'content': '<h2>Контакты</h2><p>Свяжитесь с нами.</p>',
+        },
+        {
+            'title': 'Возврат товара',
+            'slug': 'return',
+            'column': FooterLink.COLUMN_SUPPORT,
+            'display_mode': FooterLink.DISPLAY_PAGE,
+            'sort_order': 20,
+            'content': '<h2>Возврат товара</h2><p>Условия возврата.</p>',
+        },
+        {
+            'title': 'Карта сайта',
+            'slug': 'sitemap',
+            'column': FooterLink.COLUMN_SUPPORT,
+            'display_mode': FooterLink.DISPLAY_PAGE,
+            'sort_order': 30,
+            'content': '<h2>Карта сайта</h2><p>Здесь будут разделы сайта.</p>',
+        },
+    ]
+    created = 0
+    for d in defaults:
+        exists = FooterLink.query.filter_by(slug=d['slug']).first()
+        if exists:
+            continue
+        db.session.add(FooterLink(**d))
+        created += 1
+    db.session.commit()
+    click.echo(f"Created {created} footer link(s). Total: {FooterLink.query.count()}.")

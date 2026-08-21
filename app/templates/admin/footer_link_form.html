@@ -1,0 +1,91 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ 'Редактировать' if link else 'Новая' }} ссылка в подвале - Админ-панель{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <h1>{{ 'Редактировать ссылку' if link else 'Новая ссылка в подвале' }}</h1>
+</div>
+
+<div class="settings-tabs" style="display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;">
+    <a class="btn btn-secondary" href="{{ url_for('admin.settings') }}">Основные</a>
+    <a class="btn btn-primary" href="{{ url_for('admin.footer_links') }}">← К списку</a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<form method="POST" class="settings-form">
+    <div class="settings-section">
+        <h3>Основные поля</h3>
+
+        <div class="form-group">
+            <label for="title">Заголовок ссылки (текст в подвале) *</label>
+            <input type="text" id="title" name="title" required
+                   value="{{ link.title if link else '' }}" class="form-control">
+        </div>
+
+        <div class="form-group">
+            <label for="slug">
+                Slug (часть URL вида /page/<code>&lt;slug&gt;</code>)
+                {% if link %} <small style="color:#888;">— нельзя изменить после создания (чтобы не ломать ссылки)</small>{% endif %}
+            </label>
+            <input type="text" id="slug" name="slug"
+                   {% if link %}readonly{% else %}required{% endif %}
+                   value="{{ link.slug if link else '' }}" class="form-control"
+                   pattern="[a-z0-9\-_]+" placeholder="например: about, delivery, privacy">
+            <small style="color:#888;">Только латиница, цифры, дефис и подчёркивание. Можно оставить пустым — сгенерируется из заголовка.</small>
+        </div>
+
+        <div class="form-group">
+            <label for="column">Колонка подвала *</label>
+            <select id="column" name="column" required class="form-control">
+                {% for value, label in column_choices %}
+                    <option value="{{ value }}" {% if link and link.column == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="display_mode">Способ показа *</label>
+            <select id="display_mode" name="display_mode" required class="form-control">
+                {% for value, label in display_choices %}
+                    <option value="{{ value }}" {% if link and link.display_mode == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="sort_order">Порядок (меньше = выше)</label>
+            <input type="number" id="sort_order" name="sort_order"
+                   value="{{ link.sort_order if link else 100 }}" class="form-control" min="0" max="9999">
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="is_active" value="1" {% if link is none or link.is_active %}checked{% endif %}>
+                Показывать в подвале (активна)
+            </label>
+        </div>
+    </div>
+
+    <div class="settings-section">
+        <h3>Содержимое (HTML)</h3>
+        <p style="color:#888; margin:0 0 8px 0;">Этот HTML покажется при клике на ссылку — в модалке или на отдельной странице. Будьте аккуратны: HTML не санитизируется на стороне сервера (это админская зона).</p>
+        <textarea id="content" name="content" rows="18" class="form-control" style="font-family: monospace;">{{ link.content if link else '' }}</textarea>
+        <small style="color:#888;">Можно использовать любые теги: &lt;h2&gt;, &lt;p&gt;, &lt;ul&gt;, &lt;a href="..."&gt;, &lt;img src="..."&gt; и т. д.</small>
+    </div>
+
+    <div style="margin: 18px 0;">
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <a class="btn btn-secondary" href="{{ url_for('admin.footer_links') }}">Отмена</a>
+    </div>
+</form>
+{% endblock %}

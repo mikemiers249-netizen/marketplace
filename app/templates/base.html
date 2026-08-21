@@ -140,44 +140,130 @@
                 <div class="footer-column">
                     <h4>Информация</h4>
                     <ul>
-                        {% set info_pages = main_admin_config.footer_info_pages or [] %}
-                        <li><a href="#">О нас</a></li>
-                        <li><a href="#">Доставка</a></li>
-                        <li><a href="#">Политика обработки персональных данных</a></li>
-                        <li><a href="#">Публичная оферта</a></li>
+                        {% for link in (footer_links.get('info') or []) %}
+                            <li>
+                                {% if link.display_mode == 'modal' %}
+                                    <a href="{{ url_for('main.footer_page', slug=link.slug) }}"
+                                       class="footer-link"
+                                       data-footer-modal="{{ link.slug }}"
+                                       data-display-mode="modal">
+                                        {{ link.title }}
+                                    </a>
+                                {% else %}
+                                    <a href="{{ url_for('main.footer_page', slug=link.slug) }}"
+                                       class="footer-link"
+                                       data-display-mode="page">
+                                        {{ link.title }}
+                                    </a>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
                     </ul>
                 </div>
-                
+
                 {# Служба поддержки #}
                 <div class="footer-column">
                     <h4>Служба поддержки</h4>
                     <ul>
-                        <li><a href="#">Контакты</a></li>
-                        <li><a href="#">Возврат товара</a></li>
-                        <li><a href="#">Карта сайта</a></li>
+                        {% for link in (footer_links.get('support') or []) %}
+                            <li>
+                                {% if link.display_mode == 'modal' %}
+                                    <a href="{{ url_for('main.footer_page', slug=link.slug) }}"
+                                       class="footer-link"
+                                       data-footer-modal="{{ link.slug }}"
+                                       data-display-mode="modal">
+                                        {{ link.title }}
+                                    </a>
+                                {% else %}
+                                    <a href="{{ url_for('main.footer_page', slug=link.slug) }}"
+                                       class="footer-link"
+                                       data-display-mode="page">
+                                        {{ link.title }}
+                                    </a>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
                     </ul>
                 </div>
-                
+
                 {# Дополнительно #}
                 <div class="footer-column">
                     <h4>Дополнительно</h4>
                     <ul>
-                        <li><a href="#">Игровые вселенные</a></li>
-                        <li><a href="#">Подарочные сертификаты</a></li>
-                        <li><a href="#">Партнёрская программа</a></li>
-                        <li><a href="#">Акции</a></li>
+                        {% for link in (footer_links.get('additional') or []) %}
+                            <li>
+                                {% if link.display_mode == 'modal' %}
+                                    <a href="{{ url_for('main.footer_page', slug=link.slug) }}"
+                                       class="footer-link"
+                                       data-footer-modal="{{ link.slug }}"
+                                       data-display-mode="modal">
+                                        {{ link.title }}
+                                    </a>
+                                {% else %}
+                                    <a href="{{ url_for('main.footer_page', slug=link.slug) }}"
+                                       class="footer-link"
+                                       data-display-mode="page">
+                                        {{ link.title }}
+                                    </a>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
                     </ul>
                 </div>
             </div>
-            
+
             <div class="footer-bottom">
                 <p>&copy; {{ current_year }} Маркетплейс. Все права защищены.</p>
             </div>
         </div>
     </footer>
-    
+
+    {# Модалка для показа ссылок подвала в режиме display_mode=modal #}
+    <div class="modal fade" id="footerLinkModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="footerLinkModalTitle">...</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body" id="footerLinkModalBody">Загрузка…</div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+    (function () {
+        // Подвал: ссылки с data-footer-modal открываются модалкой,
+        // иначе — переход на /page/<slug>.
+        document.addEventListener('click', function (ev) {
+            var a = ev.target.closest && ev.target.closest('a.footer-link');
+            if (!a) { return; }
+            if (a.getAttribute('data-display-mode') !== 'modal') { return; }
+            ev.preventDefault();
+            var slug = a.getAttribute('data-footer-modal');
+            if (!slug) { return; }
+            fetch('/api/footer-link/' + encodeURIComponent(slug), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                document.getElementById('footerLinkModalTitle').textContent = data.title;
+                document.getElementById('footerLinkModalBody').innerHTML = data.content;
+                var modalEl = document.getElementById('footerLinkModal');
+                if (window.bootstrap && bootstrap.Modal) {
+                    var m = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    m.show();
+                }
+            })
+            .catch(function () {
+                // Если fetch упал — fallback на полную страницу.
+                window.location.href = a.href;
+            });
+        });
+    })();
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>
