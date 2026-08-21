@@ -1,6 +1,7 @@
 # amvera.yml — конфиг Amvera Cloud (https://amvera.ru)
 #
 # Amvera сама подхватывает этот файл, если в UI выбрать источник «Из репозитория»
+# build-trigger: 2026-08-21-force-rebuild-after-utf8-fix
 # и указать ветку. Поддерживает build через Dockerfile + persistent volume.
 
 meta:
