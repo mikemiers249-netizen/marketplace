@@ -232,6 +232,47 @@ def info():
     )
 
 
+def _sanitize_html(value):
+    """
+    Базовая санитизация HTML из формы (для описания товара / магазина).
+    Удаляет опасные теги (<script>, <iframe>, <object>, <embed>, <style>, <link>)
+    и атрибуты on* (onclick, onerror и т.п.) + javascript: в href/src.
+
+    НЕ полноценный HTMLPurifier — оставляет разрешённые теги (p, ul, ol, li,
+    strong, em, b, i, h2, h3, a, br, span). Для админских/продавцовских
+    полей этого достаточно; для публичных мест с пользовательским вводом
+    стоит подключить bleach или html-sanitizer.
+    """
+    import re
+    if not value:
+        return ''
+    text = str(value)
+    # Вырезаем целиком опасные блоки: <script ...>...</script>, <iframe ...>...</iframe>,
+    # <style>...</style>, <link ...>, <object>...</object>, <embed ...>
+    text = re.sub(
+        r'<\s*(script|iframe|object|embed|style|link|meta|form)\b[^>]*>.*?<\s*/\s*\1\s*>',
+        '',
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    # Самозакрывающиеся опасные теги
+    text = re.sub(
+        r'<\s*(script|iframe|object|embed|style|link|meta|form)\b[^>]*/?>',
+        '',
+        text,
+        flags=re.IGNORECASE,
+    )
+    # Удаляем on* атрибуты (onclick, onerror, onload, ...)
+    text = re.sub(r'\s+on[a-z]+\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+on[a-z]+\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
+    # Удаляем javascript: / vbscript: / data:text/html в href/src
+    text = re.sub(r'(href|src)\s*=\s*"(?:\s*)(?:javascript|vbscript|data)\s*:[^"]*"',
+                  r'\1="#"', text, flags=re.IGNORECASE)
+    text = re.sub(r"(href|src)\s*=\s*'(?:\s*)(?:javascript|vbscript|data)\s*:[^']*'",
+                  r'\1="#"', text, flags=re.IGNORECASE)
+    return text
+
+
 def _seller_roadmap_events():
     """События roadmap, видимые продавцу (audience=all|seller)."""
     return (
@@ -1242,7 +1283,7 @@ def product_new():
         category_id = request.form.get('category_id', type=int)
         price = request.form.get('price', type=float)
         article = request.form.get('article')
-        description = request.form.get('description')
+        description = _sanitize_html(request.form.get('description'))
         stock_quantity = request.form.get('stock_quantity', 0, type=int)
         common_card = request.form.get('common_card')
         max_discount = request.form.get('max_discount', 0, type=int)
@@ -1515,7 +1556,7 @@ def product_edit(product_id):
     
     if request.method == 'POST':
         product.name = request.form.get('name')
-        product.description = request.form.get('description')
+        product.description = _sanitize_html(request.form.get('description'))
         product.price = request.form.get('price', type=float)
         product.stock_quantity = request.form.get('stock_quantity', 0, type=int)
         product.max_discount_percent = request.form.get('max_discount', 0, type=int)
@@ -4233,7 +4274,7 @@ def settings():
     if request.method == 'POST':
         # Обновление данных продавца
         seller.store_name = request.form.get('store_name')
-        seller.store_description = request.form.get('store_description')
+        seller.store_description = _sanitize_html(request.form.get('store_description'))
         seller.phone = request.form.get('phone')
 
         # Дневной лимит заказов. Пустая строка или нечисловое значение

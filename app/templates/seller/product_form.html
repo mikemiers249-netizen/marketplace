@@ -76,9 +76,24 @@
             {% endif %}
 
             <div class="form-group">
-                <label for="description">Описание</label>
-                <textarea id="description" name="description" rows="5"
-                          class="form-textarea" placeholder="Подробное описание товара">{{ product.description if product else '' }}</textarea>
+                <label for="description">Описание
+                    <small style="color:#888; font-weight:400;">
+                        — можно использовать HTML: &lt;b&gt;, &lt;i&gt;, &lt;p&gt;, &lt;ul&gt;, &lt;li&gt;,
+                        &lt;h2&gt;, &lt;h3&gt;, &lt;a href="..."&gt;, &lt;br&gt;
+                    </small>
+                </label>
+                <div class="description-toolbar" style="display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap;">
+                    <button type="button" class="btn btn-sm btn-secondary" data-wrap="strong" title="Жирный">&lt;b&gt;</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-wrap="em" title="Курсив">&lt;i&gt;</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-wrap="h2" title="Заголовок">H2</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-wrap="p" title="Параграф">¶</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-wrap="ul" title="Список">• Список</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-wrap="ol" title="Нумерованный">1. Список</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-wrap="br" title="Перенос">br</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-link="a" title="Ссылка">ссылка</button>
+                </div>
+                <textarea id="description" name="description" rows="10"
+                          class="form-textarea" placeholder="Подробное описание товара. Можно использовать HTML-разметку.">{{ product.description if product else '' }}</textarea>
             </div>
         </div>
 
@@ -1182,6 +1197,60 @@ function updateExistingCardsOptions(categoryId) {
 // Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', function() {
     updateImageCounter();
+
+    // ===== Панель форматирования описания (HTML) =====
+    var descEl = document.getElementById('description');
+    if (descEl) {
+        function wrapSelection(openTag, closeTag, sampleText) {
+            var start = descEl.selectionStart;
+            var end = descEl.selectionEnd;
+            var before = descEl.value.substring(0, start);
+            var sel = descEl.value.substring(start, end);
+            var after = descEl.value.substring(end);
+            var inner = sel || (sampleText || '');
+            descEl.value = before + openTag + inner + closeTag + after;
+            // Вернуть курсор в удобное место
+            var newPos = start + openTag.length + inner.length;
+            descEl.focus();
+            descEl.setSelectionRange(newPos, newPos);
+        }
+        function insertAtCursor(snippet) {
+            var start = descEl.selectionStart || 0;
+            var end = descEl.selectionEnd || 0;
+            descEl.value = descEl.value.substring(0, start) + snippet + descEl.value.substring(end);
+            var newPos = start + snippet.length;
+            descEl.focus();
+            descEl.setSelectionRange(newPos, newPos);
+        }
+        // Кнопки-обёртки
+        document.querySelectorAll('.description-toolbar [data-wrap]').forEach(function (btn) {
+            btn.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                var tag = btn.getAttribute('data-wrap');
+                if (tag === 'br') {
+                    insertAtCursor('<br>');
+                } else if (tag === 'p') {
+                    wrapSelection('<p>', '</p>', 'параграф');
+                } else if (tag === 'ul') {
+                    insertAtCursor('\n<ul>\n  <li>пункт 1</li>\n  <li>пункт 2</li>\n</ul>\n');
+                } else if (tag === 'ol') {
+                    insertAtCursor('\n<ol>\n  <li>пункт 1</li>\n  <li>пункт 2</li>\n</ol>\n');
+                } else {
+                    wrapSelection('<' + tag + '>', '</' + tag + '>', 'текст');
+                }
+            });
+        });
+        // Кнопка «ссылка»
+        var linkBtn = document.querySelector('.description-toolbar [data-link]');
+        if (linkBtn) {
+            linkBtn.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                var url = window.prompt('Введите URL ссылки:', 'https://');
+                if (!url) { return; }
+                wrapSelection('<a href="' + url + '" target="_blank" rel="noopener">', '</a>', 'текст ссылки');
+            });
+        }
+    }
 });
 </script>
 {% endblock %}
