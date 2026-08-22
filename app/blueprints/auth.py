@@ -212,12 +212,16 @@ def signup():
         if len(password) < 8:
             flash('Пароль должен содержать минимум 8 символов.', 'error')
             return render_template('auth/signup.html')
-        
+
+        if not (phone or '').strip():
+            flash('Укажите номер телефона.', 'error')
+            return render_template('auth/signup.html')
+
         # Проверка уникальности
         if Buyer.query.filter_by(login=login).first():
             flash('Этот логин уже занят.', 'error')
             return render_template('auth/signup.html')
-        
+
         if Buyer.query.filter_by(email=email).first():
             flash('Этот email уже зарегистрирован.', 'error')
             return render_template('auth/signup.html')
