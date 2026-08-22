@@ -124,18 +124,8 @@
                             </a>
                         {% endfor %}
                     </div>
-                    
-                    <h4>Мы на маркетплейсах:</h4>
-                    <div class="marketplace-links">
-                        {% set marketplace_links = main_admin_config.marketplace_links or [] %}
-                        {% for link in marketplace_links %}
-                            <a href="{{ link.url }}" target="_blank" class="marketplace-link">
-                                {{ link.name }}
-                            </a>
-                        {% endfor %}
-                    </div>
                 </div>
-                
+
                 {# Информация #}
                 <div class="footer-column">
                     <h4>Информация</h4>
