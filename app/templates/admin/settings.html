@@ -53,6 +53,32 @@
         </div>
         
         <div class="settings-section">
+            <h3>Социальные сети (до 4 ссылок)</h3>
+            <p style="color:#888; margin:0 0 12px 0;">
+                Эти ссылки отображаются в подвале в блоке «Наши соцсети:». Если заполнить только первую строку — она отцентрируется.
+            </p>
+            <div class="social-links-form">
+                {% set existing_socials = (settings.social_links if settings.social_links is defined and settings.social_links else []) %}
+                {% if settings.social_links is mapping %}
+                    {% set existing_socials = settings.social_links %}
+                {% endif %}
+                {% for i in range(4) %}
+                    {% set sl = (existing_socials[i] if existing_socials and existing_socials|length > i else {}) %}
+                    <div class="form-group" style="display:grid; grid-template-columns:1fr 2fr; gap:8px; align-items:center;">
+                        <label for="social_name_{{ i }}">Название #{{ i + 1 }}</label>
+                        <input type="text" id="social_name_{{ i }}" name="social_name_{{ i }}"
+                               value="{{ sl.name if sl and sl.name else '' }}" class="form-control"
+                               placeholder="Например: Telegram, VK, YouTube">
+                        <label for="social_url_{{ i }}">URL #{{ i + 1 }}</label>
+                        <input type="url" id="social_url_{{ i }}" name="social_url_{{ i }}"
+                               value="{{ sl.url if sl and sl.url else '' }}" class="form-control"
+                               placeholder="https://...">
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="settings-section">
             <h3>Настройки заказов</h3>
             
             <div class="form-group">

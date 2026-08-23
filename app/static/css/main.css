@@ -604,6 +604,14 @@ ul, ol {
     font-weight: 600;
 }
 
+/* Соцсети в подвале: одна ссылка должна быть отцентрирована, много — равномерно. */
+.footer-column.social-column {
+    text-align: center;
+}
+.footer-column.social-column h4 {
+    text-align: center;
+}
+
 .footer-column ul {
     display: flex;
     flex-direction: column;
@@ -622,6 +630,8 @@ ul, ol {
 .social-links,
 .marketplace-links {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 10px;
     margin-bottom: 20px;
 }

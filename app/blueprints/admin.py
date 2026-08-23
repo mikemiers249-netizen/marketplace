@@ -2807,6 +2807,7 @@ def settings():
         'bonus_expiration_days': Settings.get('bonus_expiration_days', 365),
         'meta_title': Settings.get('meta_title', ''),
         'meta_description': Settings.get('meta_description', ''),
+        'social_links': Settings.get('social_links', []),
     }
     
     # Создаём объект для совместимости с шаблоном
