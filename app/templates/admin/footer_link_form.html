@@ -23,6 +23,7 @@
 {% endwith %}
 
 <form method="POST" class="settings-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="settings-section">
         <h3>Основные поля</h3>
 
