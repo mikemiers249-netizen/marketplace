@@ -24,6 +24,7 @@
 
 <div class="settings-container">
     <form method="POST" action="{{ url_for('admin.settings') }}" class="settings-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="settings-section">
             <h3>Основные настройки</h3>
             
