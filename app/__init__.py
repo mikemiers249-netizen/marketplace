@@ -96,6 +96,7 @@ def create_app(config_class=None):
         clean_test_subs_command, clear_seller_subs_command,
         clean_missing_photos_command,
         seed_footer_links_command,
+        ensure_system_sku_command,
     )
     app.cli.add_command(reset_public_schema_command)
     app.cli.add_command(db_init_command)
@@ -105,6 +106,7 @@ def create_app(config_class=None):
     app.cli.add_command(clear_seller_subs_command)
     app.cli.add_command(clean_missing_photos_command)
     app.cli.add_command(seed_footer_links_command)
+    app.cli.add_command(ensure_system_sku_command)
 
     # Санитизация коннектов к PostgreSQL: если PgBouncer (Coolify)
     # отдаёт коннект в состоянии "transaction aborted", любой первый
