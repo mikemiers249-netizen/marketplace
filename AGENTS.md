@@ -145,6 +145,10 @@ PORT=3000
 - **«Can't load plugin: sqlalchemy.dialects:postgres»** — забыл `+psycopg2` в URI.
 - **«NoSuchModuleError: Can't load plugin: sqlalchemy.dialects:postgres»** — см. выше.
 - **400 Bad Request на /main_admin/settings** (или другой POST в админке) — отсутствует `{{ csrf_token() }}`.
+- **«Multiple head revisions are present for given argument 'head'»** при `flask db stamp heads` / `db upgrade head` — в `migrations/versions/` несколько параллельных веток без merge-ревизии. Узнать количество head'ов: `python -c "from alembic.script import ScriptDirectory; from alembic.config import Config; cfg=Config('migrations/alembic.ini'); cfg.set_main_option('script_location','migrations'); print(ScriptDirectory.from_config(cfg).get_heads())"`. Решение: создать merge-миграцию (с `down_revision = (rev1, rev2)` и пустым `upgrade()`), в `Dockerfile` ставить/накатывать **конкретный merge-head** (`db stamp <rev>`), а не `heads`.
+- **`UndefinedColumn: column products.<col> does not exist`** при SELECT после того, как в модель добавили колонку, а `Dockerfile` использует `db stamp heads` — `db.create_all()` (db-init) не делает ALTER TABLE на существующих таблицах. `db stamp heads` только записывает ревизию как применённую, **не** выполняя миграцию. Решение: после merge-ревизии (см. выше) использовать `db stamp <specific-rev>` + `db upgrade <specific-rev>` в Dockerfile — идемпотентно применит новые миграции.
+- **`DuplicateColumn: column "<X>" of relation "<Y>" already exists`** при `db upgrade head` — все миграции ранее были отражены через `db.create_all()`, и `upgrade` пытается применить их заново. Решение: сначала `db stamp <текущий_исторический_head>` (например, `d2e3f4a5b6c7` — footer_links, или merge-head если их несколько), затем `db upgrade <merge_head>` — Alembic накатит только дельту.
+- **Контейнер упал в цикле рестартов, Amvera возвращает 503 больше 5 минут** — обычно значит, что скрипт в `CMD` упал до `gunicorn`, и Amvera по таймауту пытается переподнять. Зайди в Amvera UI → «Обзор» → «Развернуть принудительно» (или удалить/пересоздать приложение). Иногда кеш образа не обновляется, тогда push + force-rebuild.
 
 ## Редеплой на Amvera
 
