@@ -27,6 +27,11 @@
                 Отклонённые
             </a>
         </div>
+        <div class="products-actions">
+            <a href="{{ url_for('seller.product_new') }}" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Добавить товар
+            </a>
+        </div>
     </div>
 
     {# Products list #}
@@ -104,6 +109,12 @@
                                 <i class="bi bi-arrow-up-circle"></i>
                             </button>
                             {% endif %}
+                        </form>
+                        <form method="POST" action="{{ url_for('seller.product_copy', product_id=product.id) }}" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn-action btn-copy" title="Создать копию (отправится на модерацию)">
+                                <i class="bi bi-copy"></i>
+                            </button>
                         </form>
                         <form method="POST" action="{{ url_for('seller.product_delete', product_id=product.id) }}" style="display: inline;" onsubmit="return confirm('Удалить товар?')">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>

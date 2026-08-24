@@ -769,6 +769,21 @@
 
 .products-filters {
     margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.products-actions {
+    margin-left: auto;
+}
+
+.products-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .filter-tabs {
@@ -937,6 +952,11 @@
 .btn-activate:hover {
     background: #dcfce7;
     color: #16a34a;
+}
+
+.btn-copy:hover {
+    background: #dbeafe;
+    color: #2563eb;
 }
 
 /* Empty icon in state */

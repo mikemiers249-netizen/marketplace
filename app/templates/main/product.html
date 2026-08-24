@@ -77,7 +77,14 @@
         {# Информация о товаре #}
         <div class="product-info-detail">
             <h1 class="product-title">{{ product.name }}</h1>
-            
+
+            {# Системный артикул — мелким серым под названием #}
+            {% if product.system_sku %}
+            <div class="product-system-sku" style="font-size:12px; color:#9ca3af; margin-top:-4px; margin-bottom:6px; font-family:monospace;">
+                {{ product.system_sku }}
+            </div>
+            {% endif %}
+
             {# Артикул #}
             {% if product.article %}
             <div class="product-article">
