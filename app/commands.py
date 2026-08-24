@@ -82,6 +82,31 @@ def reset_public_schema_command(yes):
     click.echo("Schema public recreated. Now run: flask db-init && flask db stamp heads")
 
 
+@click.command("ensure-system-sku")
+@with_appcontext
+def ensure_system_sku_command():
+    """
+    Идемпотентно добавляет колонку products.system_sku и уникальный индекс.
+    Безопасно вызывать на каждом деплое: ADD COLUMN IF NOT EXISTS и
+    CREATE UNIQUE INDEX IF NOT EXISTS — no-op, если уже есть.
+
+    Нужно потому, что Alembic + исторический 'db stamp heads' создали
+    ситуацию, когда alembic_version говорит «применено», а колонки
+    в БД нет. Эта команда — fallback, чтобы привести схему в порядок
+    до старта gunicorn.
+    """
+    from sqlalchemy import text
+    click.echo("Ensuring products.system_sku column...")
+    db.session.execute(text(
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS system_sku VARCHAR(64)"
+    ))
+    db.session.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_products_system_sku ON products(system_sku)"
+    ))
+    db.session.commit()
+    click.echo("Done.")
+
+
 @click.command("grant-test-tariff")
 @click.argument("seller_id", type=int)
 @click.option("--days", default=30, help="Срок подписки в днях")
