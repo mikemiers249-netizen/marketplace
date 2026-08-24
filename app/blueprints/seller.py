@@ -1929,9 +1929,12 @@ def product_copy(product_id):
 
     # 1. Создаём новый товар (без привязки к product_card — карточки не копируем,
     # продавец при желании подключит заново).
+    # Slug генерируем ЗДЕСЬ (с postfix -copy) и пересохраняем после flush
+    # с финальным ID — потому что slug NOT NULL + UNIQUE, и при INSERT
+    # с slug=None получим IntegrityError.
     new_product = Product(
         name=f"{src.name} (копия)",
-        slug=None,  # пересоберём после flush
+        slug=f"{slugify(src.name)}-copy",  # placeholder, обновится после flush
         description=src.description,
         price=src.price,
         max_discount_percent=src.max_discount_percent,
