@@ -66,13 +66,6 @@
                 {{ product.name }}
             </a>
 
-            {# Системный артикул — мелким серым под названием #}
-            {% if product.system_sku %}
-            <div class="product-system-sku" style="font-size:11px; color:#9ca3af; margin-top:2px; font-family:monospace;">
-                {{ product.system_sku }}
-            </div>
-            {% endif %}
-
             {# Цена #}
             <div class="product-price">
                 <div class="current-price">{{ format_price(promo.final_price if promo.final_price is not none else product.price) }}</div>

@@ -1327,15 +1327,9 @@ def product_new():
         
         db.session.add(product)
         db.session.flush()  # Получаем ID
-
+        
         # Генерация slug с ID
         product.slug = f"{slugify(name)}-{product.id}"
-
-        # Системный артикул — генерируется автоматически (WML-{seller_id}-{ts}).
-        # Присваивается только если продавец не указал свой явно и не
-        # воспользовался кнопкой «Использовать системный артикул».
-        if not product.system_sku:
-            product.system_sku = Product.generate_system_sku(current_user.id)
         
         # Pillow опционален: если установлен — масштабируем и оптимизируем,
         # если нет — сохраняем как есть. Импорт НЕ должен валить POST
@@ -1567,22 +1561,6 @@ def product_edit(product_id):
         product.stock_quantity = request.form.get('stock_quantity', 0, type=int)
         product.max_discount_percent = request.form.get('max_discount', 0, type=int)
         product.common_card = request.form.get('common_card') or None
-
-        # Артикул — редактируемый. Уникальность проверяем только если меняется.
-        new_article = request.form.get('article')
-        if new_article and new_article != product.article:
-            if Product.query.filter(Product.id != product.id,
-                                    Product.article == new_article).first():
-                flash('Артикул уже используется другим товаром.', 'error')
-                return render_template('seller/product_form.html',
-                                     title='Редактирование товара',
-                                     categories=categories,
-                                     common_cards=common_cards,
-                                     category_params=category_params,
-                                     product=product,
-                                     product_params=product_params,
-                                     moderation_remarks=moderation_remarks)
-            product.article = new_article
         
         # Изменение категории требует модерации
         new_category_id = request.form.get('category_id', type=int)
@@ -1889,113 +1867,9 @@ def product_delete(product_id):
     
     db.session.delete(product)
     db.session.commit()
-
+    
     flash('Товар удалён.', 'success')
     return redirect(url_for('seller.products'))
-
-
-@bp.route('/products/<int:product_id>/copy', methods=['POST'])
-@require_active_tariff
-def product_copy(product_id):
-    """
-    Создание копии товара.
-    Копируются: name (с суффиксом «(копия)»), описание, цена, остаток,
-    скидки, общая карточка, параметры (ProductParameter), фото (с копированием
-    файлов на диск). Артикул и системный артикул — новые. Статус —
-    on_moderation (копия проходит модерацию как новый товар).
-
-    URL: seller.domain/products/{id}/copy
-    """
-    if not current_user.is_authenticated or not isinstance(current_user, Seller):
-        return redirect(url_for('auth_seller.seller_login'))
-
-    src = db.session.get(Product, product_id)
-    if not src or src.seller_id != current_user.id:
-        abort(404)
-
-    import os
-    import shutil
-    import time as _time
-    from werkzeug.utils import secure_filename
-    from flask import current_app
-    from app.models.products import ProductParameter, ProductPhoto
-
-    # Уникализируем имя файла для копий фото, чтобы не было коллизий.
-    def _new_photo_path(old_path: str) -> str:
-        name, ext = os.path.splitext(old_path)
-        ext = (ext or '.jpg').lower()
-        stamp = int(_time.time() * 1000)
-        return f"copy_{src.id}_{stamp}_{secure_filename(name)}{ext}"
-
-    # 1. Создаём новый товар (без привязки к product_card — карточки не копируем,
-    # продавец при желании подключит заново).
-    new_product = Product(
-        name=f"{src.name} (копия)",
-        slug=None,  # пересоберём после flush
-        description=src.description,
-        price=src.price,
-        max_discount_percent=src.max_discount_percent,
-        current_discount=0,  # скидка не наследуется — это «новый» товар
-        # article должен быть уникальным; добавим суффикс копии.
-        article=f"{src.article}-copy-{int(_time.time())}"[:50],
-        system_sku=Product.generate_system_sku(current_user.id),
-        stock_quantity=src.stock_quantity,
-        low_stock_threshold=src.low_stock_threshold,
-        weight=src.weight,
-        volume=src.volume,
-        common_card=src.common_card,
-        product_card_id=None,  # карточки не копируем
-        seller_id=current_user.id,
-        category_id=src.category_id,
-        status='on_moderation',  # копия проходит модерацию
-        moderated_at=None,
-        published_at=None,
-        views_count=0,
-        cart_adds_count=0,
-    )
-
-    db.session.add(new_product)
-    db.session.flush()  # получаем id
-
-    new_product.slug = f"{slugify(new_product.name)}-{new_product.id}"
-
-    # 2. Копируем фото: и запись в БД, и сам файл на диске.
-    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'products')
-    os.makedirs(upload_dir, exist_ok=True)
-
-    for photo in src.photos.all():
-        new_filename = _new_photo_path(photo.path)
-        src_path = os.path.join(upload_dir, photo.path)
-        dst_path = os.path.join(upload_dir, new_filename)
-        try:
-            if os.path.exists(src_path):
-                shutil.copy2(src_path, dst_path)
-        except Exception:
-            # Если файл не скопировался — всё равно создаём запись,
-            # но без битой ссылки: проверим ниже и пропустим, если пусто.
-            pass
-
-        if os.path.exists(dst_path) and os.path.getsize(dst_path) > 0:
-            db.session.add(ProductPhoto(
-                product_id=new_product.id,
-                path=new_filename,
-                is_main=photo.is_main,
-                sort_order=photo.sort_order,
-            ))
-
-    # 3. Копируем параметры товара.
-    for param in src.parameters.all():
-        db.session.add(ProductParameter(
-            product_id=new_product.id,
-            parameter_id=param.parameter_id,
-            value=param.value,
-            display_value=param.display_value,
-        ))
-
-    db.session.commit()
-
-    flash('Копия товара создана и отправлена на модерацию.', 'success')
-    return redirect(url_for('seller.product_edit', product_id=new_product.id))
 
 
 @bp.route('/orders')

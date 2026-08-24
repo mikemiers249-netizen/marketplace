@@ -209,23 +209,6 @@ class Product(db.Model):
     
     # Артикул
     article = db.Column(db.String(50), unique=True, nullable=False, index=True)
-
-    # Внутренний системный артикул (WML-{seller_id}-{timestamp}).
-    # Генерируется автоматически при создании товара и не редактируется
-    # пользователем — гарантирует уникальность и прослеживаемость
-    # внутри системы независимо от того, что продавец вбил в `article`.
-    system_sku = db.Column(db.String(64), unique=True, nullable=True, index=True)
-
-    @staticmethod
-    def generate_system_sku(seller_id):
-        """
-        Генерирует системный артикул в формате WML-{seller_id}-{timestamp}.
-        timestamp — миллисекунды с epoch, чтобы исключить коллизии
-        даже при двух товарах за одну секунду.
-        """
-        import time
-        ts = int(time.time() * 1000)
-        return f"WML-{seller_id}-{ts}"
     
     # Остатки
     stock_quantity = db.Column(db.Integer, default=0)
