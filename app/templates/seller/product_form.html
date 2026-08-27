@@ -226,7 +226,7 @@
                         {% endif %}
                     </div>
                     <input type="file" id="main_image" name="main_image" accept="image/*" class="image-file-input" onchange="previewMainImage(this)">
-                    <span class="form-help">Рекомендуемый размер: 800x800px</span>
+                    <span class="form-help">Рекомендуемый размер: 800x800px. Большие фото автоматически сжимаются до 2000px по длинной стороне.</span>
                 </div>
             </div>
 
@@ -996,49 +996,192 @@ function updateImageCounter() {
     }
 }
 
+// =====================================================================
+// Клиентское сжатие фото перед отправкой
+// =====================================================================
+//
+// Почему: edge Amvera режет большое тело POST и отдаёт
+// {"error":"payload too large"} — Flask даже не успевает обработать.
+// Сжимаем на клиенте: ресайз до 2000px по длинной стороне, JPEG q=0.85.
+// - Файлы ≤ 1.5 МБ не трогаем (сжатие только портит качество).
+// - PNG с прозрачностью > 2 МБ оставляем как PNG, иначе убьём альфу.
+// - GIF > 2 МБ → статичный JPEG (анимация всё равно редко нужна).
+//
+// Возвращает Promise<File> с тем же именем, что и исходный файл, но
+// с уменьшенным размером.
+function compressImageFile(file) {
+    return new Promise(function(resolve, reject) {
+        // 1.5 МБ — порог "файл и так небольшой, сжатие не нужно"
+        var SKIP_THRESHOLD = 1.5 * 1024 * 1024;
+        // 2 МБ — порог, после которого начинаем сжатие для PNG/GIF
+        var COMPRESS_THRESHOLD = 2 * 1024 * 1024;
+        // 2000px по длинной стороне — больше нет смысла для карточки товара
+        var MAX_DIMENSION = 2000;
+        // JPEG quality
+        var QUALITY = 0.85;
+
+        if (!file || !file.type || !file.type.startsWith('image/')) {
+            // Не изображение — отдаём как есть, дальше сервер разберётся
+            resolve(file);
+            return;
+        }
+
+        // Маленький файл — не трогаем
+        if (file.size <= SKIP_THRESHOLD) {
+            resolve(file);
+            return;
+        }
+
+        // PNG с прозрачностью — не сжимаем, чтобы не убить альфу
+        if (file.type === 'image/png' && file.size <= COMPRESS_THRESHOLD) {
+            resolve(file);
+            return;
+        }
+
+        // GIF: анимированные не сжимаем, статичные до 2 МБ оставляем
+        if (file.type === 'image/gif' && file.size <= COMPRESS_THRESHOLD) {
+            resolve(file);
+            return;
+        }
+
+        var img = new Image();
+        var objectUrl = URL.createObjectURL(file);
+
+        img.onload = function() {
+            try {
+                var width = img.naturalWidth;
+                var height = img.naturalHeight;
+                if (!width || !height) {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve(file);
+                    return;
+                }
+
+                // Считаем новые размеры
+                var scale = Math.min(1, MAX_DIMENSION / Math.max(width, height));
+                var newW = Math.round(width * scale);
+                var newH = Math.round(height * scale);
+
+                var canvas = document.createElement('canvas');
+                canvas.width = newW;
+                canvas.height = newH;
+                var ctx = canvas.getContext('2d');
+                // Белый фон под JPEG (иначе прозрачные области станут чёрными)
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, newW, newH);
+                ctx.drawImage(img, 0, 0, newW, newH);
+
+                // Имя файла с .jpg
+                var dotIdx = file.name.lastIndexOf('.');
+                var baseName = dotIdx > 0 ? file.name.substring(0, dotIdx) : file.name;
+                var newName = baseName + '.jpg';
+
+                canvas.toBlob(function(blob) {
+                    URL.revokeObjectURL(objectUrl);
+                    if (!blob) {
+                        // Не получилось — отдаём оригинал
+                        resolve(file);
+                        return;
+                    }
+                    // Если новый размер больше оригинала (бывает при маленьких
+                    // исходниках) — отдаём оригинал.
+                    if (blob.size >= file.size) {
+                        resolve(file);
+                        return;
+                    }
+                    var compressed = new File([blob], newName, {
+                        type: 'image/jpeg',
+                        lastModified: Date.now(),
+                    });
+                    resolve(compressed);
+                }, 'image/jpeg', QUALITY);
+            } catch (err) {
+                URL.revokeObjectURL(objectUrl);
+                // Любая ошибка — отдаём оригинал, пусть бэкенд решает
+                resolve(file);
+            }
+        };
+
+        img.onerror = function() {
+            URL.revokeObjectURL(objectUrl);
+            resolve(file);
+        };
+
+        img.src = objectUrl;
+    });
+}
+
+// Заменяет файл(ы) в <input type="file"> на сжатую версию.
+// Использует DataTransfer — единственный кроссбраузерный способ
+// программно подменить FileList у input.
+function replaceInputFiles(input, newFiles) {
+    try {
+        var dt = new DataTransfer();
+        newFiles.forEach(function(f) { dt.items.add(f); });
+        input.files = dt.files;
+        return true;
+    } catch (e) {
+        // Старый браузер без DataTransfer — не критично, файл просто
+        // уйдёт несжатым. Логируем для отладки.
+        console.warn('Не удалось подменить файлы в input:', e);
+        return false;
+    }
+}
+
 // Предпросмотр основного изображения
 function previewMainImage(input) {
     const wrapper = document.getElementById('main-image-wrapper');
     const container = wrapper.querySelector('.image-preview-container');
-    
+
     if (input.files && input.files[0]) {
         const file = input.files[0];
-        
+
         // Проверка что это изображение
-        if (!file.type.startsWith('image/')) {
+        if (!file.type || !file.type.startsWith('image/')) {
             alert('Пожалуйста, выберите изображение');
             input.value = '';
             return;
         }
-        
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            // Удаляем старый preview
-            container.innerHTML = '';
-            
-            // Создаем новый preview
-            const previewDiv = document.createElement('div');
-            previewDiv.className = 'image-preview has-image';
-            
-            const img = document.createElement('img');
-            img.src = e.target.result;
-            img.alt = 'Основное изображение';
-            
-            const removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.className = 'remove-image-btn';
-            removeBtn.textContent = '×';
-            removeBtn.onclick = function() {
-                removeMainImage();
+
+        compressImageFile(file).then(function(processedFile) {
+            // Если сжали — подменяем файл в input, чтобы на бэк ушёл
+            // уже уменьшенный вариант.
+            if (processedFile !== file) {
+                replaceInputFiles(input, [processedFile]);
+                console.log('[image] main сжат:',
+                    (file.size / 1024 / 1024).toFixed(2), 'МБ →',
+                    (processedFile.size / 1024 / 1024).toFixed(2), 'МБ');
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                // Удаляем старый preview
+                container.innerHTML = '';
+
+                // Создаем новый preview
+                const previewDiv = document.createElement('div');
+                previewDiv.className = 'image-preview has-image';
+
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.alt = 'Основное изображение';
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-image-btn';
+                removeBtn.textContent = '×';
+                removeBtn.onclick = function() {
+                    removeMainImage();
+                };
+
+                previewDiv.appendChild(img);
+                previewDiv.appendChild(removeBtn);
+                container.appendChild(previewDiv);
+
+                updateImageCounter();
             };
-            
-            previewDiv.appendChild(img);
-            previewDiv.appendChild(removeBtn);
-            container.appendChild(previewDiv);
-            
-            updateImageCounter();
-        };
-        reader.readAsDataURL(file);
+            reader.readAsDataURL(processedFile);
+        });
     }
 }
 
@@ -1090,36 +1233,45 @@ function addImageField() {
 function previewGalleryImage(itemId, input) {
     const item = document.getElementById(itemId);
     const container = item.querySelector('.image-preview-container');
-    
+
     if (input.files && input.files[0]) {
         const file = input.files[0];
-        
+
         // Проверка что это изображение
-        if (!file.type.startsWith('image/')) {
+        if (!file.type || !file.type.startsWith('image/')) {
             alert('Пожалуйста, выберите изображение');
             input.value = '';
             return;
         }
-        
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            // Удаляем старый preview
-            container.innerHTML = '';
-            
-            // Создаем новый preview
-            const previewDiv = document.createElement('div');
-            previewDiv.className = 'image-preview has-image';
-            
-            const img = document.createElement('img');
-            img.src = e.target.result;
-            img.alt = 'Дополнительное изображение';
-            
-            previewDiv.appendChild(img);
-            container.appendChild(previewDiv);
-            
-            updateImageCounter();
-        };
-        reader.readAsDataURL(file);
+
+        compressImageFile(file).then(function(processedFile) {
+            if (processedFile !== file) {
+                replaceInputFiles(input, [processedFile]);
+                console.log('[image] gallery сжат:',
+                    (file.size / 1024 / 1024).toFixed(2), 'МБ →',
+                    (processedFile.size / 1024 / 1024).toFixed(2), 'МБ');
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                // Удаляем старый preview
+                container.innerHTML = '';
+
+                // Создаем новый preview
+                const previewDiv = document.createElement('div');
+                previewDiv.className = 'image-preview has-image';
+
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.alt = 'Дополнительное изображение';
+
+                previewDiv.appendChild(img);
+                container.appendChild(previewDiv);
+
+                updateImageCounter();
+            };
+            reader.readAsDataURL(processedFile);
+        });
     }
 }
 
