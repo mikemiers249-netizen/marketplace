@@ -431,27 +431,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Переключение вкладок
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabPanels = document.querySelectorAll('.tab-panel');
-    
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const tabId = this.dataset.tab;
-            
-            tabBtns.forEach(b => b.classList.remove('active'));
-            tabPanels.forEach(p => p.classList.remove('active'));
-            
-            this.classList.add('active');
-            document.getElementById(tabId).classList.add('active');
-        });
-    });
-    
-    // Якорь на отзывы
-    if (window.location.hash === '#reviews') {
-        document.querySelector('[data-tab="reviews"]').click();
-    }
-    
+    // Переключение вкладок и якорь #reviews теперь инициализируются
+    // в app/static/js/main.js (initProductTabs) — здесь оставлено
+    // только специфичное для страницы товара.
+
     // Мини-галерея карточки товара
     const cardGallery = document.getElementById('card-gallery');
     const prevBtn = document.getElementById('card-gallery-prev');

@@ -11,13 +11,15 @@ function getCsrfToken() {
 document.addEventListener('DOMContentLoaded', function() {
     // Инициализация flash сообщений
     initFlashMessages();
-    
+
     // Инициализация форм
     initForms();
-    
+
     // Инициализация кнопок избранного
     initFavoriteButtons();
-    
+
+    // Инициализация табов на странице товара (.tab-btn / .tab-panel)
+    initProductTabs();
     // Инициализация кнопок корзины
     initCartButtons();
     
@@ -416,6 +418,51 @@ function updateCartCount(count) {
     if (cartCount) {
         cartCount.textContent = count;
         cartCount.style.display = count > 0 ? 'block' : 'none';
+    }
+}
+
+
+/**
+ * Переключение вкладок на странице товара.
+ * Кнопки имеют class="tab-btn" и data-tab="<panelId>",
+ * панели — class="tab-panel" и id="<panelId>".
+ * Активная кнопка/панель помечается классом "active".
+ *
+ * Раньше логика жила в inline-скрипте product.html — если в нём
+ * выше по тексту ломалась JS-парсинг (например, в HTML попадал
+ * "сырой" <, >, & в описании/параметрах), весь скрипт падал
+ * и табы переставали переключаться. Поэтому вынесли сюда,
+ * в заведомо валидный main.js.
+ */
+function initProductTabs() {
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+
+    if (!tabBtns.length || !tabPanels.length) {
+        return; // На других страницах табов нет — тихо выходим
+    }
+
+    function activateTab(tabId) {
+        tabBtns.forEach(function (b) {
+            b.classList.toggle('active', b.dataset.tab === tabId);
+        });
+        tabPanels.forEach(function (p) {
+            p.classList.toggle('active', p.id === tabId);
+        });
+    }
+
+    tabBtns.forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            const tabId = this.dataset.tab;
+            if (!tabId) return;
+            activateTab(tabId);
+        });
+    });
+
+    // Если страница открыта с #reviews — сразу переключаемся
+    if (window.location.hash === '#reviews') {
+        activateTab('reviews');
     }
 }
 
