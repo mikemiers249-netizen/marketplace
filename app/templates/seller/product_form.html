@@ -39,7 +39,7 @@
                         <select id="category_level_0" class="form-select category-select" data-level="0">
                             <option value="">Выберите категорию</option>
                             {% for category in categories if category.parent_id == None %}
-                            <option value="{{ category.id }}" 
+                            <option value="{{ category.id }}"
                                     {% if product and product.category_id == category.id %}selected{% endif %}>
                                 {{ category.name }}
                             </option>
@@ -47,6 +47,12 @@
                         </select>
                     </div>
                     <input type="hidden" id="category_id" name="category_id" value="{{ product.category_id if product else '' }}" required>
+                    {% if product and product.category_id and not product.category %}
+                    <span class="form-help" style="color:#c0392b;">
+                        ⚠ Категория товара (id={{ product.category_id }}) не найдена среди активных.
+                        Выберите категорию заново — иначе при сохранении будет подставлена пустая.
+                    </span>
+                    {% endif %}
                 </div>
 
                 <div class="form-group">
@@ -725,13 +731,32 @@ const currentProductCardId = {{ product.product_card_id if product and product.p
 // Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', function() {
     if (currentCategoryId) {
-        // Находим выбранную категорию и строим путь
-        buildCategoryPath(currentCategoryId, function() {
-            // После построения пути загружаем параметры
-            loadParametersForCategory(currentCategoryId);
-            // Обновляем опции карточек для выбранной категории
-            updateCardOptions(currentCategoryId);
-        });
+        // Проверяем, что категория вообще есть в allCategories.
+        // Если её там нет (например, неактивна / удалена) — category_id
+        // для текущего товара останется в hidden input, но в select
+        // ничего не выставится. Подсвечиваем, чтобы продавец заметил
+        // и выбрал заново.
+        const existsInTree = allCategories.some(c => c.id === currentCategoryId);
+        if (!existsInTree) {
+            const firstSel = document.getElementById('category_level_0');
+            if (firstSel) {
+                firstSel.style.borderColor = '#c0392b';
+            }
+            const hidden = document.getElementById('category_id');
+            if (hidden) {
+                hidden.value = '';
+            }
+            console.warn('[product-form] Категория id=' + currentCategoryId +
+                        ' не найдена среди активных. Продавцу нужно выбрать заново.');
+        } else {
+            // Находим выбранную категорию и строим путь
+            buildCategoryPath(currentCategoryId, function() {
+                // После построения пути загружаем параметры
+                loadParametersForCategory(currentCategoryId);
+                // Обновляем опции карточек для выбранной категории
+                updateCardOptions(currentCategoryId);
+            });
+        }
     }
     
     // Инициализация отображения секций карточки
