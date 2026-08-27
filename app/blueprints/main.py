@@ -6,6 +6,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from sqlalchemy import or_, and_, func, case
 from datetime import datetime
+import json
 from app import db, cache
 from app.models.products import Category, Product, ProductPhoto, ProductParameter, ProductEvent
 from app.models.orders import CartItem, Favorite, Order, OrderItem, Banner, Promotion
@@ -147,7 +148,33 @@ def _get_parameter_values(category, parameter_id):
             values.extend(val)
         else:
             values.append(val)
-    
+
+    # Декодируем JSON-обёртку.
+    # В БД `value` — JSON-колонка; для строк psycopg2 хранит их как JSON-строку
+    # с экранированием не-ASCII в \uXXXX, например:
+    #   "Дикий запад" -> "\u0414\u0438\u043a\u0438\u0439 \u0437\u0430\u043f\u0430\u0434"
+    # Когда мы кастим JSON в text (см. value_expr выше), получаем именно
+    # сырое JSON-представление — с кавычками и unicode-escape. Для UI и для
+    # сравнения в query string нужно нормальное значение. Парсим через
+    # json.loads там, где это возможно.
+    def _decode_json_value(v):
+        if not isinstance(v, str):
+            return v
+        stripped = v.strip()
+        if not stripped:
+            return v
+        # Только строки, похожие на JSON (начинаются с " или [, или это
+        # число/bool/null). Не пытаемся парсить «обычный» текст — иначе
+        # распарсим «21» как 21 и потеряем ведущие нули.
+        if not (stripped.startswith(('"', '[', 't', 'f', 'n')) or stripped == 'null'):
+            return v
+        try:
+            return json.loads(stripped)
+        except (ValueError, TypeError):
+            return v
+
+    values = [_decode_json_value(v) for v in values]
+
     # Удаляем дубликаты и None
     values = list(set(v for v in values if v is not None))
     
