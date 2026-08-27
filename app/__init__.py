@@ -501,6 +501,20 @@ def register_context_processors(app):
         """Добавление текущего года в футер."""
         return {'current_year': datetime.now().year}
 
+    # Jinja-фильтры
+    from app.utils.helpers import cleanhtml
+
+    @app.template_filter('cleanhtml')
+    def _cleanhtml_filter(value):
+        """
+        {{ product.description|cleanhtml|safe }}
+        Чинит битый HTML (голые &, <p class>, </br>, on*=*, опасные теги)
+        перед рендером. Без этого браузер при разборе такого HTML
+        перетасовывает DOM, и вкладки/таблицы/панели страницы товара
+        «исчезают» из видимости, хотя в HTML они есть.
+        """
+        return cleanhtml(value)
+
 
 def register_error_handlers(app):
     """Регистрация обработчиков ошибок."""

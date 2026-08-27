@@ -248,7 +248,7 @@
             {# Описание #}
             <div class="tab-panel active" id="description">
                 <div class="product-description">
-                    {{ product.description|safe if product.description else 'Описание отсутствует' }}
+                    {{ (product.description|cleanhtml)|safe if product.description else 'Описание отсутствует' }}
                 </div>
             </div>
             

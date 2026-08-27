@@ -235,42 +235,17 @@ def info():
 def _sanitize_html(value):
     """
     Базовая санитизация HTML из формы (для описания товара / магазина).
-    Удаляет опасные теги (<script>, <iframe>, <object>, <embed>, <style>, <link>)
-    и атрибуты on* (onclick, onerror и т.п.) + javascript: в href/src.
+    Делегирует в app.utils.helpers.cleanhtml — единая точка нормализации
+    HTML: удаляет опасные теги (<script>, <iframe>, <object>, <embed>,
+    <style>, <link>), on* атрибуты, javascript: в href/src, а также
+    чинит битые места (<p class> без значения, </br>, голый &).
 
-    НЕ полноценный HTMLPurifier — оставляет разрешённые теги (p, ul, ol, li,
-    strong, em, b, i, h2, h3, a, br, span). Для админских/продавцовских
-    полей этого достаточно; для публичных мест с пользовательским вводом
-    стоит подключить bleach или html-sanitizer.
+    Не полноценный HTMLPurifier — оставляет разрешённые теги (p, ul, ol,
+    li, strong, em, b, i, h2, h3, a, br, span). Для публичных мест с
+    пользовательским вводом стоит подключить bleach или html-sanitizer.
     """
-    import re
-    if not value:
-        return ''
-    text = str(value)
-    # Вырезаем целиком опасные блоки: <script ...>...</script>, <iframe ...>...</iframe>,
-    # <style>...</style>, <link ...>, <object>...</object>, <embed ...>
-    text = re.sub(
-        r'<\s*(script|iframe|object|embed|style|link|meta|form)\b[^>]*>.*?<\s*/\s*\1\s*>',
-        '',
-        text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    # Самозакрывающиеся опасные теги
-    text = re.sub(
-        r'<\s*(script|iframe|object|embed|style|link|meta|form)\b[^>]*/?>',
-        '',
-        text,
-        flags=re.IGNORECASE,
-    )
-    # Удаляем on* атрибуты (onclick, onerror, onload, ...)
-    text = re.sub(r'\s+on[a-z]+\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
-    text = re.sub(r"\s+on[a-z]+\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
-    # Удаляем javascript: / vbscript: / data:text/html в href/src
-    text = re.sub(r'(href|src)\s*=\s*"(?:\s*)(?:javascript|vbscript|data)\s*:[^"]*"',
-                  r'\1="#"', text, flags=re.IGNORECASE)
-    text = re.sub(r"(href|src)\s*=\s*'(?:\s*)(?:javascript|vbscript|data)\s*:[^']*'",
-                  r'\1="#"', text, flags=re.IGNORECASE)
-    return text
+    from app.utils.helpers import cleanhtml
+    return cleanhtml(value)
 
 
 def _seller_roadmap_events():

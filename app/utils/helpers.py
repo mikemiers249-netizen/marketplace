@@ -487,6 +487,102 @@ def generate_order_number():
     return f"{prefix}{random_part}"
 
 
+def cleanhtml(value):
+    """
+    Jinja-фильтр и обычная утилита: «починить» битый HTML в описании
+    товара/магазина, чтобы браузер не ломал парсинг остальной страницы.
+
+    Типичные источники битого HTML:
+      - копипаст из Word/Google Docs: <p class> (без значения),
+        <span style="">, лишние </br>, одиночные <, >, &, невалидные
+        последовательности тегов;
+      - HTML-редактор в форме продавца (Quill/Summernote), который при
+        определённых действиях оставляет «голые» атрибуты.
+
+    Что делаем:
+      1) вырезаем <script>/<iframe>/<style>/<link>/<meta>/<form>/<object>/
+         <embed> целиком вместе с содержимым;
+      2) удаляем on*=* атрибуты (onclick, onerror, ...);
+      3) заменяем href="javascript:..." и src="javascript:..." на "#";
+      4) <p class> (без значения) → <p>;
+      5) </br>, <br/> (без пробела) → <br>;
+      6) & без валидного entity (&amp;|lt;|gt;|quot;|#\d+;|#x[0-9a-f]+;)
+         → &amp; (защита от «голого» &, который ломает HTML).
+
+    Возвращает безопасный HTML, который гарантированно не сдвинет
+    DOM-структуру страницы.
+    """
+    import re
+    if not value:
+        return ''
+    text = str(value)
+
+    # 1) Опасные блок-теги целиком
+    text = re.sub(
+        r'<\s*(script|iframe|object|embed|style|link|meta|form)\b[^>]*>.*?<\s*/\s*\1\s*>',
+        '',
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    # 1a) Самозакрывающиеся варианты
+    text = re.sub(
+        r'<\s*(script|iframe|object|embed|style|link|meta|form)\b[^>]*/?\s*>',
+        '',
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # 2) on*=*
+    text = re.sub(r'\s+on[a-z]+\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+on[a-z]+\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
+
+    # 3) javascript:/vbscript:/data:text/html в href/src
+    text = re.sub(
+        r'(href|src)\s*=\s*"(?:\s*)(?:javascript|vbscript|data)\s*:[^"]*"',
+        r'\1="#"',
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"(href|src)\s*=\s*'(?:\s*)(?:javascript|vbscript|data)\s*:[^']*'",
+        r'\1="#"',
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # 4) <p class> / <p class=> / <p CLASS> без значения → <p>
+    text = re.sub(
+        r'<\s*(p|div|span|li|ul|ol|h[1-6])\s+class\s*=\s*"\s*"\s*>',
+        r'<\1>',
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"<\s*(p|div|span|li|ul|ol|h[1-6])\s+class\s*=\s*'\s*'\s*>",
+        r'<\1>',
+        text,
+        flags=re.IGNORECASE,
+    )
+    # <tag attr> без значения (class, id, style, ...): оставляем, но
+    # закрываем автозакрывающиеся br
+    text = re.sub(r'<\s*br\s*>', '<br>', text, flags=re.IGNORECASE)
+    text = re.sub(r'<\s*hr\s*>', '<hr>', text, flags=re.IGNORECASE)
+
+    # 5) </br> → <br>  (закрывать br нельзя)
+    text = re.sub(r'<\s*/\s*br\s*>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'<\s*/\s*hr\s*>', '', text, flags=re.IGNORECASE)
+
+    # 6) Защита от голого &, который ломает парсинг.
+    #    &entity; — оставляем как есть. Иначе заменяем на &amp;.
+    text = re.sub(
+        r'&(?!(?:amp|lt|gt|quot|apos|nbsp|#\d+|#x[0-9a-fA-F]+);)',
+        '&amp;',
+        text,
+    )
+
+    return text
+
+
 def slugify(text):
     """
     Транслитерация и создание URL-слага.
