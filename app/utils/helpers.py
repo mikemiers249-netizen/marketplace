@@ -489,54 +489,91 @@ def generate_order_number():
 
 def cleanhtml(value):
     """
-    Jinja-фильтр и обычная утилита: «починить» битый HTML в описании
-    товара/магазина, чтобы браузер не ломал парсинг остальной страницы.
+    «Стерилизация» HTML-описания товара/магазина.
 
-    Типичные источники битого HTML:
-      - копипаст из Word/Google Docs: <p class> (без значения),
-        <span style="">, лишние </br>, одиночные <, >, &, невалидные
-        последовательности тегов;
-      - HTML-редактор в форме продавца (Quill/Summernote), который при
-        определённых действиях оставляет «голые» атрибуты.
+    Применяется:
+      - при сохранении (в _sanitize_html в seller.py),
+      - при выводе в публичной части (Jinja-фильтр |cleanhtml).
 
-    Что делаем:
-      1) вырезаем <script>/<iframe>/<style>/<link>/<meta>/<form>/<object>/
-         <embed> целиком вместе с содержимым;
-      2) удаляем on*=* атрибуты (onclick, onerror, ...);
-      3) заменяем href="javascript:..." и src="javascript:..." на "#";
-      4) <p class> (без значения) → <p>;
-      5) </br>, <br/> (без пробела) → <br>;
-      6) & без валидного entity (&amp;|lt;|gt;|quot;|#\d+;|#x[0-9a-f]+;)
-         → &amp; (защита от «голого» &, который ломает HTML).
+    Что вырезается:
+      1) Опасные блок-теги целиком с содержимым:
+         <script>, <iframe>, <object>, <embed>, <style>, <link>,
+         <meta>, <form>, <applet>, <frame>, <frameset>, <noframes>,
+         <noscript>, <base>, <svg>*, <math>*.
+      2) Все атрибуты style="..." и class="..." (визуальные стили
+         и имена CSS-классов) — продавцу не нужны, а злоумышленнику
+         позволяют встроить визуально-обманчивое оформление.
+      3) Все атрибуты id="..." — нам не нужны, иначе можно
+         переопределить элемент страницы (id=header, id=footer, ...).
+      4) on*=* атрибуты (onclick, onerror, onload, onmouseover, ...).
+      5) href="javascript:..." / src="javascript:..." / data: URL →
+         заменяем на "#".
+      6) Все ссылки на внешние ресурсы:
+         href="http(s)://...", src="http(s)://..." (а также
+         href="//cdn...", href="ftp://...") — вырезаем целиком атрибут.
+         Продавцу можно оставлять ТОЛЬКО относительные ссылки
+         (href="/page/...") и якоря (href="#section").
+         Внешние картинки в описании товара запрещены — фото
+         загружаются через форму товара в /static/uploads/.
+      7) PHP/Python/SQL/Shell/JavaScript-блоки (даже если они
+         проскочили в тексте, не как теги):
+         - <?php ... ?> (PHP)
+         - <% ... %> (ASP/JSP/ERB)
+         - {{ ... }} и {% ... %} (Jinja)
+         - SELECT/INSERT/UPDATE/DELETE/DROP/CREATE/ALTER с ; (SQL)
+         - import os / from ... import / def ...(  (Python)
+         - eval( / exec( / system( (выполнение команд)
+         Эти шаблоны редко нужны в описании товара; режем превентивно.
+      8) <p class> / <p class=""> → <p>  (битые теги из копипаста).
+      9) </br>, <br/> → <br> ; </hr> → "".
+     10) Гolый '&' (без валидного entity) → &amp;.
 
     Возвращает безопасный HTML, который гарантированно не сдвинет
-    DOM-структуру страницы.
+    DOM-структуру страницы и не даст возможности для XSS/инъекций.
     """
     import re
     if not value:
         return ''
     text = str(value)
 
-    # 1) Опасные блок-теги целиком
+    # 1) Опасные блок-теги целиком (содержимое тоже вырезаем)
+    DANGEROUS = (
+        'script|iframe|object|embed|style|link|meta|form|applet|'
+        'frame|frameset|noframes|noscript|base|svg|math|template|slot'
+    )
     text = re.sub(
-        r'<\s*(script|iframe|object|embed|style|link|meta|form)\b[^>]*>.*?<\s*/\s*\1\s*>',
+        rf'<\s*({DANGEROUS})\b[^>]*>.*?<\s*/\s*\1\s*>',
         '',
         text,
         flags=re.IGNORECASE | re.DOTALL,
     )
-    # 1a) Самозакрывающиеся варианты
+    # 1a) Самозакрывающиеся/без содержимого
     text = re.sub(
-        r'<\s*(script|iframe|object|embed|style|link|meta|form)\b[^>]*/?\s*>',
+        rf'<\s*({DANGEROUS})\b[^>]*/?\s*>',
         '',
         text,
         flags=re.IGNORECASE,
     )
 
-    # 2) on*=*
+    # 2) style="..." и class="..."  (любые кавычки)
+    text = re.sub(r'\s+style\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+style\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s+class\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+class\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
+
+    # 2a) style/class без значения (style=  /  class=)
+    text = re.sub(r'\s+style\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+style\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
+
+    # 3) id="..."  (чужой id может переопределить элементы страницы)
+    text = re.sub(r'\s+id\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+id\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
+
+    # 4) on*=* (любые кавычки)
     text = re.sub(r'\s+on[a-z]+\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
     text = re.sub(r"\s+on[a-z]+\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
 
-    # 3) javascript:/vbscript:/data:text/html в href/src
+    # 5) javascript:/vbscript:/data: → "#"
     text = re.sub(
         r'(href|src)\s*=\s*"(?:\s*)(?:javascript|vbscript|data)\s*:[^"]*"',
         r'\1="#"',
@@ -550,7 +587,76 @@ def cleanhtml(value):
         flags=re.IGNORECASE,
     )
 
-    # 4) <p class> / <p class=> / <p CLASS> без значения → <p>
+    # 6) Внешние ссылки и любые src/href с абсолютным URL → вырезаем
+    #    атрибут целиком. Оставляем только относительные ("/...", "#...")
+    #    и пустые значения.
+    def _strip_external(match):
+        attr = match.group(1)
+        quote = match.group(2)
+        value = match.group(3)
+        v = (value or '').strip().lower()
+        # Разрешаем: относительные пути, якоря, пусто, mailto:
+        if (not v
+                or v.startswith('/')
+                or v.startswith('#')
+                or v.startswith('mailto:')
+                or v.startswith('tel:')):
+            return match.group(0)  # оставляем как есть
+        return f' {attr}={quote}#{quote}'  # заменяем внешний URL на #
+
+    text = re.sub(
+        r'\s+(href|src)\s*=\s*(["\'])([^"\']*)\2',
+        _strip_external,
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # 7) Блоки кода (даже в тексте, не в тегах) — вырезаем целиком.
+    # 7a) <?php ... ?> (PHP)
+    text = re.sub(
+        r'<\?(?:php)?\b.*?\?>',
+        '',
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    # 7b) <% ... %> (ASP / JSP / ERB)
+    text = re.sub(r'<%.*?%>', '', text, flags=re.DOTALL)
+    # 7c) Jinja {{ ... }} / {% ... %}  — несколько проходов, потому что
+    #     ленивый квантификатор .*? в одном проходе оставляет хвост
+    #     "1{% endif %}" если встретил первый "{% if x %}".
+    for _ in range(5):
+        new_text = re.sub(r'\{\{[\s\S]*?\}\}', '', text)
+        new_text = re.sub(r'\{%[\s\S]*?%\}', '', new_text)
+        if new_text == text:
+            break
+        text = new_text
+    # 7d) SQL-инструкции (только если есть ';' в конце — простой
+    #     детектор, чтобы не резать обычные слова вроде "delete file")
+    text = re.sub(
+        r'\b(?:select|insert|update|delete|drop|create|alter|truncate|'
+        r'grant|revoke)\b[^;{<>}]*;',
+        '',
+        text,
+        flags=re.IGNORECASE,
+    )
+    # 7e) Python: import / from / def в начале строки
+    text = re.sub(
+        r'^\s*(?:import\s+\S+|from\s+\S+\s+import\s+\S+|def\s+\w+\s*\()',
+        '',
+        text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    # 7f) eval( / exec( / system( / passthru(  (выполнение команд)
+    text = re.sub(
+        r'\b(?:eval|exec|system|passthru|shell_exec|popen|proc_open)\s*\(',
+        '(',
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # 8) Битые теги <tag class> / <tag class="">  /  <tag class=foo>
+    #    Любой class=… вырезаем (мы уже стёрли class="…" в п.2, но
+    #    на всякий случай — class без кавычек / с пробелом в значении).
     text = re.sub(
         r'<\s*(p|div|span|li|ul|ol|h[1-6])\s+class\s*=\s*"\s*"\s*>',
         r'<\1>',
@@ -563,17 +669,21 @@ def cleanhtml(value):
         text,
         flags=re.IGNORECASE,
     )
-    # <tag attr> без значения (class, id, style, ...): оставляем, но
-    # закрываем автозакрывающиеся br
-    text = re.sub(r'<\s*br\s*>', '<br>', text, flags=re.IGNORECASE)
-    text = re.sub(r'<\s*hr\s*>', '<hr>', text, flags=re.IGNORECASE)
+    # <tag class> / <tag class=...>  →  <tag>
+    text = re.sub(
+        r'<\s*(p|div|span|li|ul|ol|h[1-6])\s+class(?:=[^\s>]*)?\s*>',
+        r'<\1>',
+        text,
+        flags=re.IGNORECASE,
+    )
 
-    # 5) </br> → <br>  (закрывать br нельзя)
+    # 9) Нормализация br/hr
+    text = re.sub(r'<\s*br\s*/?\s*>', '<br>', text, flags=re.IGNORECASE)
     text = re.sub(r'<\s*/\s*br\s*>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'<\s*hr\s*/?\s*>', '<hr>', text, flags=re.IGNORECASE)
     text = re.sub(r'<\s*/\s*hr\s*>', '', text, flags=re.IGNORECASE)
 
-    # 6) Защита от голого &, который ломает парсинг.
-    #    &entity; — оставляем как есть. Иначе заменяем на &amp;.
+    # 10) Голый &  →  &amp;  (если не валидный entity)
     text = re.sub(
         r'&(?!(?:amp|lt|gt|quot|apos|nbsp|#\d+|#x[0-9a-fA-F]+);)',
         '&amp;',

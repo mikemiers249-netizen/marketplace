@@ -234,10 +234,10 @@ def info():
 
 def _sanitize_html(value):
     """
-    Базовая санитизация HTML из формы (для описания товара / магазина).
+    Санитизация HTML из формы (для описания товара / магазина).
     Делегирует в app.utils.helpers.cleanhtml — единая точка нормализации
-    HTML: удаляет опасные теги (<script>, <iframe>, <object>, <embed>,
-    <style>, <link>), on* атрибуты, javascript: в href/src, а также
+    HTML: вырезает опасные теги и блоки кода, удаляет style/class/id,
+    on* атрибуты, javascript: в href/src, внешние ссылки и src,
     чинит битые места (<p class> без значения, </br>, голый &).
 
     Не полноценный HTMLPurifier — оставляет разрешённые теги (p, ul, ol,
