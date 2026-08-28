@@ -407,10 +407,21 @@ def catalog(category_id=None):
                         # `value` — JSON; сравниваем через text-каст либо по
                         # `display_value` (String), чтобы не упереться в
                         # 'could not identify an equality operator for type json'.
+                        #
+                        # Нормализуем обе стороны через lower(trim(...)):
+                        # - в БД `display_value` иногда хранится с ведущим
+                        #   пробелом (например, ' Дикий запад' — артефакт
+                        #   ручного ввода или копипаста), а из query string
+                        #   приходит ' Дикий запад' или 'Дикий запад';
+                        # - иначе фильтр возвращает 0 результатов при
+                        #   очевидном совпадении.
+                        # - регистр тоже нормализуем, чтобы 'Дикий запад' и
+                        #   'ДИКИЙ ЗАПАД' считались одним значением.
+                        v_norm = func.lower(func.trim(value))
                         value_match = case(
                             (ProductParameter.display_value.isnot(None),
-                             ProductParameter.display_value == value),
-                            else_=func.cast(ProductParameter.value, db.String) == value,
+                             func.lower(func.trim(ProductParameter.display_value)) == v_norm),
+                            else_=func.lower(func.trim(func.cast(ProductParameter.value, db.String))) == v_norm,
                         )
                         query = query.join(ProductParameter).filter(
                             and_(
