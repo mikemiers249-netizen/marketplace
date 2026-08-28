@@ -408,20 +408,25 @@ def catalog(category_id=None):
                         # `display_value` (String), чтобы не упереться в
                         # 'could not identify an equality operator for type json'.
                         #
-                        # Нормализуем обе стороны через lower(trim(...)):
-                        # - в БД `display_value` иногда хранится с ведущим
-                        #   пробелом (например, ' Дикий запад' — артефакт
-                        #   ручного ввода или копипаста), а из query string
-                        #   приходит ' Дикий запад' или 'Дикий запад';
-                        # - иначе фильтр возвращает 0 результатов при
-                        #   очевидном совпадении.
-                        # - регистр тоже нормализуем, чтобы 'Дикий запад' и
-                        #   'ДИКИЙ ЗАПАД' считались одним значением.
+                        # Нюанс: cast(value as text) возвращает JSON-сериализацию
+                        # значения, то есть для строк оборачивает в кавычки и
+                        # экранирует не-ASCII как \uXXXX
+                        # ('Дикий запад' -> '"\u0414\u0438\u043a\u0438\u0439 \u0437\u0430\u043f\u0430\u0434"').
+                        # После lower(trim(...)) всё равно остаются кавычки и
+                        # escape-последовательности — query string даёт чистый
+                        # текст, сравнение не проходит.
+                        #
+                        # Решение: в PostgreSQL оператор #>> '{}' возвращает
+                        # JSON-значение как text уже без JSON-квотирования:
+                        # 'Дикий запад' -> 'Дикий запад', true -> 'true', 42 -> '42'.
+                        #
+                        # display_value — обычный VARCHAR, через trim+lower.
                         v_norm = func.lower(func.trim(value))
+                        json_text = ProductParameter.value.op('#>>')('{}')
                         value_match = case(
                             (ProductParameter.display_value.isnot(None),
                              func.lower(func.trim(ProductParameter.display_value)) == v_norm),
-                            else_=func.lower(func.trim(func.cast(ProductParameter.value, db.String))) == v_norm,
+                            else_=func.lower(func.trim(json_text)) == v_norm,
                         )
                         query = query.join(ProductParameter).filter(
                             and_(
