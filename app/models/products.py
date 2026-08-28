@@ -145,10 +145,10 @@ class Parameter(db.Model):
                 return False, "Ожидался список значений"
             if len(value) != self.composite_count:
                 return False, f"Ожидалось {self.composite_count} значений"
-        
+
         if self.is_multiple and not isinstance(value, list):
             return False, "Ожидался список значений"
-        
+
         if not self.is_input and self.predefined_values:
             if isinstance(value, list):
                 valid = all(v in self.predefined_values for v in value)
@@ -156,8 +156,44 @@ class Parameter(db.Model):
                 valid = value in self.predefined_values
             if not valid:
                 return False, f"Значение должно быть одним из: {self.predefined_values}"
-        
+
         return True, None
+
+    def format_value_display(self, value):
+        """
+        Приведение значения параметра к человекочитаемому виду.
+        Используется в шаблонах:
+          - main/product.html      (таблица характеристик)
+          - main/catalog.html      (опции фильтра в сайдбаре)
+
+        Особенности:
+          - type='boolean' (или значение — Python bool/строка 'true'/'false'):
+            возвращаем 'Да' / 'Нет' соответственно.
+          - списки (is_multiple=True) — рекурсивно, через запятую.
+          - остальные типы — str(value) без изменений.
+
+        Возвращает строку.
+        """
+        if value is None:
+            return ''
+
+        # Списки — рекурсивно
+        if isinstance(value, list):
+            return ', '.join(self.format_value_display(v) for v in value)
+
+        # bool / 'true' / 'false' (любой регистр) — Да/Нет
+        if self.type == 'boolean' or isinstance(value, bool):
+            if isinstance(value, bool):
+                return 'Да' if value else 'Нет'
+            s = str(value).strip().lower()
+            if s in ('true', '1', 'да', 'yes', 'y'):
+                return 'Да'
+            if s in ('false', '0', 'нет', 'no', 'n', ''):
+                return 'Нет'
+            # Непонятное значение — оставляем как есть
+            return str(value)
+
+        return str(value)
     
     def __repr__(self):
         return f'<Parameter {self.name}>'

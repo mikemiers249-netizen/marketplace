@@ -106,7 +106,10 @@ def _get_category_filters(category):
                 'is_input': param.is_input,
                 'level': param_data['level'],
                 'category_name': param_data['category_name'],
-                'filter_values': values
+                'filter_values': values,
+                # Сама модель нужна в шаблоне, чтобы вызвать
+                # format_value_display для булевых параметров.
+                'parameter': param,
             }
             grouped_params[param_type].append(param_info)
     
