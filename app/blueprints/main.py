@@ -190,51 +190,65 @@ def _get_parameter_values(category, parameter_id):
     return values[:20]  # Ограничиваем количество значений
 
 
-def _category_ids_with_approved_products(category_ids):
+def _subtree_has_approved_products(category_ids):
     """
     Возвращает множество ID тех категорий из переданного списка, у которых
-    (с учётом всех подкатегорий любого уровня вложенности) есть хотя бы
-    один одобренный товар.
+    (включая их потомков любого уровня вложенности) есть хотя бы один
+    одобренный товар.
 
     Используется, чтобы скрывать из сайдбара каталога категории без
     опубликованных товаров.
 
-    Идём по подкатегориям рекурсивно: для каждой category_id берём всех
-    потомков через parent_id (3 уровня обычно хватает — у тебя в БД
-    максимум «категория → подкатегория → подкатегория»), и для всего
-    множества делаем один запрос SELECT DISTINCT category_id.
+    Поведение:
+      - если в самой категории есть товары — она попадает в результат;
+      - если в любом из её потомков (любой глубины) есть товары — она
+        тоже попадает в результат;
+      - иначе — не попадает.
     """
     if not category_ids:
         return set()
 
     from app.models.products import Product, Category
 
-    # Собираем все ID (включая потомков) одним SQL, чтобы не гонять
-    # рекурсию в Python.
-    # Шаг 1: для каждой исходной категории находим всех потомков (до 3
-    # уровней) одним запросом.
-    all_related = set(category_ids)
-    current_level = set(category_ids)
-    for _ in range(5):  # 5 уровней — с запасом
-        if not current_level:
-            break
-        children = Category.query.filter(
-            Category.parent_id.in_(current_level)
-        ).all()
-        new_level = {c.id for c in children}
-        new_level -= all_related  # не повторяем
-        if not new_level:
-            break
-        all_related |= new_level
-        current_level = new_level
-
-    # Шаг 2: DISTINCT category_id для одобренных товаров в этом множестве.
+    # 1) Какие ID категорий вообще содержат одобренные товары.
     rows = db.session.query(Product.category_id).filter(
         Product.status == 'approved',
-        Product.category_id.in_(all_related),
     ).distinct().all()
+    non_empty_ids = {row[0] for row in rows}
+    if not non_empty_ids:
+        return set()
 
-    return {row[0] for row in rows}
+    # 2) Карта parent_id -> [children_id] (всё дерево целиком, загружаем
+    #    один раз — обычно это <100 категорий).
+    children_of = {}
+    for c in Category.query.all():
+        if c.parent_id is not None:
+            children_of.setdefault(c.parent_id, set()).add(c.id)
+
+    # 3) Для каждой исходной категории обходим её поддерево и проверяем,
+    #    есть ли в поддереве категория с товарами.
+    result = set()
+    target_ids = set(category_ids)
+    for cat_id in category_ids:
+        # BFS по поддереву
+        visited = set()
+        stack = [cat_id]
+        has_product_in_subtree = False
+        while stack:
+            cur = stack.pop()
+            if cur in visited:
+                continue
+            visited.add(cur)
+            if cur in non_empty_ids:
+                has_product_in_subtree = True
+                break
+            for child in children_of.get(cur, ()):
+                if child in target_ids or child in visited:
+                    continue
+                stack.append(child)
+        if has_product_in_subtree:
+            result.add(cat_id)
+    return result
 
 
 def _visible_seller_ids() -> set:
@@ -510,29 +524,31 @@ def catalog(category_id=None):
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     products = pagination.items
     
-    # Категории для фильтров
+    # Категории для фильтров.
+    # Логика:
+    #   - если выбрана категория, ВСЕГДА показываем её в сайдбаре
+    #     (даже если её собственная полка пуста — это навигация),
+    #     плюс её подкатегории, в поддереве которых (сами или потомки)
+    #     есть одобренные товары.
+    #   - если категория не выбрана, показываем только top-level, у
+    #     которых в поддереве (сами или любые потомки) есть товары.
     if category:
-        # Внутри одной ветки: показываем категорию + прямых потомков,
-        # но прячем те ветки, в которых (с учётом их подкатегорий) нет
-        # ни одного одобренного товара.
-        all_in_branch = [category] + list(category.subcategories)
-        non_empty_ids = _category_ids_with_approved_products(
-            [c.id for c in all_in_branch]
+        non_empty_subs = _subtree_has_approved_products(
+            [c.id for c in category.subcategories]
         )
-        categories = [c for c in all_in_branch if c.id in non_empty_ids]
+        visible_subs = [s for s in category.subcategories if s.id in non_empty_subs]
+        categories = [category] + visible_subs
         # Получаем параметры для фильтрации (наследуемые от родителей + свои)
         category_parameters = _get_category_filters(category)
     else:
-        # На главной каталога: только top-level категории, у которых
-        # (вместе с любыми подкатегориями) есть хотя бы 1 одобренный товар.
         all_top = Category.query.filter(
             Category.is_active == True,
             Category.parent_id == None
         ).all()
-        non_empty_ids = _category_ids_with_approved_products(
+        non_empty_tops = _subtree_has_approved_products(
             [c.id for c in all_top]
         )
-        categories = [c for c in all_top if c.id in non_empty_ids]
+        categories = [c for c in all_top if c.id in non_empty_tops]
         category_parameters = []
     
     # Активные фильтры из URL
