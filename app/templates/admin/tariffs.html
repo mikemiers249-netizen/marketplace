@@ -167,7 +167,7 @@
             <div class="tariff-detail-actions">
                 <form method="POST"
                       action="{{ url_for('admin.tariff_subscription_disable', subscription_id=sub.id) }}"
-                      onsubmit="return confirm('Отключить тариф «{{ sub.plan.name|e }}» у {{ seller.store_name|e }}?');">
+                      onsubmit="return confirm('Отключить тариф и удалить подписку из базы данных? История платежей сохранится.');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <button type="submit" class="btn btn-sm btn-danger">
                         <i class="bi bi-x-octagon"></i> Отключить

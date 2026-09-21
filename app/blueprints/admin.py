@@ -1413,16 +1413,16 @@ def tariff_subscription_resume(subscription_id):
 
 @bp.route('/tariffs/subscriptions/<int:subscription_id>/disable', methods=['POST'])
 def tariff_subscription_disable(subscription_id):
-    """Отключить (аннулировать) тариф у селлера."""
+    """Удалить подписку селлера, сохранив историю платежей."""
     if not is_admin():
         return redirect(url_for('admin.login'))
 
     sub = db.session.get(SellerTariffSubscription, subscription_id)
     if not sub:
         abort(404)
-    sub.disable()
+    db.session.delete(sub)
     db.session.commit()
-    flash('Тариф отключён.', 'success')
+    flash('Тариф отключён и удалён.', 'success')
     return redirect(url_for('admin.tariffs', tab='clients'))
 
 
