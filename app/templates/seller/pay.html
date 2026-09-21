@@ -1,0 +1,72 @@
+{% extends "seller/layout.html" %}
+
+{% block title %}{{ title }} - Панель продавца{% endblock %}
+
+{% block header_title %}{{ title }}{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="admin-flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="tariff-pay-page">
+    <div class="tariff-current-card tariff-current-card--warn">
+        <div class="tariff-current-card-head">
+            <i class="bi bi-cash-coin"></i>
+            <strong>Оплата продления тарифа</strong>
+            <span class="tariff-current-card-status">К оплате</span>
+        </div>
+        <div class="tariff-current-card-body">
+            <p>
+                Вы продлили глобальное правило <strong>{{ sub.plan.name }}</strong>
+                на следующий период до <strong>{{ sub.expires_at.strftime('%d.%m.%Y') }}</strong>.
+            </p>
+            <ul class="tariff-current-card-rules">
+                {% for tx in pending_tx %}
+                <li>
+                    {% set parts = tx.note.split('период:') %}
+                    {% if parts|length > 1 %}
+                        Период <strong>{{ parts[1] }}</strong>
+                    {% else %}
+                        Период: <strong>{{ tx.note }}</strong>
+                    {% endif %}
+                    — комиссия <strong>{{ '%.2f'|format(tx.amount) }} ₽</strong>
+                </li>
+                {% endfor %}
+            </ul>
+
+            <p class="tariff-current-card-billed">
+                <i class="bi bi-receipt"></i>
+                Итого к оплате:
+                <strong>{{ '%.2f'|format(total) }} ₽</strong>
+            </p>
+
+            <p class="tariff-current-card-hint">
+                После оплаты тариф будет активен до
+                <strong>{{ sub.expires_at.strftime('%d.%m.%Y') }}</strong>,
+                действует 5-дневный грейс-период для следующего продления.
+                Платёжный модуль ещё не подключён — кнопка «Оплатить» сразу
+                помечает счёт как оплаченный.
+            </p>
+        </div>
+        <div class="tariff-current-card-actions">
+            <form method="POST" class="tariff-inline-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-warning">
+                    <i class="bi bi-cash-coin"></i>
+                    Оплатить {{ '%.2f'|format(total) }} ₽
+                </button>
+            </form>
+            <a href="{{ url_for('seller.tariffs', tab='my') }}" class="btn btn-link">
+                Отмена
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

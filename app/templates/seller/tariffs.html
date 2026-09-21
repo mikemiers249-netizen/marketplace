@@ -310,28 +310,40 @@
                     {% endif %}
                 </td>
                 <td>
-                    {% if sub.source == 'global_auto' %}
-                    {# Глобальное правило продлевается через /extend, а не /renew:
-                       у него нет фикс-цены, стоимость пересчитывается по обороту. #}
-                    <form method="POST"
-                          action="{{ url_for('seller.tariff_subscription_extend', subscription_id=sub.id) }}"
-                          class="tariff-inline-form">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" class="btn btn-sm btn-primary"
-                                title="Продлить фиксацию глобального правила">
-                            <i class="bi bi-arrow-clockwise"></i> Продлить
-                        </button>
-                    </form>
-                    {% else %}
-                    <form method="POST"
-                          action="{{ url_for('seller.tariff_subscription_renew', subscription_id=sub.id) }}"
-                          class="tariff-inline-form">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" class="btn btn-sm btn-primary"
-                                title="Продлить тариф ещё на {{ sub.plan.duration_days }} дней">
-                            <i class="bi bi-arrow-clockwise"></i> Продлить
-                        </button>
-                    </form>
+                    {# Кнопку «Продлить» показываем ТОЛЬКО когда она нужна:
+                       • подписка в grace / locked / payable — пора оплатить;
+                       • до конца оплаченного периода ≤ TARIFF_WARN_DAYS (5 дней) —
+                         пора готовиться к продлению.
+                       В остальных случаях (активна, далеко до конца) кнопка не нужна,
+                       она только отвлекает продавца. #}
+                    {% set _show_extend = (
+                        sub.is_in_grace or sub.is_locked
+                        or (sub.days_to_expire is defined and sub.days_to_expire <= 5)
+                    ) %}
+                    {% if _show_extend %}
+                        {% if sub.source == 'global_auto' %}
+                        {# Глобальное правило продлевается через /extend, а не /renew:
+                           у него нет фикс-цены, стоимость пересчитывается по обороту. #}
+                        <form method="POST"
+                              action="{{ url_for('seller.tariff_subscription_extend', subscription_id=sub.id) }}"
+                              class="tariff-inline-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn btn-sm btn-primary"
+                                    title="Продлить фиксацию глобального правила">
+                                <i class="bi bi-arrow-clockwise"></i> Продлить
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="POST"
+                              action="{{ url_for('seller.tariff_subscription_renew', subscription_id=sub.id) }}"
+                              class="tariff-inline-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn btn-sm btn-primary"
+                                    title="Продлить тариф ещё на {{ sub.plan.duration_days }} дней">
+                                <i class="bi bi-arrow-clockwise"></i> Продлить
+                            </button>
+                        </form>
+                        {% endif %}
                     {% endif %}
                 </td>
             </tr>
