@@ -90,6 +90,15 @@ class Config:
     MAIN_ADMIN_LOGIN = _env("MAIN_ADMIN_LOGIN", "admin")
     MAIN_ADMIN_PASSWORD_HASH = _env("MAIN_ADMIN_PASSWORD_HASH")
 
+    # ===== DEV-флаги =====
+    # TARIFF_DEMO_NEAR_EXPIRY_ENABLED — включает admin-роут
+    # /main_admin/tariff-demo-near-expiry/<seller_id>?days=N, который двигает
+    # expires_at активной подписки вперёд, чтобы протестировать UI продления
+    # без ожидания реального истечения. По умолчанию выключен.
+    TARIFF_DEMO_NEAR_EXPIRY_ENABLED = (
+        _env("TARIFF_DEMO_NEAR_EXPIRY_ENABLED", "false").lower() in ("1", "true", "yes")
+    )
+
     # ===== Кэш =====
     # На проде подключаем Redis (если есть REDIS_URL), иначе SimpleCache
     CACHE_TYPE = _env("CACHE_TYPE", "SimpleCache")

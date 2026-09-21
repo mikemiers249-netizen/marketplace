@@ -3404,6 +3404,81 @@ def logout():
     return redirect(url_for('main.index'))
 
 
+
+
+# =============================================================================
+# DEV: ручное приближение даты истечения тарифа (для тестов продления UI)
+# =============================================================================
+# Этот эндпоинт НЕ работает, пока в app.config нет
+# TARIFF_DEMO_NEAR_EXPIRY_ENABLED=True. По умолчанию флаг выключен — отвечает
+# 404, как будто роута нет.
+#
+# Чтобы включить тест:
+#   1. Amvera UI -> приложение MP -> переменные окружения ->
+#      добавить TARIFF_DEMO_NEAR_EXPIRY_ENABLED=True;
+#   2. Заставить Amvera передеплоить (или «Развернуть принудительно»).
+#   3. Залогиниться в https://wimli.ru/main_admin/auth/login под admin/admin123.
+#   4. Открыть ссылку:
+#        https://wimli.ru/main_admin/tariff-demo-near-expiry/1?days=5
+#   5. После проверки — удалить переменную окружения и снова задеплоить.
+#
+# Действие: сдвигает expires_at активной подписки указанного seller'а на
+# now + days дней и пересчитывает grace_until. Ничего не удаляет, не списывает.
+@bp.route('/tariff-demo-near-expiry/<int:seller_id>', methods=['GET', 'POST'])
+def tariff_demo_near_expiry(seller_id):
+    """DEV-only: подвинуть expires_at активной подписки seller'а."""
+    from flask import current_app, abort, request
+    from datetime import datetime, timedelta
+    from app.models.tariffs import SellerTariffSubscription
+    from app.models.users import Seller
+
+    if not current_app.config.get('TARIFF_DEMO_NEAR_EXPIRY_ENABLED'):
+        abort(404)
+
+    if not is_admin():
+        abort(403)
+
+    seller = Seller.query.get(seller_id)
+    if not seller:
+        abort(404, description=f'Seller {seller_id} not found')
+
+    try:
+        days = int(request.args.get('days', '5'))
+    except ValueError:
+        days = 5
+    days = max(1, min(days, 365))
+
+    candidates = (
+        SellerTariffSubscription.query
+        .filter(SellerTariffSubscription.seller_id == seller_id)
+        .filter(SellerTariffSubscription.status == SellerTariffSubscription.STATUS_ACTIVE)
+        .filter(SellerTariffSubscription.expires_at > datetime.utcnow())
+        .order_by(SellerTariffSubscription.id.desc())
+        .all()
+    )
+    if not candidates:
+        return (
+            f'No active subscriptions for seller={seller_id} '
+            f'(store: {seller.store_name!r}).',
+            404,
+        )
+
+    sub = candidates[0]
+    old_expires_at = sub.expires_at
+    sub.expires_at = datetime.utcnow() + timedelta(days=days)
+    sub.recompute_grace(5)
+    db.session.commit()
+
+    return (
+        f'OK. seller={seller_id} sub_id={sub.id} '
+        f'old_expires={old_expires_at} '
+        f'new_expires={sub.expires_at} '
+        f'grace_until={sub.grace_until}. '
+        f'Reload /seller/tariffs in the browser.',
+        200,
+        {'Content-Type': 'text/plain; charset=utf-8'},
+    )
+
 def is_admin():
     """
     Проверка прав администратора.
