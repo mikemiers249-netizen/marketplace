@@ -402,3 +402,69 @@ def seed_footer_links_command():
         created += 1
     db.session.commit()
     click.echo(f"Created {created} footer link(s). Total: {FooterLink.query.count()}.")
+
+
+@click.command("tariff-demo-near-expiry")
+@click.argument("seller_id", type=int)
+@click.option("--days", default=5, show_default=True,
+              help="За сколько дней до expires_at сдвинуть (по умолчанию 5). "
+                   "Подписке ставится expires_at=now+days, grace_until=expires_at+5.")
+@click.option("--yes", "-y", is_flag=True, help="Не спрашивать подтверждения")
+@with_appcontext
+def tariff_demo_near_expiry_command(seller_id, days, yes):
+    """
+    DEV-команда: подвинуть expires_at активной подписки seller'а на
+    `now + <days>` дней (по умолчанию 5), чтобы кнопка «Продлить» и
+    баннер состояния тарифа появились в UI без ожидания реального срока.
+
+    Берётся последняя по id подписка со статусом active и is_paid=True
+    (или, если таких нет, source='global_auto' с status=active). Не трогает
+    activated_at и связанные TariffTransaction.
+
+    Использование (в shell Amvera-контейнера):
+        FLASK_APP=wsgi.py flask tariff-demo-near-expiry 1 --days 5 --yes
+    """
+    from datetime import datetime, timedelta
+    from app.models.tariffs import SellerTariffSubscription
+    from app.models.users import Seller
+
+    seller = Seller.query.get(seller_id)
+    if not seller:
+        click.echo(f"Seller {seller_id} not found")
+        return
+
+    candidates = (
+        SellerTariffSubscription.query
+        .filter(SellerTariffSubscription.seller_id == seller_id)
+        .filter(SellerTariffSubscription.status == SellerTariffSubscription.STATUS_ACTIVE)
+        .filter(SellerTariffSubscription.expires_at > datetime.utcnow())
+        .order_by(SellerTariffSubscription.id.desc())
+        .all()
+    )
+    if not candidates:
+        click.echo(f"No active subscriptions for seller={seller_id}")
+        return
+
+    sub = candidates[0]
+    old_expires_at = sub.expires_at
+    new_expires_at = datetime.utcnow() + timedelta(days=days)
+    sub.expires_at = new_expires_at
+    sub.recompute_grace(5)
+
+    click.echo("Will modify subscription:")
+    click.echo(f"  id           = {sub.id}")
+    click.echo(f"  seller_id    = {sub.seller_id}")
+    click.echo(f"  source       = {sub.source}")
+    click.echo(f"  is_paid      = {sub.is_paid}")
+    click.echo(f"  status       = {sub.status}")
+    click.echo(f"  old expires  = {old_expires_at}")
+    click.echo(f"  new expires  = {sub.expires_at}")
+    click.echo(f"  new grace    = {sub.grace_until}")
+
+    if not yes:
+        click.echo("ABORT: pass --yes to actually apply.")
+        raise click.Abort()
+
+    db.session.commit()
+    click.echo("Done. Reload /seller/tariffs in the browser to see the 'Продлить' button.")
+
