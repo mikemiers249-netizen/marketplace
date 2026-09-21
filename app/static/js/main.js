@@ -62,9 +62,9 @@ function initForms() {
 /**
  * Кнопки избранного
  */
-function initFavoriteButtons() {
+function initFavoriteButtons(root = document) {
     // Ищем оба класса: .favorite-btn (карточки) и .btn-favorite (страница товара)
-    const buttons = document.querySelectorAll('.favorite-btn, .btn-favorite');
+    const buttons = root.querySelectorAll('.favorite-btn, .btn-favorite');
     
     buttons.forEach(btn => {
         btn.addEventListener('click', async function(e) {

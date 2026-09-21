@@ -77,11 +77,15 @@
                 <a href="{{ url_for('main.catalog') }}">Все товары</a>
             </h2>
         </div>
-        <div class="products-grid products-grid-5">
-            {% for product in products[:10] %}
-                {% include 'components/product_card.html' %}
-            {% endfor %}
+        <div id="home-products-grid" class="products-grid products-grid-5">
+            {% include 'components/home_product_batch.html' %}
         </div>
+        {% if products_has_more %}
+        <div id="home-products-loader" data-url="{{ url_for('main.homepage_products') }}">
+            <p role="status" aria-live="polite"></p>
+            <button type="button" class="btn btn-outline-primary">Показать ещё</button>
+        </div>
+        {% endif %}
     </section>
     {% endif %}
     
@@ -118,4 +122,5 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/slider.js') }}"></script>
+<script src="{{ url_for('static', filename='js/home-products.js') }}"></script>
 {% endblock %}

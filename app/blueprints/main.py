@@ -325,6 +325,44 @@ def _filter_visible(products):
     return [p for p in products if p.seller_id in sids]
 
 
+def _homepage_product_batch(excluded_ids=()):
+    """Полные пятёрки без повторов, с приоритетом разных категорий."""
+    ranked = db.session.query(
+        Product.id.label('id'),
+        func.row_number().over(
+            partition_by=Product.category_id, order_by=func.random()
+        ).label('category_rank'),
+    ).filter(
+        Product.status == 'approved',
+        Product.stock_quantity > 0,
+        Product.seller_id.in_(_visible_seller_ids_with_limit()),
+        ~Product.id.in_(excluded_ids),
+    ).subquery()
+    candidates = Product.query.join(ranked, Product.id == ranked.c.id).order_by(
+        ranked.c.category_rank, func.random()
+    ).limit(10).all()
+    return (candidates[:5] if len(candidates) >= 5 else []), len(candidates) == 10
+
+
+@bp.route('/api/home-products', methods=['POST'])
+def homepage_products():
+    payload = request.get_json(silent=True)
+    excluded_ids = payload.get('excluded_ids') if isinstance(payload, dict) else None
+    if not isinstance(excluded_ids, list) or any(
+        type(value) is not int or value <= 0 or value > 2147483647
+        for value in excluded_ids
+    ):
+        abort(400)
+    products, has_more = _homepage_product_batch(set(excluded_ids))
+    response = jsonify(
+        html=render_template('components/home_product_batch.html', products=products),
+        ids=[product.id for product in products],
+        has_more=has_more,
+    )
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
 @bp.route('/')
 def index():
     """
@@ -371,11 +409,7 @@ def index():
     discounted_products = _filter_visible(discounted_products)
 
     # Все товары
-    products = Product.query.filter(
-        Product.status == 'approved',
-        Product.stock_quantity > 0
-    ).order_by(Product.published_at.desc()).limit(50).all()
-    products = _filter_visible(products)
+    products, products_has_more = _homepage_product_batch()
     
     # Активные акции
     active_promotions = Promotion.query.filter(
@@ -391,6 +425,7 @@ def index():
                          new_products=new_products,
                          discounted_products=discounted_products,
                          products=products,
+                         products_has_more=products_has_more,
                          promotions=active_promotions)
 
 
