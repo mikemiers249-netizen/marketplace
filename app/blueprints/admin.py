@@ -3479,6 +3479,80 @@ def tariff_demo_near_expiry(seller_id):
         {'Content-Type': 'text/plain; charset=utf-8'},
     )
 
+@bp.route("/tariff-collapse-history/<int:seller_id>", methods=["GET", "POST"])
+def tariff_collapse_history(seller_id):
+    """DEV-only: схлопнуть историю подписок sellerа (оставить одну).
+
+    Делает то же, что CLI `flask tariff-collapse-history N --keep-active --yes`:
+    оставляет одну запись со свежайшим expires_at, остальные удаляет.
+    TariffTransaction сохраняются (финансовая история).
+
+    GET  — показать план (что останется, что удалится), без изменений.
+    POST — выполнить удаление. Используется тот же флаг
+    TARIFF_DEMO_NEAR_EXPIRY_ENABLED, что и для tariff-demo-near-expiry.
+
+    После выполнения — обязательно снять флаг и задеплоить, чтобы дверь
+    закрылась обратно в 404.
+    """
+    from flask import current_app, abort, request
+    from app.models.tariffs import SellerTariffSubscription
+    from app.models.users import Seller
+
+    if not current_app.config.get("TARIFF_DEMO_NEAR_EXPIRY_ENABLED"):
+        abort(404)
+
+    if not is_admin():
+        abort(403)
+
+    seller = Seller.query.get(seller_id)
+    if not seller:
+        abort(404, description=f"Seller {seller_id} not found")
+
+    subs = (
+        SellerTariffSubscription.query
+        .filter(SellerTariffSubscription.seller_id == seller_id)
+        .order_by(SellerTariffSubscription.expires_at.desc(), SellerTariffSubscription.id.desc())
+        .all()
+    )
+    if not subs:
+        return (
+            f"No subscriptions for seller={seller_id} (store={seller.store_name!r}).",
+            404,
+            {"Content-Type": "text/plain; charset=utf-8"},
+        )
+
+    keep = subs[0]
+    to_delete = [s for s in subs if s.id != keep.id]
+
+    plan_lines = [
+        f"seller={seller_id} (store={seller.store_name!r})",
+        f"total subscriptions: {len(subs)}",
+        f"KEEP id={keep.id} source={keep.source} is_paid={keep.is_paid} status={keep.status} expires_at={keep.expires_at}",
+        f"DELETE {len(to_delete)} row(s):",
+    ]
+    for s in to_delete:
+        plan_lines.append(
+            f"  id={s.id} source={s.source} is_paid={s.is_paid} status={s.status} expires_at={s.expires_at}"
+        )
+
+    if request.method != "POST":
+        plan_lines.append("")
+        plan_lines.append("To execute, send POST (e.g. open this URL with curl -X POST after logging in).")
+        return (chr(10).join(plan_lines), 200, {"Content-Type": "text/plain; charset=utf-8"})
+
+    deleted = 0
+    for s in to_delete:
+        db.session.delete(s)
+        deleted += 1
+    db.session.commit()
+
+    plan_lines.insert(0, "DONE.")
+    plan_lines.append("")
+    plan_lines.append(f"Deleted {deleted}. Remaining: {len(subs) - deleted}.")
+    plan_lines.append("Reload /seller/tariffs?tab=my in the browser.")
+    return (chr(10).join(plan_lines), 200, {"Content-Type": "text/plain; charset=utf-8"})
+
+
 def is_admin():
     """
     Проверка прав администратора.
