@@ -323,6 +323,76 @@ def clean_missing_photos_command(yes):
     click.echo(f"Deleted {len(missing)} dangling ProductPhoto row(s).")
 
 
+
+@click.command("tariff-collapse-history")
+@click.argument("seller_id", type=int)
+@click.option("--keep-active", is_flag=True,
+              help="Оставить только одну строку со статусом active (самую свежую по expires_at).")
+@click.option("--yes", "-y", is_flag=True,
+              help="Не спрашивать подтверждения")
+@with_appcontext
+def tariff_collapse_history_command(seller_id, keep_active, yes):
+    """
+    Схлопнуть историю подписок sellerа: оставить ровно одну запись на row_id.
+
+    По умолчанию (--keep-active) удаляет ВСЕ строки seller_tariff_subscriptions
+    кроме самой свежей по expires_at. Это убирает архивные disabled-строки,
+    накопившиеся от старой логики продления (до коммита 0fd6a52), и приводит БД
+    в соответствие с новой UPDATE-семантикой (одна запись на seller_id).
+
+    Связанные TariffTransaction НЕ удаляются (это финансовая история).
+    У них subscription_id после удаления становится orphaned (ссылается
+    на несуществующий sub_id) — для целей отображения счётов в UI
+    достаточно фильтра seller_id (см. tariff_pay).
+
+    Использование (в shell Amvera-контейнера):
+        FLASK_APP=wsgi.py flask tariff-collapse-history 1 --keep-active --yes
+    """
+    from app.models.tariffs import SellerTariffSubscription
+    from app.models.users import Seller
+
+    seller = Seller.query.get(seller_id)
+    if not seller:
+        click.echo(f"Seller {seller_id} not found")
+        return
+
+    if not keep_active:
+        click.echo(
+            "ABORT: pass --keep-active to actually collapse. "
+            "By default this command is read-only."
+        )
+        raise click.Abort()
+
+    subs = (
+        SellerTariffSubscription.query
+        .filter(SellerTariffSubscription.seller_id == seller_id)
+        .order_by(SellerTariffSubscription.expires_at.desc(), SellerTariffSubscription.id.desc())
+        .all()
+    )
+    if not subs:
+        click.echo(f"No subscriptions for seller={seller_id}")
+        return
+
+    keep = subs[0]
+    to_delete = [s for s in subs if s.id != keep.id]
+
+    click.echo(f"Found {len(subs)} subscriptions for seller={seller_id} (store={seller.store_name!r}).")
+    click.echo(f"Will KEEP sub id={keep.id} (source={keep.source}, is_paid={keep.is_paid}, expires_at={keep.expires_at}).")
+    click.echo(f"Will DELETE {len(to_delete)} subscriptions:")
+    for s in to_delete:
+        click.echo(f"  id={s.id} source={s.source} is_paid={s.is_paid} status={s.status} expires_at={s.expires_at}")
+
+    if not yes:
+        click.echo("ABORT: pass --yes to actually delete.")
+        raise click.Abort()
+
+    deleted = 0
+    for s in to_delete:
+        db.session.delete(s)
+        deleted += 1
+    db.session.commit()
+    click.echo(f"Deleted {deleted} subscription(s). Remaining for seller={seller_id}: {len(subs) - deleted}.")
+
 @click.command("seed-footer-links")
 @with_appcontext
 def seed_footer_links_command():
