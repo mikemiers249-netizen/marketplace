@@ -105,6 +105,48 @@
             </div>
             {% endif %}
         </div>
+    {% elif st.state == 'payable' and st.subscription %}
+        {# --- К оплате: выставлен счёт за прошлый месячный период --- #}
+        {% set sub = st.subscription %}
+        {% set show_amount = st.billed_amount and st.billed_amount > 0 %}
+        <div class="tariff-current-card tariff-current-card--warn">
+            <div class="tariff-current-card-head">
+                <i class="bi bi-cash-coin"></i>
+                <strong>К оплате за прошлый период</strong>
+                <span class="tariff-current-card-status">Payable</span>
+            </div>
+            <div class="tariff-current-card-body">
+                <p>
+                    Глобальный тариф <strong>{{ sub.plan.name }}</strong> зафиксирован на предыдущий месяц и истёк.
+                    Сейчас действует новая подписка на следующий период до
+                    <strong>{{ sub.expires_at.strftime('%d.%m.%Y') }}</strong>.
+                </p>
+                {% if show_amount %}
+                <p class="tariff-current-card-billed">
+                    <i class="bi bi-receipt"></i>
+                    Счёт за прошлый период:
+                    <strong>{{ '%.2f'|format(st.billed_amount) }} ₽</strong>
+                </p>
+                {% else %}
+                <p class="tariff-current-card-hint">
+                    Оборот за прошлый период — 0 ₽, к оплате 0 ₽. Счёт будет погашен автоматически.
+                </p>
+                {% endif %}
+            </div>
+            <div class="tariff-current-card-actions">
+                {% if show_amount %}
+                <form method="POST"
+                      action="{{ url_for('seller.tariff_pay_pending', subscription_id=sub.id) }}"
+                      class="tariff-inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-cash-coin"></i>
+                        Оплатить {{ '%.2f'|format(st.billed_amount) }} ₽
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
     {% elif st.state in ('global', 'grace', 'locked', 'none') %}
         {# --- Глобальный процент: единая плашка для global/grace/locked/none --- #}
         {# В state=='grace'/'locked' — ст.subscription существует, но подписка

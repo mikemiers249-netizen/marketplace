@@ -367,6 +367,24 @@ def register_context_processors(app):
             ]
             g.all_delivery_services = all_services
             g.active_delivery_ids = active_ids
+
+            # Конвертер на границе истечения global_auto:
+            # если месячный глобальный тариф истёк — выписать счёт за
+            # прошлый период и создать pending self-подписку. Идемпотентно.
+            # Дёргается лениво при первом запросе селлера после истечения
+            # (cron не нужен — срабатывает на ближайшем заходе).
+            try:
+                from app.blueprints.seller import (
+                    _expire_global_auto_and_create_pending_self,
+                )
+                _expire_global_auto_and_create_pending_self(current_user)
+            except Exception as _ce:
+                import logging as _clog
+                _clog.getLogger(__name__).exception(
+                    "auto-convert global_auto failed for seller=%s: %s",
+                    getattr(current_user, 'id', None), _ce,
+                )
+
             g.tariff_state = _resolve_tariff_state(current_user)
         except Exception as _e:
             import logging as _log

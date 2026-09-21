@@ -787,7 +787,10 @@ class TariffRow(db.Model):
         q = (
             db.session.query(func.coalesce(func.sum(Order.total_price), 0.0))
             .filter(Order.seller_id == seller.id)
-            .filter(Order.status == 'delivered')
+            # Бизнес-правило: оборот = сумма и доставленных, и полученных
+            # покупателем заказов. «Доставлено» — продавец отправил,
+            # «получено» — покупатель забрал. Оба считаются исполненными.
+            .filter(Order.status.in_(('delivered', 'received')))
             .filter(Order.created_at >= period_start)
             .filter(Order.created_at < period_end)
         )

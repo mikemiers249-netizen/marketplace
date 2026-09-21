@@ -33,7 +33,8 @@
         {# Sidebar #}
         {% set _ts = tariff_state or {} %}
         {% set _st = _ts.state or 'none' %}
-        {% set can_work = _st in ('paid', 'grace', 'global') %}
+        {# payable = «есть счёт за прошлый период, оплатите» — магазин работает, sidebar виден. #}
+        {% set can_work = _st in ('paid', 'grace', 'global', 'payable') %}
         <aside class="seller-sidebar">
             <div class="sidebar-header">
                 <a href="{{ url_for('seller.dashboard') }}" class="seller-logo" title="{{ current_user.store_name }}">
@@ -160,7 +161,22 @@
                     {% block header_title %}{% endblock %}
                 </div>
                 <div class="header-actions header-actions--icons">
-                    {% if not can_work %}
+                    {# state='payable': есть выставленный счёт за прошлый период — оплатить. #}
+                    {% if _st == 'payable' and _ts.subscription %}
+                    <form method="POST"
+                          action="{{ url_for('seller.tariff_pay_pending', subscription_id=_ts.subscription.id) }}"
+                          class="tariff-inline-form"
+                          style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-cash-coin"></i>
+                            Оплатить
+                            {% if _ts.billed_amount and _ts.billed_amount > 0 %}
+                                {{ '%.2f'|format(_ts.billed_amount)|replace('.', ',') }} ₽
+                            {% endif %}
+                        </button>
+                    </form>
+                    {% elif not can_work %}
                     <form method="POST"
                           action="{{ url_for('seller.tariff_activate_global') }}"
                           class="tariff-inline-form"

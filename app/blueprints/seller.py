@@ -537,6 +537,132 @@ def _get_active_subscription(seller):
     return sub
 
 
+def _expire_global_auto_and_create_pending_self(seller) -> SellerTariffSubscription | None:
+    """На границе истечения global_auto: выписать счёт за прошлый период.
+
+    Если у селлера есть ``global_auto``-подписка, у которой ``expires_at``
+    уже наступил, и при этом ещё НЕТ ``self``-подписки, ожидающей оплаты
+    за этот же период (note начинается с ``auto_from_global_auto:``), то:
+
+      • старая ``global_auto`` переводится в ``status='disabled'`` (с
+        пометкой ``disabled_at``), чтобы она больше не возвращалась
+        ``_get_active_subscription()`` и не путала UI;
+      • создаётся новая ``SellerTariffSubscription`` с ``source='self'``,
+        ``is_paid=False``, ``status='active'``, на ``effective_period_days``
+        дней вперёд — эта запись нужна, чтобы ``_resolve_tariff_state``
+        видел состояние ``payable``, а не ``none``;
+      • создаётся ``TariffTransaction`` с суммой, пересчитанной по обороту
+        за прошлый месяц (turnover × percent / 100), и ``note`` вида
+        ``auto_from_global_auto:<id>`` — это и есть «счёт за август».
+
+    Идемпотентность: повторный вход не создаст дубль, пока транзакция за
+    прошлый период не оплачена. После оплаты ``is_paid=True`` — функция
+    перестаёт срабатывать (нет ``global_auto`` для замены).
+
+    Возвращает созданную pending-подписку или ``None``, если сработать
+    не было оснований (например, селлер не заходил, или уже конвертировано).
+    """
+    if seller is None or not getattr(seller, 'id', None):
+        return None
+    try:
+        now = datetime.utcnow()
+        # Ищем глобальные подписки с истёкшим сроком, которые ещё активны
+        # (включая paused: после границы такие тоже должны конвертироваться).
+        expired = (
+            SellerTariffSubscription.query
+            .filter(
+                SellerTariffSubscription.seller_id == seller.id,
+                SellerTariffSubscription.source == SellerTariffSubscription.SOURCE_GLOBAL_AUTO,
+                SellerTariffSubscription.status.in_((
+                    SellerTariffSubscription.STATUS_ACTIVE,
+                    SellerTariffSubscription.STATUS_PAUSED,
+                )),
+                SellerTariffSubscription.expires_at <= now,
+            )
+            .order_by(SellerTariffSubscription.expires_at.desc())
+            .all()
+        )
+        if not expired:
+            return None
+
+        # На случай, если по какой-то причине есть несколько истёкших —
+        # обрабатываем только самую свежую (старейшую по expires_at desc
+        # уже выбрали выше; несколько — редкий случай, берём [0]).
+        old = expired[0]
+
+        # Проверка идемпотентности: нет ли уже pending self-sub по этому периоду.
+        marker = f'auto_from_global_auto:{old.id}'
+        already = (
+            TariffTransaction.query
+            .filter(
+                TariffTransaction.seller_id == seller.id,
+                TariffTransaction.note.like(f'{marker}%'),
+            )
+            .first()
+        )
+        if already is not None:
+            return None
+
+        row = old.row
+        if row is None:
+            # Без строки тарифа не можем посчитать оборот и срок — тушим
+            # global_auto без создания pending, чтобы UI ушёл в 'none'.
+            old.disable()
+            db.session.commit()
+            return None
+
+        period_days = row.effective_period_days
+        amount = float(
+            row.compute_billed_amount(seller, old.activated_at, old.expires_at)
+            or 0.0
+        )
+
+        # 1) Закрываем старую подписку.
+        old.disable()
+
+        # 2) Создаём pending self-подписку на новый период.
+        new_sub = SellerTariffSubscription(
+            seller_id=seller.id,
+            row_id=row.id,
+            source=SellerTariffSubscription.SOURCE_SELF,
+            is_paid=False,
+            status=SellerTariffSubscription.STATUS_ACTIVE,
+            activated_at=now,
+            expires_at=now + timedelta(days=period_days),
+        )
+        new_sub.recompute_grace(TARIFF_GRACE_DAYS)
+        new_sub.last_billed_at = now
+        db.session.add(new_sub)
+        db.session.flush()  # чтобы получить id
+
+        # 3) Фиксируем счёт за прошлый период.
+        period_label = (
+            f'{old.activated_at.strftime("%d.%m.%Y")}–'
+            f'{old.expires_at.strftime("%d.%m.%Y")}'
+        )
+        db.session.add(
+            TariffTransaction(
+                seller_id=seller.id,
+                row_id=row.id,
+                subscription_id=new_sub.id,
+                amount=amount,
+                paid_at=None,  # ещё не оплачено
+                note=f'{marker}|период:{period_label}',
+            )
+        )
+
+        db.session.commit()
+        return new_sub
+    except Exception as _e:
+        import logging as _log
+        db.session.rollback()
+        _log.getLogger(__name__).exception(
+            "_expire_global_auto_and_create_pending_self failed for seller=%s: %s",
+            getattr(seller, 'id', None), _e,
+        )
+        return None
+
+
 def _resolve_tariff_state(seller) -> dict:
     """Определить состояние тарифа у селлера для UI и блокировок.
 
@@ -633,6 +759,39 @@ def _resolve_tariff_state(seller) -> dict:
             state['billed_amount'] = sub.row.compute_billed_amount(
                 seller, sub.activated_at, sub.expires_at
             )
+        return state
+
+    # «К оплате»: истёк global_auto и конвертер уже создал pending self-sub
+    # со счётом за прошлый период. Селлер видит плашку «Оплатите N ₽»,
+    # магазин при этом не блокируется (can_work=True, sidebar виден).
+    if (
+        sub
+        and sub.source == SellerTariffSubscription.SOURCE_SELF
+        and sub.is_paid is False
+        and sub.status == SellerTariffSubscription.STATUS_ACTIVE
+        and sub.expires_at > datetime.utcnow()
+    ):
+        # Подсчёт суммы счёта — ищем последнюю непогашенную транзакцию
+        # с маркером auto_from_global_auto (либо любую последнюю без paid_at).
+        pending_tx = (
+            TariffTransaction.query
+            .filter(
+                TariffTransaction.seller_id == seller.id,
+                TariffTransaction.subscription_id == sub.id,
+                TariffTransaction.paid_at.is_(None),
+            )
+            .order_by(TariffTransaction.id.desc())
+            .first()
+        )
+        amount = float(pending_tx.amount) if pending_tx else 0.0
+        state['state'] = 'payable'
+        state['subscription'] = sub
+        state['days_to_expire'] = sub.days_to_expire
+        state['days_to_grace_end'] = sub.days_to_grace_end
+        # Показываем баннер только если реально есть ненулевой счёт;
+        # иначе селлеру не нужно ничего платить, беспокоить его нечем.
+        state['show_warning_banner'] = amount > 0
+        state['billed_amount'] = amount
         return state
 
     # Без подписки и без явной активации — состояние 'none'.
@@ -811,6 +970,68 @@ def tariff_buy(row_id):
     db.session.commit()
 
     flash(f'Тариф «{row.name}» успешно оплачен и активирован.', 'success')
+    return redirect(url_for('seller.tariffs', tab='my'))
+
+
+@bp.route('/tariffs/subscriptions/<int:subscription_id>/pay_pending', methods=['POST'])
+def tariff_pay_pending(subscription_id):
+    """Оплатить счёт за прошлый период, выставленный конвертером.
+
+    Эта точка работает ТОЛЬКО для ``source='self' + is_paid=False``
+    подписок, созданных ``_expire_global_auto_and_create_pending_self``
+    (т.е. с непогашенной ``TariffTransaction``, помеченной
+    ``note LIKE 'auto_from_global_auto:%'``).
+
+    Что делаем:
+      • помечаем ``TariffTransaction.paid_at = now``;
+      • переводим ``SellerTariffSubscription.is_paid = True``;
+      • пересчитываем ``grace_until`` (expires + 5 дней) — потому что
+        подписка теперь «живая».
+
+    Точка НЕ принимает оплату фикс-тарифа (для этого есть ``/buy``)
+    и НЕ продлевает существующую self-подписку (для этого есть
+    ``/subscriptions/<id>/extend`` ниже по файлу).
+    """
+    if not current_user.is_authenticated or not isinstance(current_user, Seller):
+        return redirect(url_for('auth_seller.seller_login'))
+
+    sub = db.session.get(SellerTariffSubscription, subscription_id)
+    if (
+        not sub
+        or sub.seller_id != current_user.id
+        or sub.source != SellerTariffSubscription.SOURCE_SELF
+        or sub.is_paid is True
+        or sub.status != SellerTariffSubscription.STATUS_ACTIVE
+    ):
+        flash('Счёт не найден или уже оплачен.', 'error')
+        return redirect(url_for('seller.tariffs', tab='my'))
+
+    pending_tx = (
+        TariffTransaction.query
+        .filter(
+            TariffTransaction.seller_id == current_user.id,
+            TariffTransaction.subscription_id == sub.id,
+            TariffTransaction.paid_at.is_(None),
+        )
+        .all()
+    )
+    if not pending_tx:
+        flash('Для этой подписки нет ожидающих счетов.', 'error')
+        return redirect(url_for('seller.tariffs', tab='my'))
+
+    now = datetime.utcnow()
+    for tx in pending_tx:
+        tx.paid_at = now
+    sub.is_paid = True
+    sub.recompute_grace(TARIFF_GRACE_DAYS)
+    db.session.commit()
+
+    amount = sum(float(tx.amount) for tx in pending_tx)
+    flash(
+        f'Оплачено {format_price(amount)} ₽ за прошлый период. '
+        f'Тариф активен до {sub.expires_at.strftime("%d.%m.%Y")}.',
+        'success',
+    )
     return redirect(url_for('seller.tariffs', tab='my'))
 
 
