@@ -86,6 +86,10 @@ class Config:
     MAIL_PASSWORD = _env("MAIL_PASSWORD")
     MAIL_DEFAULT_SENDER = _env("MAIL_DEFAULT_SENDER") or _env("MAIL_USERNAME")
 
+    PUBLIC_BASE_URL = _env("PUBLIC_BASE_URL", "https://wimli.ru")
+    MAIL_WORKER_ENABLED = _env_bool("MAIL_WORKER_ENABLED", True)
+    EMAIL_VERIFICATION_REQUIRED = _env_bool("EMAIL_VERIFICATION_REQUIRED", True)
+
     # ===== Админ =====
     MAIN_ADMIN_LOGIN = _env("MAIN_ADMIN_LOGIN", "admin")
     MAIN_ADMIN_PASSWORD_HASH = _env("MAIN_ADMIN_PASSWORD_HASH")

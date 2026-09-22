@@ -31,7 +31,7 @@
                             <input type="checkbox" name="remember">
                             <span>Запомнить меня</span>
                         </label>
-                        <a href="#" class="forgot-link">Забыли пароль?</a>
+                        <a href="{{ url_for('email_account.forgot', user_type='seller') }}" class="forgot-link">Забыли пароль?</a>
                     </div>
                     
                     <button type="submit" class="btn btn-primary btn-block">
@@ -39,7 +39,7 @@
                     </button>
                 </form>
                 
-                <div class="auth-footer">
+                <div class="auth-footer"><p><a href="{{ url_for('email_account.manage', user_type='seller') }}">Подтвердить почту / отправить письмо повторно</a></p>
                     <p>Нет магазина? <a href="{{ url_for('auth.seller_signup') }}">Зарегистрировать магазин</a></p>
                 </div>
                 

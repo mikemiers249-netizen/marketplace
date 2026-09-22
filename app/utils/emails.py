@@ -2,7 +2,8 @@
 
 import logging
 from flask_mail import Message
-from app import db, mail
+from app import db
+from app.utils.email_service import enqueue
 from app.models.orders import Order, OrderItem
 from app.models.users import Seller
 from app.models.communications import Message as MessageModel
@@ -133,8 +134,10 @@ def send_new_order_notification_to_seller(order_id):
             body=body
         )
         
-        mail.send(msg)
-        logger.info(f"Order notification sent to seller {seller.id} (email: {seller.email}) for order {order_id}")
+        if not enqueue(seller.email, subject, body):
+            return False
+        db.session.commit()
+        logger.info(f"Order notification queued for seller {seller.id} (email: {seller.email}) for order {order_id}")
         return True
         
     except Exception as e:
@@ -191,8 +194,10 @@ def send_order_status_update_to_seller(order_id, old_status=None):
             body=body
         )
         
-        mail.send(msg)
-        logger.info(f"Status update notification sent to seller {seller.id} for order {order_id}")
+        if not enqueue(seller.email, subject, body):
+            return False
+        db.session.commit()
+        logger.info(f"Status update notification queued for seller {seller.id} for order {order_id}")
         return True
         
     except Exception as e:

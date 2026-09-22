@@ -62,6 +62,12 @@ def create_app(config_class=None):
     
     # Регистрация blueprints
     register_blueprints(app)
+    from app.blueprints.email_account import bp as email_bp
+    from app.email_worker import mail_check, mail_deliver
+    from app.utils import email_events  # noqa: F401
+    app.register_blueprint(email_bp)
+    app.cli.add_command(mail_check)
+    app.cli.add_command(mail_deliver)
     
     # Настройка логирования
     setup_logging(app)
@@ -115,8 +121,8 @@ def create_app(config_class=None):
     # Санитизация коннектов к PostgreSQL: если PgBouncer (Coolify)
     # отдаёт коннект в состоянии "transaction aborted", любой первый
     # SQL падает. Перехватываем on_connect и сбрасываем состояние,
-    # переключая в AUTOCOMMIT. Это заставляет каждую команду быть
-    # отдельной транзакцией — сломанная не висит на всю сессию.
+    # сохраняя транзакции: изменения аккаунта и одноразового токена
+    # должны фиксироваться атомарно.
     from sqlalchemy import event as _sa_event
     from sqlalchemy.engine import Engine as _SAEngine
 
@@ -128,8 +134,8 @@ def create_app(config_class=None):
         except Exception:
             pass
         try:
-            # Переключаем psycopg2 в autocommit
-            dbapi_connection.set_isolation_level(0)  # 0 = AUTOCOMMIT
+            # Оставляем psycopg2 в транзакционном режиме
+            dbapi_connection.set_isolation_level(1)  # READ COMMITTED: preserve atomic commits
         except Exception:
             pass
 
@@ -208,17 +214,30 @@ def init_extensions(app):
         
         try:
             # Разбор user_id формата "ClassName:id"
-            user_type, user_id = user_id.split(':')
+            parts = user_id.split(':')
+            user_type, user_id = parts[:2]
             user_id = int(user_id)
+
+            def session_valid(user):
+                if user is None:
+                    return None
+                if len(parts) == 3:
+                    import secrets
+                    return user if secrets.compare_digest(user.get_id().rsplit(':', 1)[1], parts[2]) else None
+                if len(parts) != 2:
+                    return None
+                from app.models.email_delivery import EmailIdentity
+                identity = EmailIdentity.query.filter_by(user_type=user_type.lower(), user_id=user.id).first()
+                return None if identity and identity.sessions_revoked_at else user
             
             if user_type == 'Buyer':
                 user = Buyer.query.get(user_id)
                 logging.getLogger(__name__).info(f"load_user: Buyer id={user_id} -> {user}")
-                return user
+                return session_valid(user)
             elif user_type == 'Seller':
                 user = Seller.query.get(user_id)
                 logging.getLogger(__name__).info(f"load_user: Seller id={user_id} -> {user}")
-                return user
+                return session_valid(user)
         except (ValueError, AttributeError) as e:
             logging.getLogger(__name__).warning(f"load_user error for user_id={user_id!r}: {e}")
         

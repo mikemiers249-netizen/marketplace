@@ -3,6 +3,7 @@
 """
 
 from datetime import datetime
+import hashlib
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from app import db
@@ -31,7 +32,8 @@ class BaseUser(UserMixin):
     
     def get_id(self):
         """Получение идентификатора для Flask-Login."""
-        return f"{self.__class__.__name__}:{self.id}"
+        version = hashlib.sha256(self.password_hash.encode('utf-8')).hexdigest()[:24]
+        return f"{self.__class__.__name__}:{self.id}:{version}"
 
 
 class Buyer(BaseUser, db.Model):

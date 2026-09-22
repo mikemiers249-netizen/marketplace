@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Почта — Wimli</title>
+<style>body{font:17px/1.6 system-ui;background:#f5f6fa;color:#202534;margin:0;padding:24px}main{max-width:440px;margin:8vh auto;padding:32px;background:white;border-radius:20px;box-shadow:0 8px 40px #0001}h1{font-size:26px}label,input,button{display:block;box-sizing:border-box;width:100%}input,button{padding:12px;margin:8px 0 20px;border:1px solid #cbd0da;border-radius:8px;font:inherit}button{background:#5545d9;color:white;cursor:pointer}a{color:#5545d9}</style></head><body><main>
+{% if mode == 'invalid' %}<h1>Ссылка недействительна</h1><p>Она истекла или уже использована.</p><p><a href="{{ url_for('email_account.manage') }}">Подтвердить почту</a></p><p><a href="{{ url_for('email_account.forgot') }}">Восстановить пароль</a></p>
+{% elif mode == 'verified' %}<h1>Почта подтверждена</h1><p>Теперь вы можете войти в аккаунт.</p>
+{% elif mode == 'reset_done' %}<h1>Пароль изменён</h1><p>Войдите с новым паролем.</p>
+{% else %}
+<h1>{{ 'Подтверждение почты' if mode == 'verify' else 'Новый пароль' }}</h1>
+{% for category, message in get_flashed_messages(with_categories=true) %}<p role="alert">{{ message }}</p>{% endfor %}
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% if mode == 'reset' %}<label for="password">Новый пароль</label><input id="password" type="password" name="password" minlength="8" maxlength="256" autocomplete="new-password" required><label for="password_confirm">Повторите пароль</label><input id="password_confirm" type="password" name="password_confirm" minlength="8" maxlength="256" autocomplete="new-password" required>{% else %}<p>Нажмите кнопку, чтобы подтвердить ваш адрес.</p>{% endif %}
+<button>{{ 'Подтвердить почту' if mode == 'verify' else 'Сохранить пароль' }}</button></form>
+{% endif %}
+<p><a href="{{ url_for('auth.login') }}">Вход покупателя</a> · <a href="{{ url_for('auth.seller_login') }}">Вход продавца</a></p>
+</main></body></html>

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Почта — Wimli{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block content %}
+<div class="auth-page"><div class="auth-container"><div class="auth-card">
+  <h1>{{ 'Восстановление пароля' if mode == 'reset_request' else 'Подтверждение почты' }}</h1>
+  {% if identity and identity.verified_at %}<p role="status">Почта {{ identity.email }} подтверждена.</p>{% endif %}
+  {% if not ready %}<p role="status">Отправка писем временно недоступна. Попробуйте позже.</p>{% endif %}
+  <p>Ссылка действует 30 минут. Если письма нет, проверьте папку «Спам».</p>
+  <form method="post" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group"><label for="user_type">Аккаунт</label>
+      <select id="user_type" name="user_type"><option value="buyer">Покупатель</option><option value="seller" {% if request.args.get('user_type') == 'seller' %}selected{% endif %}>Продавец</option></select>
+    </div>
+    <div class="form-group"><label for="email">Почта</label><input id="email" name="email" type="email" maxlength="120" autocomplete="email" required></div>
+    <button class="btn btn-primary btn-block" {% if not ready %}disabled{% endif %}>Отправить ссылку</button>
+  </form>
+  <p><a href="{{ url_for('auth.login') }}">Вход покупателя</a> · <a href="{{ url_for('auth.seller_login') }}">Вход продавца</a></p>
+</div></div></div>
+{% endblock %}

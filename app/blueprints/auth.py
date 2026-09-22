@@ -10,6 +10,9 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
 from app import db, csrf
+from flask import current_app
+from sqlalchemy import func
+from app.utils.email_service import configured, request_link, needs_verification
 from app.models.users import Buyer, Seller
 from app.utils.helpers import slugify
 from app.utils.decorators import login_required_with_message
@@ -61,6 +64,9 @@ def login():
             if not buyer.is_active:
                 flash('Ваш аккаунт заблокирован.', 'error')
             else:
+                if needs_verification(buyer):
+                    flash('Подтвердите почту перед входом. При необходимости запросите новое письмо.', 'warning')
+                    return redirect(url_for('email_account.manage', user_type='buyer'))
                 login_user(buyer, remember=remember)
                 buyer.last_login = db.func.now()
                 db.session.commit()
@@ -113,6 +119,9 @@ def seller_login():
                 return render_template('auth/seller_login.html', title='Вход для продавцов')
             else:
                 logger.info("Logging in seller...")
+                if needs_verification(seller):
+                    flash('Подтвердите почту перед входом. При необходимости запросите новое письмо.', 'warning')
+                    return redirect(url_for('email_account.manage', user_type='seller'))
                 login_user(seller, remember=remember)
                 if hasattr(seller, 'last_login'):
                     seller.last_login = datetime.utcnow()
@@ -199,12 +208,15 @@ def signup():
     
     if request.method == 'POST':
         login = request.form.get('login')
-        email = request.form.get('email')
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password')
         password_confirm = request.form.get('password_confirm')
         phone = request.form.get('phone')
         
         # Валидация
+        if not email or len(email) > 120 or email.count('@') != 1 or any(c.isspace() for c in email) or not all(email.split('@')):
+            flash('Укажите корректный адрес почты.', 'error')
+            return redirect(request.path)
         if password != password_confirm:
             flash('Пароли не совпадают.', 'error')
             return render_template('auth/signup.html')
@@ -222,7 +234,7 @@ def signup():
             flash('Этот логин уже занят.', 'error')
             return render_template('auth/signup.html')
 
-        if Buyer.query.filter_by(email=email).first():
+        if Buyer.query.filter(func.lower(Buyer.email) == email.lower()).first():
             flash('Этот email уже зарегистрирован.', 'error')
             return render_template('auth/signup.html')
         
@@ -236,7 +248,12 @@ def signup():
         buyer.set_password(password)
         
         db.session.add(buyer)
+        db.session.flush()
+        queued = request_link(buyer, 'verify', required=current_app.config.get('EMAIL_VERIFICATION_REQUIRED', True)) if configured() else False
         db.session.commit()
+        if queued:
+            flash('Аккаунт создан. Проверьте почту: мы отправили ссылку для подтверждения.', 'success')
+            return redirect(url_for('email_account.manage', user_type='buyer'))
         
         flash('Регистрация успешна! Теперь вы можете войти.', 'success')
         return redirect(url_for('auth.login'))
@@ -255,13 +272,16 @@ def seller_signup():
     
     if request.method == 'POST':
         login = request.form.get('login')
-        email = request.form.get('email')
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password')
         password_confirm = request.form.get('password_confirm')
         store_name = request.form.get('store_name')
         phone = request.form.get('phone')
         
         # Валидация
+        if not email or len(email) > 120 or email.count('@') != 1 or any(c.isspace() for c in email) or not all(email.split('@')):
+            flash('Укажите корректный адрес почты.', 'error')
+            return redirect(request.path)
         if password != password_confirm:
             flash('Пароли не совпадают.', 'error')
             return render_template('auth/seller_signup.html')
@@ -279,7 +299,7 @@ def seller_signup():
             flash('Этот логин уже занят.', 'error')
             return render_template('auth/seller_signup.html')
         
-        if Seller.query.filter_by(email=email).first():
+        if Seller.query.filter(func.lower(Seller.email) == email.lower()).first():
             flash('Этот email уже зарегистрирован.', 'error')
             return render_template('auth/seller_signup.html')
         
@@ -304,7 +324,12 @@ def seller_signup():
         seller.set_password(password)
         
         db.session.add(seller)
+        db.session.flush()
+        queued = request_link(seller, 'verify', required=current_app.config.get('EMAIL_VERIFICATION_REQUIRED', True)) if configured() else False
         db.session.commit()
+        if queued:
+            flash('Аккаунт создан. Проверьте почту: мы отправили ссылку для подтверждения.', 'success')
+            return redirect(url_for('email_account.manage', user_type='seller'))
         
         flash('Регистрация успешна! Теперь вы можете войти в панель продавца.', 'success')
         return redirect(url_for('auth.seller_login'))
@@ -363,9 +388,9 @@ def check_email():
     user_type = request.args.get('type', 'buyer')
     
     if user_type == 'seller':
-        exists = Seller.query.filter_by(email=email).first()
+        exists = Seller.query.filter(func.lower(Seller.email) == email.lower()).first()
     else:
-        exists = Buyer.query.filter_by(email=email).first()
+        exists = Buyer.query.filter(func.lower(Buyer.email) == email.lower()).first()
     
     return {'available': not exists}
 

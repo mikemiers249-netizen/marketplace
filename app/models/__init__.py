@@ -33,6 +33,8 @@ from app.models.footer import (
     FooterLink
 )
 
+from app.models.email_delivery import EmailIdentity, EmailToken, EmailOutbox
+
 # Экспорт всех моделей
 __all__ = [
     # Пользователи

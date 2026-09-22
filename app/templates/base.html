@@ -104,6 +104,7 @@
         {% endif %}
     {% endwith %}
 
+    {% if current_user.is_authenticated %}<div class="container"><a href="{{ url_for('email_account.manage') }}">Подтверждение почты</a></div>{% endif %}
     {# Основной контент #}
     <main class="main-content">
         {% block content %}{% endblock %}
