@@ -182,6 +182,7 @@ def deliver_batch(limit=20):
             with smtp_connection() as smtp:
                 smtp.send_message(message)
             changes = {'status': 'sent', 'sent_at': datetime.utcnow(), 'body': '', 'last_error': None}
+            current_app.logger.info('Email delivery %s accepted by SMTP', message_id)
             count += 1
         except Exception as exc:
             # Never log credentials, recipients, message bodies or token URLs.
