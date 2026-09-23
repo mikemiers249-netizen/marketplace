@@ -165,6 +165,24 @@
                 </div>
             </div>
             <div class="tariff-detail-actions">
+                {% set quote = info.renewal_quotes[sub.id] %}
+                <div class="tariff-renewal-estimate">
+                    <span class="tariff-detail-label">Стоимость продления на текущий момент</span>
+                    <strong class="tariff-renewal-amount">{{ '%.2f'|format(quote.amount) }} ₽</strong>
+                    <div class="tariff-row-hint">
+                        {% if quote.fixed %}
+                            Фиксированная стоимость тарифа.
+                        {% else %}
+                            Продажи{% if quote.category_id %} по категории тарифа{% endif %}:
+                            {{ '%.2f'|format(quote.turnover) }} ₽ × {{ '%g'|format(quote.rate) }}%.
+                        {% endif %}
+                        Период расчёта: {{ quote.period_start.strftime('%d.%m.%Y %H:%M') }} —
+                        {{ quote.period_end.strftime('%d.%m.%Y %H:%M') }} (UTC).
+                    </div>
+                    {% if not quote.fixed %}
+                    <div class="tariff-row-hint">Доставленные и полученные заказы учитываются один раз, по первой дате доставки или получения. Доставка в сумму продаж не входит.</div>
+                    {% endif %}
+                </div>
                 <form method="POST"
                       action="{{ url_for('admin.tariff_subscription_disable', subscription_id=sub.id) }}"
                       onsubmit="return confirm('Отключить тариф и удалить подписку из базы данных? История платежей сохранится.');">

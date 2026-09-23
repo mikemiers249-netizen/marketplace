@@ -759,7 +759,7 @@ class TariffRow(db.Model):
         return 30
 
     def compute_billed_amount(self, seller, period_start, period_end) -> float:
-        """Сумма к списанию за период [period_start, period_end] для селлера.
+        """Сумма к списанию за период [period_start, period_end) для селлера.
 
         Возвращает 0 для фикс-тарифов (там своя цена price_amount) и для
         правил с billing_period='per_sale' (там списание происходит по
@@ -768,7 +768,7 @@ class TariffRow(db.Model):
         Для kind in {cards_turnover, category_sale} с billing_period='monthly':
             amount = percent_rate × оборот_за_период / 100
 
-        Оборот = сумма total_price доставленных заказов селлера за период.
+        Оборот = продажи по первой дате доставки/получения за период.
         Для category_sale дополнительно фильтруем по subject_category_id
         (через OrderItem.product.category_id).
         """
@@ -781,25 +781,11 @@ class TariffRow(db.Model):
             # здесь его не агрегируем (см. seller.orders hooks).
             return 0.0
 
-        from sqlalchemy import func
-        from app.models.orders import Order, OrderItem
-
-        q = (
-            db.session.query(func.coalesce(func.sum(Order.total_price), 0.0))
-            .filter(Order.seller_id == seller.id)
-            # Бизнес-правило: оборот = сумма и доставленных, и полученных
-            # покупателем заказов. «Доставлено» — продавец отправил,
-            # «получено» — покупатель забрал. Оба считаются исполненными.
-            .filter(Order.status.in_(('delivered', 'received')))
-            .filter(Order.created_at >= period_start)
-            .filter(Order.created_at < period_end)
-        )
-        if self.kind == self.KIND_CATEGORY_SALE and self.subject_category_id:
-            # Оборот только по товарам указанной категории.
-            q = q.join(OrderItem, OrderItem.order_id == Order.id)
-            q = q.filter(OrderItem.product.has(category_id=self.subject_category_id))
-        turnover = float(q.scalar() or 0.0)
-        return round(turnover * float(self.percent_rate) / 100.0, 2)
+        from app.utils.tariff_billing import sales_turnover, percentage_amount
+        category_id = (self.subject_category_id
+                       if self.kind == self.KIND_CATEGORY_SALE else None)
+        turnover = sales_turnover(seller.id, period_start, period_end, category_id)
+        return percentage_amount(turnover, self.percent_rate)
 
     def validate(self) -> str | None:
         """Вернёт текст ошибки или None, если строка валидна.

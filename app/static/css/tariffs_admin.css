@@ -144,6 +144,17 @@
 .tariff-detail-actions form {
     margin: 0;
 }
+.tariff-renewal-estimate {
+    flex: 0 0 100%;
+    min-width: 0;
+    padding-bottom: 8px;
+}
+.tariff-renewal-amount {
+    display: block;
+    margin: 4px 0;
+    font-size: 20px;
+    color: var(--text-primary, #1f2937);
+}
 
 /* Пустое состояние */
 .tariff-empty {

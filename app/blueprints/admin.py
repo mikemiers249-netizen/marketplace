@@ -1325,6 +1325,7 @@ def tariffs():
     #   • «Без тарифа» — state in ('none', 'locked') — нет подписки,
     #     или подписка истекла (и грейс тоже).
     from app.blueprints.seller import _resolve_tariff_state as _resolve_state
+    from app.utils.tariff_billing import renewal_quote
     all_sellers = Seller.query.order_by(Seller.id).all()
 
     # Группируем seller'ов по сегменту. Для каждого считаем state,
@@ -1361,6 +1362,10 @@ def tariffs():
             'billed_amount': state.get('billed_amount', 0.0),
             'current_subscription': sub,
             'subscriptions': all_subs_by_seller.get(seller.id, []),
+            'renewal_quotes': {
+                item.id: renewal_quote(item, now)
+                for item in all_subs_by_seller.get(seller.id, [])
+            },
         }
         if state['state'] in ('paid', 'grace'):
             paid_sellers.append(info)
@@ -2035,6 +2040,11 @@ def update_order_status(order_id):
     
     new_status = request.form.get('status')
     if new_status:
+        if new_status != order.status:
+            if new_status == 'delivered' and order.delivered_at is None:
+                order.delivered_at = datetime.utcnow()
+            elif new_status == 'received' and order.received_at is None:
+                order.received_at = datetime.utcnow()
         order.status = new_status
         db.session.commit()
         flash('Статус заказа обновлён.', 'success')

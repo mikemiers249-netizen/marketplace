@@ -602,8 +602,10 @@ def _expire_global_auto_and_create_pending_self(seller) -> SellerTariffSubscript
             return None
 
         period_days = row.effective_period_days
+        period_start = max(old.activated_at, old.last_billed_at or old.activated_at)
+        period_end = old.expires_at
         amount = float(
-            row.compute_billed_amount(seller, old.activated_at, old.expires_at)
+            row.compute_billed_amount(seller, period_start, period_end)
             or 0.0
         )
 
@@ -615,12 +617,12 @@ def _expire_global_auto_and_create_pending_self(seller) -> SellerTariffSubscript
         old.status = SellerTariffSubscription.STATUS_ACTIVE
         old.is_paid = False
         old.recompute_grace(TARIFF_GRACE_DAYS)
-        old.last_billed_at = now
+        old.last_billed_at = period_end
 
         # Счёт за прошлый период.
         period_label = (
-            f'{old.activated_at.strftime("%d.%m.%Y")}–'
-            f'{old.expires_at.strftime("%d.%m.%Y")}'
+            f'{period_start.strftime("%d.%m.%Y")}–'
+            f'{period_end.strftime("%d.%m.%Y")}'
         )
         db.session.add(
             TariffTransaction(
@@ -668,6 +670,9 @@ def _resolve_tariff_state(seller) -> dict:
     """
     sub = _get_active_subscription(seller)
     global_rules = _get_active_global_rules()
+    if sub:
+        period_start = max(sub.activated_at, sub.last_billed_at or sub.activated_at)
+        period_end = min(sub.expires_at, datetime.utcnow())
 
     state = {
         'state': 'none',
@@ -691,8 +696,6 @@ def _resolve_tariff_state(seller) -> dict:
         state['show_warning_banner'] = state['days_to_expire'] <= TARIFF_WARN_DAYS
         # Пересчёт стоимости по обороту для текущего периода.
         if sub.row and sub.row.is_global_rule:
-            period_start = sub.activated_at
-            period_end = sub.expires_at
             state['billed_amount'] = sub.row.compute_billed_amount(
                 seller, period_start, period_end
             )
@@ -706,7 +709,7 @@ def _resolve_tariff_state(seller) -> dict:
         # её увидит селлер на плашке «Глобальный процент — X ₽».
         if sub.row and sub.row.is_global_rule:
             state['billed_amount'] = sub.row.compute_billed_amount(
-                seller, sub.activated_at, sub.expires_at
+                seller, period_start, period_end
             )
         return state
 
@@ -717,7 +720,7 @@ def _resolve_tariff_state(seller) -> dict:
         # (за истекший период), чтобы селлер знал, сколько надо оплатить.
         if sub.row and sub.row.is_global_rule:
             state['billed_amount'] = sub.row.compute_billed_amount(
-                seller, sub.activated_at, sub.expires_at
+                seller, period_start, period_end
             )
         return state
 
@@ -739,7 +742,7 @@ def _resolve_tariff_state(seller) -> dict:
         state['near_expiry'] = state['days_to_expire'] <= TARIFF_WARN_DAYS
         if sub.row and sub.row.is_global_rule:
             state['billed_amount'] = sub.row.compute_billed_amount(
-                seller, sub.activated_at, sub.expires_at
+                seller, period_start, period_end
             )
         return state
 
@@ -1137,6 +1140,8 @@ def tariff_subscription_extend(subscription_id):
 
     # Запоминаем СТАРЫЙ expires_at — он нужен для расчёта оборота в глобальной ветке.
     old_expires_at = sub.expires_at
+    from app.utils.tariff_billing import renewal_quote
+    quote = renewal_quote(sub, now)
 
     # База для продления: если подписка ещё жива — от её expires_at,
     # иначе — от now (типичный случай — подписка в грейсе или истекла).
@@ -1155,7 +1160,7 @@ def tariff_subscription_extend(subscription_id):
     sub.expires_at = new_expires_at
     sub.status = SellerTariffSubscription.STATUS_ACTIVE
     sub.recompute_grace(TARIFF_GRACE_DAYS)
-    sub.last_billed_at = now
+    sub.last_billed_at = quote['period_end']
 
     # ---- Ветка 1: self-тариф (фикс) — продлеваем сразу, списываем. ----
     if row.is_purchasable:
@@ -1181,30 +1186,9 @@ def tariff_subscription_extend(subscription_id):
         return redirect(url_for('seller.tariffs', tab='my'))
 
     # ---- Ветка 2: global-правило (процент) — двухшаговая логика. ----
-    # Период для расчёта оборота — фактический прошлый срок подписки.
-    if sub.activated_at and old_expires_at:
-        period_start = sub.activated_at
-        period_end = old_expires_at
-    else:
-        period_start = now - timedelta(days=period_days)
-        period_end = now
-    if period_end <= period_start:
-        period_start = period_end - timedelta(days=period_days)
-
-    from sqlalchemy import func as _func
-    from app.models.orders import Order
-    turnover_only = float(
-        db.session.query(_func.coalesce(_func.sum(Order.total_price), 0.0))
-        .filter(Order.seller_id == current_user.id)
-        .filter(Order.status.in_(('delivered', 'received')))
-        .filter(Order.created_at >= period_start)
-        .filter(Order.created_at < period_end)
-        .scalar()
-        or 0.0
-    )
-    amount = round(
-        turnover_only * float(row.percent_rate or 0.0) / 100.0, 2
-    )
+    # Тот же расчёт, что показан администратору перед продлением.
+    period_start, period_end = quote['period_start'], quote['period_end']
+    turnover_only, amount = quote['turnover'], quote['amount']
 
     if turnover_only <= 0:
         # Продаж не было — продлеваем бесплатно. Та же строка.

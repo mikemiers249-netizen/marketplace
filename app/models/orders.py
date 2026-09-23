@@ -264,7 +264,8 @@ class Order(db.Model):
     def deliver(self):
         """Доставка заказа."""
         self.status = 'delivered'
-        self.delivered_at = datetime.utcnow()
+        if self.delivered_at is None:
+            self.delivered_at = datetime.utcnow()
         db.session.commit()
         
         # Начисление бонусов покупателю
@@ -278,7 +279,8 @@ class Order(db.Model):
         (если она включена и селлер подключился к курсу).
         """
         self.status = 'received'
-        self.received_at = datetime.utcnow()
+        if self.received_at is None:
+            self.received_at = datetime.utcnow()
         db.session.commit()
 
         # Начисление бонусов по новой per-seller программе лояльности.
