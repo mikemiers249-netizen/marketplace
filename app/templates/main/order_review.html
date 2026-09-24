@@ -475,6 +475,9 @@
                 </div>
                 <div class="seller-total">
                     Сумма: <strong>{{ seller_data.total | round(2) }} ₽</strong>
+                    {% if seller_data.seller and seller_data.seller.minimum_order_amount %}
+                    <div>Минимальный заказ: {{ format_price(seller_data.seller.minimum_order_amount) }} без доставки</div>
+                    {% endif %}
                 </div>
             </div>
             

@@ -87,6 +87,7 @@ def reset_public_schema_command(yes):
 def ensure_system_sku_command():
     """
     Идемпотентно добавляет колонку products.system_sku и уникальный индекс.
+    Также добавляет sellers.minimum_order_amount перед запуском приложения.
     Безопасно вызывать на каждом деплое: ADD COLUMN IF NOT EXISTS и
     CREATE UNIQUE INDEX IF NOT EXISTS — no-op, если уже есть.
 
@@ -97,6 +98,9 @@ def ensure_system_sku_command():
     """
     from sqlalchemy import text
     click.echo("Ensuring products.system_sku column...")
+    db.session.execute(text(
+        "ALTER TABLE sellers ADD COLUMN IF NOT EXISTS minimum_order_amount NUMERIC(12, 2)"
+    ))
     db.session.execute(text(
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS system_sku VARCHAR(64)"
     ))

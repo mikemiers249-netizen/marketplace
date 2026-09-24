@@ -19,6 +19,7 @@ from app.utils.helpers import (
 )
 from app.utils.decorators import buyer_required, ajax_login_required
 from app.utils.emails import send_new_order_notification_to_seller, create_order_conversation
+from app.utils.order_limits import minimum_order_error
 # Импорт из seller blueprint: приватный _resolve_tariff_state и публичный
 # get_active_seller_ids нужны для фильтрации товаров в публичном каталоге
 # (скрываем товары заблокированных магазинов: state in ('locked', 'none')).
@@ -1569,6 +1570,9 @@ def checkout_submit():
         
         if not seller_items:
             return jsonify({'success': False, 'error': 'Не найдены продавцы для товаров в корзине'}), 400
+        minimum_error = minimum_order_error(cart_items)
+        if minimum_error:
+            return jsonify(success=False, error=minimum_error), 400
         
         from datetime import datetime
         created_orders = []
@@ -1917,6 +1921,11 @@ def checkout():
     for item in cart_items:
         seller_items[item.product.seller_id].append(item)
     
+    minimum_error = minimum_order_error(cart_items)
+    if minimum_error:
+        flash(minimum_error, 'warning')
+        return redirect(url_for('main.cart'))
+
     # Удаляем старые черновики (pending) для этого покупателя
     Order.query.filter_by(buyer_id=current_user.id, status='pending').delete()
     
@@ -2106,6 +2115,10 @@ def order_create():
     seller_items = defaultdict(list)
     for item in cart_items:
         seller_items[item.product.seller_id].append(item)
+
+    minimum_error = minimum_order_error(cart_items)
+    if minimum_error:
+        return jsonify(success=False, error=minimum_error), 400
 
     # Логика скидок теперь в compute_best_discount_for_item — она сама учитывает
     # все источники (current_discount, классические discount-акции, second_with_discount)

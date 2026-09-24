@@ -30,7 +30,7 @@ EXPOSE 5000
 # Запуск: создаём таблицы (db-init), потом 'flask ensure-system-sku'
 # (идемпотентный DDL — ALTER TABLE ... ADD COLUMN IF NOT EXISTS + CREATE
 # UNIQUE INDEX IF NOT EXISTS), потом stamp на текущий head
-# (s1y2s3t4u5m6 — add system_sku), потом gunicorn.
+# (t2u3v4w5x6y7 — minimum order amount), потом gunicorn.
 #
 # ПОЧЕМУ ТАК, А НЕ 'flask db upgrade':
 #  - 'db upgrade' зависит от alembic_version. Если он уже стоит на
@@ -54,4 +54,4 @@ EXPOSE 5000
 # (3) обновить s1y2s3t4u5m6 в строке flask db stamp на новую ревизию.
 # Если задан RESET_DB=1 в env — сначала сбрасывает public schema (только
 # для свежей БД). PORT, GUNICORN_WORKERS, APP_CONFIG — из env Coolify.
-CMD ["sh", "-c", "if [ \"$RESET_DB\" = \"1\" ]; then FLASK_APP=wsgi.py flask reset-public-schema --yes; fi && FLASK_APP=wsgi.py flask db-init && FLASK_APP=wsgi.py flask fix-password-length && FLASK_APP=wsgi.py flask ensure-system-sku && FLASK_APP=wsgi.py flask db stamp s1y2s3t4u5m6 && if [ \"$PURGE_SELLER_SUBS_ON_BOOT\" = \"1\" ]; then FLASK_APP=wsgi.py flask clear-seller-subs --seller-id \"${PURGE_SELLER_ID:-1}\" --yes; fi && if [ -n \"$GRANT_TEST_TARIFF_SELLER_ID\" ]; then FLASK_APP=wsgi.py flask grant-test-tariff \"$GRANT_TEST_TARIFF_SELLER_ID\" --days \"${GRANT_TEST_TARIFF_DAYS:-30}\"; fi && gunicorn --config gunicorn.conf.py wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers ${GUNICORN_WORKERS:-2} --timeout 60 --access-logfile - --error-logfile -"]
+CMD ["sh", "-c", "if [ \"$RESET_DB\" = \"1\" ]; then FLASK_APP=wsgi.py flask reset-public-schema --yes; fi && FLASK_APP=wsgi.py flask db-init && FLASK_APP=wsgi.py flask fix-password-length && FLASK_APP=wsgi.py flask ensure-system-sku && FLASK_APP=wsgi.py flask db stamp t2u3v4w5x6y7 && if [ \"$PURGE_SELLER_SUBS_ON_BOOT\" = \"1\" ]; then FLASK_APP=wsgi.py flask clear-seller-subs --seller-id \"${PURGE_SELLER_ID:-1}\" --yes; fi && if [ -n \"$GRANT_TEST_TARIFF_SELLER_ID\" ]; then FLASK_APP=wsgi.py flask grant-test-tariff \"$GRANT_TEST_TARIFF_SELLER_ID\" --days \"${GRANT_TEST_TARIFF_DAYS:-30}\"; fi && gunicorn --config gunicorn.conf.py wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers ${GUNICORN_WORKERS:-2} --timeout 60 --access-logfile - --error-logfile -"]

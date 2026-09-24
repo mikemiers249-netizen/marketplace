@@ -131,6 +131,7 @@ class Seller(BaseUser, db.Model):
     # перестают показываться в каталоге, кроме товаров, уже лежащих
     # в корзине у покупателей.
     daily_orders_limit = db.Column(db.Integer, nullable=True)
+    minimum_order_amount = db.Column(db.Numeric(12, 2), nullable=True)
     
     # Связи
     products = db.relationship('Product', back_populates='seller', lazy='dynamic',

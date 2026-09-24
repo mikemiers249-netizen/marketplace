@@ -629,6 +629,9 @@
                         
                         <div class="cart-item-seller">
                             Продавец: {{ item.product.seller.store_name if item.product.seller else 'Неизвестно' }}
+                            {% if item.product.seller and item.product.seller.minimum_order_amount %}
+                            <div>Минимальный заказ в этом магазине: {{ format_price(item.product.seller.minimum_order_amount) }} (без доставки)</div>
+                            {% endif %}
                         </div>
                         
                         <div class="cart-item-price">

@@ -4728,14 +4728,26 @@ def settings():
     
     if request.method == 'POST':
         # Обновление данных продавца
-        seller.store_name = request.form.get('store_name')
-        seller.store_description = _sanitize_html(request.form.get('store_description'))
-        seller.phone = request.form.get('phone')
+        if 'minimum_order_amount' in request.form:
+            from app.utils.order_limits import parse_minimum_order_amount
+            try:
+                seller.minimum_order_amount = parse_minimum_order_amount(request.form['minimum_order_amount'])
+            except ValueError as error:
+                flash(str(error), 'error')
+                return redirect(url_for('seller.settings'))
+        if 'store_name' in request.form:
+            seller.store_name = request.form.get('store_name')
+        if 'store_description' in request.form:
+            seller.store_description = _sanitize_html(request.form.get('store_description'))
+        if 'phone' in request.form:
+            seller.phone = request.form.get('phone')
 
         # Дневной лимит заказов. Пустая строка или нечисловое значение
         # → снимаем лимит (NULL = безлимит). Иначе — целое >= 1.
         limit_raw = (request.form.get('daily_orders_limit') or '').strip()
-        if limit_raw == '':
+        if 'daily_orders_limit' not in request.form:
+            pass
+        elif limit_raw == '':
             seller.daily_orders_limit = None
         else:
             try:
