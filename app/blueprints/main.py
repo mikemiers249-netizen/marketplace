@@ -326,7 +326,7 @@ def _filter_visible(products):
 
 
 def _homepage_product_batch(excluded_ids=()):
-    """Полные пятёрки без повторов, с приоритетом разных категорий."""
+    """Порции до пяти товаров без повторов, с приоритетом разных категорий."""
     ranked = db.session.query(
         Product.id.label('id'),
         func.row_number().over(
@@ -340,8 +340,8 @@ def _homepage_product_batch(excluded_ids=()):
     ).subquery()
     candidates = Product.query.join(ranked, Product.id == ranked.c.id).order_by(
         ranked.c.category_rank, func.random()
-    ).limit(10).all()
-    return (candidates[:5] if len(candidates) >= 5 else []), len(candidates) == 10
+    ).limit(6).all()
+    return candidates[:5], len(candidates) > 5
 
 
 @bp.route('/api/home-products', methods=['POST'])
