@@ -1845,6 +1845,23 @@ def product_new():
                          product_params={})
 
 
+@bp.route('/products/<int:product_id>/stock', methods=['POST'])
+@require_active_tariff
+def product_update_stock(product_id):
+    if not current_user.is_authenticated or not isinstance(current_user, Seller):
+        abort(401)
+    product = db.session.get(Product, product_id)
+    if not product or product.seller_id != current_user.id:
+        abort(404)
+    payload = request.get_json(silent=True)
+    quantity = payload.get('stock_quantity') if isinstance(payload, dict) else None
+    if type(quantity) is not int or not 0 <= quantity <= 2147483647:
+        return jsonify(error='Укажите целое количество от 0 до 2147483647.'), 400
+    product.stock_quantity = quantity
+    db.session.commit()
+    return jsonify(stock_quantity=product.stock_quantity)
+
+
 @bp.route('/products/<int:product_id>/edit', methods=['GET', 'POST'])
 @require_active_tariff
 def product_edit(product_id):

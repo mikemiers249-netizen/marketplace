@@ -74,7 +74,11 @@
                         <span class="discount-badge">-{{ product.current_discount }}%</span>
                         {% endif %}
                     </td>
-                    <td class="product-stock">
+                    <td class="product-stock" tabindex="0"
+                        data-quantity="{{ product.stock_quantity }}"
+                        data-stock-url="{{ url_for('seller.product_update_stock', product_id=product.id) }}"
+                        title="Двойной клик — изменить количество"
+                        aria-label="Количество товара {{ product.name }}. Двойной клик или Enter для изменения.">
                         {% if product.stock_quantity > 0 %}
                         <span class="in-stock">{{ product.stock_quantity }} шт.</span>
                         {% else %}
@@ -170,4 +174,8 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/seller-product-stock.js') }}"></script>
 {% endblock %}
