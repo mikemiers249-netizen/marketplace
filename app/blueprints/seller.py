@@ -1860,6 +1860,16 @@ def product_edit(product_id):
         abort(404)
     
     if request.method == 'POST':
+        if request.form.get('action') == 'update_stock':
+            quantity = request.form.get('stock_quantity', type=int)
+            if quantity is None or not 0 <= quantity <= 2147483647:
+                flash('Укажите целое количество от 0 до 2147483647.', 'error')
+                return redirect(url_for('seller.product_edit', product_id=product.id))
+            product.stock_quantity = quantity
+            db.session.commit()
+            flash('Количество сохранено. Статус модерации товара не изменён.', 'success')
+            return redirect(url_for('seller.product_edit', product_id=product.id))
+
         product.name = request.form.get('name')
         product.description = _sanitize_html(request.form.get('description'))
         product.price = request.form.get('price', type=float)
