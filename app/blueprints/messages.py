@@ -230,6 +230,19 @@ def get_conversations(user_type, user_id, filter_type=None):
                 conversations[key]['last_message_full'] = msg
                 conversations[key]['_timestamp'] = msg.timestamp
     
+    # Покупатель должен иметь возможность первым написать в поддержку.
+    # Общий почтовый ящик администратора использует id=0 (см. get_user_id).
+    if user_type == 'buyer' and filter_type == 'support':
+        conversations.setdefault('admin:0', {
+            'id': 0,
+            'name': 'Служба поддержки',
+            'partner_type': 'admin',
+            'partner_id': 0,
+            'last_message': '',
+            'last_message_full': None,
+            'unread_count': 0,
+            'avatar': None,
+        })
     return conversations
 
 

@@ -81,7 +81,7 @@
                             {% if conv.last_message %}
                                 {{ conv.last_message[:50] }}{% if conv.last_message|length > 50 %}...{% endif %}
                             {% else %}
-                                Нет сообщений
+                                {% if partner_type == 'admin' %}Напишите в поддержку{% else %}Нет сообщений{% endif %}
                             {% endif %}
                         </span>
                     </div>
