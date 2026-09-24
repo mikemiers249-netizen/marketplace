@@ -21,6 +21,17 @@ from app.utils.helpers import format_price
 bp = Blueprint('admin', __name__, url_prefix='/main_admin')
 
 
+@bp.route('/api/messages/unread-count')
+def unread_message_count():
+    from flask import session
+    if not (session.get('main_admin_authenticated') or
+            (current_user.is_authenticated and isinstance(current_user, Admin))):
+        return jsonify(error='Unauthorized'), 401
+    response = jsonify(unread_messages=Message.get_unread_count('admin', 0))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
 @bp.route('/auth/login', methods=['GET', 'POST'])
 def login():
     """

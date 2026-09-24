@@ -472,7 +472,11 @@ def register_context_processors(app):
         #  - доп. Admin: получатель 'admin' / current_user.id
         unread_messages_count = 0
         try:
-            if current_user.is_authenticated and isinstance(current_user, Buyer):
+            from flask import request
+            if request.blueprint == 'admin' and (session.get('main_admin_authenticated') or
+                    (current_user.is_authenticated and isinstance(current_user, Admin))):
+                unread_messages_count = Message.get_unread_count('admin', 0)
+            elif current_user.is_authenticated and isinstance(current_user, Buyer):
                 unread_messages_count = Message.get_unread_count('buyer', current_user.id)
             elif current_user.is_authenticated and isinstance(current_user, Seller):
                 unread_messages_count = Message.get_unread_count('seller', current_user.id)

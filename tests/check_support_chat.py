@@ -49,6 +49,21 @@ with tempfile.TemporaryDirectory() as directory:
             assert list(support) == ['admin:0']
             assert support['admin:0']['last_message'] == 'Local test support request'
             assert get_conversations('buyer', buyer.id + 1, 'support')['admin:0']['last_message'] == ''
+            assert client.get('/main_admin/api/messages/unread-count').status_code == 401
+            with client.session_transaction() as session:
+                session['main_admin_authenticated'] = True
+            assert client.get('/main_admin/api/messages/unread-count').json['unread_messages'] == 1
+            seller_message = Message(sender_type='seller', sender_id=42,
+                                     receiver_type='admin', receiver_id=0,
+                                     text='Local seller request', is_read=False)
+            db.session.add(seller_message)
+            db.session.commit()
+            response = client.get('/main_admin/api/messages/unread-count')
+            assert response.json['unread_messages'] == 2
+            assert response.headers['Cache-Control'] == 'no-store'
+            Message.query.filter_by(receiver_type='admin', receiver_id=0).update({'is_read': True})
+            db.session.commit()
+            assert client.get('/main_admin/api/messages/unread-count').json['unread_messages'] == 0
             db.session.remove()
             db.drop_all()
     finally:

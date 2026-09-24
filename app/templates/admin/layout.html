@@ -71,6 +71,7 @@
                     </li>
                     <li>
                         <a href="{{ url_for('admin.messages') }}"
+                           data-unread-url="{{ url_for('admin.unread_message_count') }}"
                            class="nav-link{% if 'message' in request.endpoint %} active{% endif %}{% if unread_messages_count %} has-unread{% endif %}"
                            {% if unread_messages_count %}style="color: #ff4d4f !important;"{% endif %}>
                             <span class="nav-icon" {% if unread_messages_count %}style="color: #ff4d4f !important;"{% endif %}><i class="bi bi-chat-dots"></i></span>
