@@ -747,10 +747,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (firstSel) {
                 firstSel.style.borderColor = '#c0392b';
             }
-            const hidden = document.getElementById('category_id');
-            if (hidden) {
-                hidden.value = '';
-            }
             console.warn('[product-form] Категория id=' + currentCategoryId +
                         ' не найдена среди активных. Продавцу нужно выбрать заново.');
         } else {
@@ -797,31 +793,20 @@ function buildCategoryPath(categoryId, callback) {
         selector.removeChild(selector.lastChild);
     }
     
-    // Создаём уровни последовательно
-    let index = 0;
-    function createNextLevel() {
-        if (index < path.length) {
-            const cat = path[index];
-            if (index === 0) {
-                const firstSelect = document.getElementById('category_level_0');
-                if (firstSelect) {
-                    firstSelect.value = cat.id;
-                    handleCategoryChange(0, cat.id, () => {
-                        index++;
-                        createNextLevel();
-                    });
-                }
-            } else {
-                addCategoryLevel(index, cat.parent_id, cat.id, () => {
-                    index++;
-                    createNextLevel();
-                });
-            }
+    // Восстанавливаем выбор без обработчика пользовательского изменения:
+    // он сбрасывает category_id на родителя и создаёт пустой следующий уровень.
+    path.forEach((cat, index) => {
+        if (index === 0) {
+            document.getElementById('category_level_0').value = cat.id;
         } else {
-            if (callback) callback();
+            addCategoryLevel(index, cat.parent_id, cat.id);
         }
+    });
+    document.getElementById('category_id').value = categoryId;
+    if (path.length && allCategories.some(cat => cat.parent_id === categoryId)) {
+        addCategoryLevel(path.length, categoryId);
     }
-    createNextLevel();
+    if (callback) callback();
 }
 
 // Обработка изменения категории
@@ -875,6 +860,7 @@ function addCategoryLevel(level, parentId, selectedId = null, callback = null) {
     });
     
     select.innerHTML = optionsHtml;
+    if (selectedId !== null) select.value = String(selectedId);
     select.addEventListener('change', function() {
         handleCategoryChange(level, this.value);
     });
