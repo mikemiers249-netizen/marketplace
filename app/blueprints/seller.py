@@ -103,7 +103,7 @@ def dashboard():
     revenue = db.session.query(func.sum(Order.total_price)).filter(
         Order.seller_id == seller.id,
         Order.created_at >= month_ago,
-        Order.status.in_((['delivered', 'shipped']))
+        Order.status.in_(['shipped', 'delivered', 'received'])
     ).scalar() or 0
     
     # Недавние заказы
