@@ -66,12 +66,6 @@
                 {{ product.name }}
             </a>
 
-            {% if product.seller %}
-            <div class="product-store" style="font-size:12px; color:#6b7280; margin-top:4px; overflow-wrap:anywhere;">
-                Продавец: <a href="{{ url_for('main.seller_store', seller_slug=product.seller.store_slug) }}">{{ product.seller.store_name }}</a>
-            </div>
-            {% endif %}
-
             {# Системный артикул — мелким серым под названием #}
             {% if product.system_sku %}
             <div class="product-system-sku" style="font-size:11px; color:#9ca3af; margin-top:2px; font-family:monospace;">
