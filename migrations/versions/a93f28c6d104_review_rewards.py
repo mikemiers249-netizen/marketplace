@@ -2,7 +2,7 @@
 from alembic import op
 from app.models.review_rewards import ReviewRewardProgram, ReviewGift, RewardReviewReceipt, ReviewReward
 
-revision = 'u3v4w5x6y7z8'
+revision = 'a93f28c6d104'
 down_revision = 't2u3v4w5x6y7'
 branch_labels = None
 depends_on = None
