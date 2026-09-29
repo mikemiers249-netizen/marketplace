@@ -3,6 +3,7 @@
 {% block title %}Лояльность - Админ-панель{% endblock %}
 
 {% block content %}
+
 <div class="admin-page-header">
     <h1>Программа лояльности</h1>
     <div class="header-actions">
@@ -23,6 +24,16 @@
 {% endwith %}
 
 {# CSRF для AJAX #}
+<section id="review-program" style="margin:20px 0;padding:20px;border:1px solid #e5e7eb;border-radius:12px">
+<h2>Поощрение за отзыв</h2>
+<p>Разрешает продавцам выдавать баллы, скидки и подарки за одобренные отзывы о покупках. Отключение останавливает новые начисления; уже заработанные награды сохраняются.</p>
+<form method="post" action="{{ url_for('review_rewards.toggle') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label class="form-check form-switch"><input class="form-check-input" type="checkbox" name="enabled" role="switch" {% if review_rewards_enabled %}checked{% endif %} onchange="this.form.requestSubmit()"> Программа включена</label>
+<noscript><button class="btn btn-primary">Сохранить</button></noscript>
+</form>
+{% if review_rewards_enabled %}{% include 'components/review_reward_table.html' %}{% endif %}
+</section>
 <script type="application/json" id="loyalty-csrf">
     {"csrf_token": "{{ csrf_token() if csrf_token else '' }}"}
 </script>

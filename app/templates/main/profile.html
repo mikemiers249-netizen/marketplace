@@ -386,11 +386,16 @@
                     <i class="bi bi-chat-square-text"></i>
                     Мои отзывы
                 </a>
-                {% if loyalty_enabled %}
+                {% if loyalty_enabled or has_review_bonus %}
                 <a href="{{ url_for('main.profile', section='bonuses') }}"
                    class="profile-nav-link {% if section == 'bonuses' %}active{% endif %}">
                     <i class="bi bi-coin"></i>
                     Бонусы
+                </a>
+                {% endif %}
+                {% if has_trophies %}
+                <a href="{{ url_for('main.profile', section='trophies') }}" class="profile-nav-link {% if section == 'trophies' %}active{% endif %}">
+                    <i class="bi bi-trophy"></i> Трофеи
                 </a>
                 {% endif %}
                 {% if promo_enabled %}
@@ -448,6 +453,8 @@
                 {% include "main/profile_reviews.html" %}
             {% elif section == 'messages' %}
                 {% include "main/profile_messages.html" %}
+            {% elif section == 'trophies' %}
+                {% include 'main/profile_trophies.html' %}
             {% elif section == 'bonuses' %}
                 {% include "main/profile_bonuses.html" %}
             {% elif section == 'promos' %}

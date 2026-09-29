@@ -2056,6 +2056,9 @@ def update_order_status(order_id):
                 order.delivered_at = datetime.utcnow()
             elif new_status == 'received' and order.received_at is None:
                 order.received_at = datetime.utcnow()
+        if new_status in ('canceled', 'cancelled'):
+            from app.utils.review_rewards import restore_order_rewards
+            restore_order_rewards(order)
         order.status = new_status
         db.session.commit()
         flash('Статус заказа обновлён.', 'success')
@@ -2094,6 +2097,8 @@ def order_delete(order_id):
     Bonus.query.filter(Bonus.order_id == order_id).delete(synchronize_session=False)
     Return.query.filter(Return.order_id == order_id).delete(synchronize_session=False)
 
+    from app.utils.review_rewards import restore_order_rewards
+    restore_order_rewards(order)
     db.session.delete(order)
     db.session.commit()
 
@@ -3386,7 +3391,12 @@ def review_approve(review_id):
         flash('Отзыв не найден.', 'error')
         return redirect(url_for('admin.reviews'))
 
-    review.approve()
+    try:
+        review.approve()
+    except ValueError as error:
+        db.session.rollback()
+        flash(str(error), 'error')
+        return redirect(url_for('admin.reviews'))
     flash('Отзыв одобрен и опубликован.', 'success')
     return redirect(url_for('admin.reviews'))
 

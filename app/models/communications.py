@@ -185,9 +185,13 @@ class Review(db.Model):
     
     def approve(self):
         """Одобрить отзыв (админ)."""
+        was_approved = self.status == 'approved'
         self.status = 'approved'
         self.is_approved = True
         self.moderated_at = datetime.utcnow()
+        if not was_approved:
+            from app.utils.review_rewards import award_review
+            award_review(self)
         db.session.commit()
     
     def reject(self):

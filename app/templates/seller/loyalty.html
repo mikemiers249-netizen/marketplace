@@ -35,7 +35,16 @@
                 data-tab="promo" role="tab" aria-selected="{{ 'true' if active_tab == 'promo' else 'false' }}">
             <i class="bi bi-ticket-perforated"></i> Промокоды
         </button>
+        {% if review_rewards_enabled %}
+        <button type="button" class="loyalty-tab {% if active_tab == 'reviews' %}active{% endif %}"
+                data-tab="reviews" role="tab" aria-selected="{{ 'true' if active_tab == 'reviews' else 'false' }}">
+            <i class="bi bi-chat-heart"></i> Поощрение за отзыв
+        </button>
+        {% endif %}
     </div>
+    <section class="loyalty-tab-panel {% if active_tab == 'reviews' %}active{% endif %}" id="panel-reviews" role="tabpanel">
+        {% include 'seller/review_program.html' %}
+    </section>
 
     {# ────────── ВКЛАДКА: БОНУСЫ ────────── #}
     <section class="loyalty-tab-panel {% if active_tab == 'bonus' %}active{% endif %}" id="panel-bonus" role="tabpanel">

@@ -125,7 +125,7 @@
                             <span>Акции</span>
                         </a>
                     </li>
-                    {% if loyalty_enabled %}
+                    {% if loyalty_enabled or review_rewards_enabled %}
                     <li>
                         <a href="{{ url_for('seller.loyalty') }}" class="nav-link{% if request.endpoint == 'seller.loyalty' %} active{% endif %}">
                             <span class="nav-icon"><i class="bi bi-gift"></i></span>

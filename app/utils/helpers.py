@@ -864,6 +864,20 @@ def get_cart_discount_breakdown(cart_total):
 
 
 def get_cart_total(buyer_id, use_promotion=True, promotion_id=None):
+    result = _get_cart_total_before_review_rewards(buyer_id, use_promotion, promotion_id)
+    if use_promotion:
+        from app.utils.review_rewards import cart_discount
+        from app.models.orders import CartItem
+        lines = cart_discount(buyer_id, CartItem.query.filter_by(buyer_id=buyer_id).all())
+        reward_discount = round(sum(line['discount'] for line in lines), 2)
+        result['total'] = round(max(0, result['total'] - reward_discount), 2)
+        result['discount'] = round(result['discount'] + reward_discount, 2)
+        result['applied_promotions'].extend(lines)
+        result['review_reward_discount'] = reward_discount
+    return result
+
+
+def _get_cart_total_before_review_rewards(buyer_id, use_promotion=True, promotion_id=None):
     """
     Расчёт общей суммы корзины.
 
@@ -904,7 +918,7 @@ def get_cart_total(buyer_id, use_promotion=True, promotion_id=None):
 
     cart_items = CartItem.query.filter_by(buyer_id=buyer_id).all()
 
-    subtotal = sum(item.total_price for item in cart_items)
+    subtotal = sum(round(float(item.product.price), 2) * item.quantity for item in cart_items)
 
     if not use_promotion or not cart_items:
         return {

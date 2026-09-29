@@ -1,0 +1,11 @@
+{% if cart_review_rewards %}
+<section style="border:1px solid #c7d2fe;border-radius:12px;padding:16px;margin:16px 0">
+<h3>Ваши награды за отзывы</h3>
+{% for reward in cart_review_rewards %}
+<div style="display:flex;align-items:center;gap:12px;margin:8px 0">
+{% if reward.kind == 'gift' and reward.gift_image %}<img src="{{ url_for('static', filename='uploads/products/' ~ reward.gift_image) }}" alt="{{ reward.gift_name }}" width="60" height="60" style="object-fit:contain">{% endif %}
+<span>{{ reward.seller.store_name }} — {{ reward.label }}{% if reward.kind == 'gift' %} · 1 шт. · 0 ₽{% endif %}</span>
+</div>{% endfor %}
+<p>Применяются автоматически при оформлении: одна скидка и один подарок каждого магазина. Остальные награды сохраняются.</p>
+</section>
+{% endif %}

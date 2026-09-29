@@ -1,0 +1,11 @@
+<h3>Начисления за отзывы</h3>
+<div style="overflow-x:auto"><table class="table" style="width:100%">
+<thead><tr><th>Покупатель</th><th>Магазин</th><th>Отзыв №</th><th>Награда</th><th>Состояние</th><th>Дата</th></tr></thead>
+<tbody>{% for reward in reward_page.items %}<tr>
+<td>{{ reward.buyer.full_name or reward.buyer.login }}</td><td>{{ reward.seller.store_name }}</td>
+<td>{{ reward.receipt.ordinal }}</td><td>{{ reward.label }}</td>
+<td>{{ {'available':'Ожидает заказа','redeemed':'Использована','credited':'Баллы начислены'}.get(reward.status, reward.status) }}{% if reward.redeemed_order_id %} · заказ #{{ reward.redeemed_order_id }}{% endif %}</td>
+<td>{{ reward.created_at.strftime('%d.%m.%Y %H:%M') }}</td></tr>
+{% else %}<tr><td colspan="6">Начислений пока нет.</td></tr>{% endfor %}</tbody></table></div>
+{% if reward_page.has_prev %}<a href="?tab=reviews&amp;reward_page={{ reward_page.prev_num }}#review-program">Назад</a>{% endif %}
+{% if reward_page.has_next %}<a href="?tab=reviews&amp;reward_page={{ reward_page.next_num }}#review-program">Далее</a>{% endif %}

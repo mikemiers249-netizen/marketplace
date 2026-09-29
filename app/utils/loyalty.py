@@ -104,7 +104,7 @@ def get_buyer_balance(buyer_id, seller_id):
     """Текущий баланс баллов покупателя у селлера. 0 если записи нет."""
     bb = BuyerBonus.query.filter_by(
         buyer_id=buyer_id, seller_id=seller_id,
-    ).first()
+    ).populate_existing().first()
     return float(bb.balance) if bb else 0.0
 
 
@@ -134,9 +134,10 @@ def get_buyer_balances_grouped(buyer_id):
 
 def _add_balance(buyer_id, seller_id, delta):
     """Внутренняя: пополнить/уменьшить баланс на `delta` (может быть < 0)."""
+    Buyer.query.filter_by(id=buyer_id).with_for_update().one()
     bb = BuyerBonus.query.filter_by(
         buyer_id=buyer_id, seller_id=seller_id,
-    ).first()
+    ).populate_existing().with_for_update().first()
     if bb is None:
         bb = BuyerBonus(buyer_id=buyer_id, seller_id=seller_id, balance=0.0)
         db.session.add(bb)
@@ -240,12 +241,20 @@ def reverse_bonuses_for_order(order):
 
 def get_seller_payback_percent(seller_id):
     """% списания для селлера, или 0 если не подключён/программа выключена."""
-    if not is_loyalty_enabled():
-        return 0
     sl = get_seller_loyalty(seller_id)
-    if not sl or not sl.is_active or sl.rate_id is None:
-        return 0
-    return int(sl.payback_percent or 0)
+    if is_loyalty_enabled() and sl and sl.is_active and sl.rate_id is not None:
+        return int(sl.payback_percent or 0)
+    from app.utils.review_rewards import has_review_bonus
+    if has_review_bonus(seller_id=seller_id):
+        return int(sl.payback_percent) if sl and sl.payback_percent is not None else 50
+    return 0
+
+
+def is_bonus_spending_enabled():
+    from flask_login import current_user
+    from app.utils.review_rewards import has_review_bonus
+    return is_loyalty_enabled() or (isinstance(current_user, Buyer) and
+                                    has_review_bonus(buyer_id=current_user.id))
 
 
 def calculate_spendable_for_seller(buyer_id, seller_id, cart_subtotal):
@@ -281,6 +290,7 @@ def spend_bonuses(buyer_id, seller_id, amount_rub, order_id=None, reason=None):
         float: фактически списанная сумма (>=0). Если баланса не хватает —
         списывается всё, что есть.
     """
+    Buyer.query.filter_by(id=buyer_id).with_for_update().one()
     if amount_rub <= 0:
         return 0.0
     balance = get_buyer_balance(buyer_id, seller_id)
@@ -330,9 +340,12 @@ def get_cart_bonus_snapshot(buyer_id, cart_items):
     Используется в cart.html и для JS-обновления.
     """
     by_seller = get_sellers_in_cart(cart_items)
-    enabled = is_loyalty_enabled()
+    enabled = is_bonus_spending_enabled()
     out = []
     for sid, data in by_seller.items():
+        from app.utils.review_rewards import next_rewards, merchandise_total
+        reward = next_rewards(buyer_id, sid).get('discount')
+        data['subtotal'] = merchandise_total(data['items'], reward.amount if reward else 0)
         balance = get_buyer_balance(buyer_id, sid) if enabled else 0.0
         spendable = (
             calculate_spendable_for_seller(buyer_id, sid, data['subtotal'])
@@ -347,8 +360,8 @@ def get_cart_bonus_snapshot(buyer_id, cart_items):
             'subtotal': data['subtotal'],
             'balance': balance,
             'spendable': spendable,
-            'payback_percent': sl.payback_percent if sl else 0,
-            'seller_active': bool(sl and sl.rate_id is not None),
+            'payback_percent': get_seller_payback_percent(sid),
+            'seller_active': get_seller_payback_percent(sid) > 0,
         })
     return out
 

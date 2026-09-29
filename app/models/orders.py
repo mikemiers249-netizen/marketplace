@@ -306,6 +306,8 @@ class Order(db.Model):
 
         self.status = 'canceled'
         self.canceled_at = datetime.utcnow()
+        from app.utils.review_rewards import restore_order_rewards
+        restore_order_rewards(self)
         db.session.commit()
 
         # Возврат бонусов покупателю (старая логика — общий bonuses_balance)

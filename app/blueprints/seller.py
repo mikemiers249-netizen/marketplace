@@ -1524,7 +1524,7 @@ def products():
     page = request.args.get('page', 1, type=int)
     status = request.args.get('status')
     
-    query = Product.query.filter_by(seller_id=current_user.id)
+    query = Product.query.filter_by(seller_id=current_user.id).filter(Product.status != 'reward_gift')
     
     if status:
         query = query.filter_by(status=status)
@@ -4945,7 +4945,7 @@ def loyalty():
 
     # Какая вкладка активна: ?tab=promo или ?tab=bonus. По умолчанию — bonus.
     active_tab = (request.args.get('tab') or 'bonus').lower()
-    if active_tab not in ('bonus', 'promo'):
+    if active_tab not in ('bonus', 'promo', 'reviews'):
         active_tab = 'bonus'
 
     return render_template(

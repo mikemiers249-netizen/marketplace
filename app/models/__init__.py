@@ -34,6 +34,7 @@ from app.models.footer import (
 )
 
 from app.models.email_delivery import EmailIdentity, EmailToken, EmailOutbox
+from app.models.review_rewards import ReviewRewardProgram, ReviewGift, RewardReviewReceipt, ReviewReward
 
 # Экспорт всех моделей
 __all__ = [

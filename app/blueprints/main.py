@@ -927,15 +927,15 @@ def cart():
 
     # Снимок бонусов по продавцам в корзине (per-seller балансы и лимиты списания)
     from app.utils.loyalty import (
-        get_cart_bonus_snapshot, is_loyalty_enabled,
+        get_cart_bonus_snapshot, is_bonus_spending_enabled,
         get_cart_promo_snapshot, is_promo_enabled,
         parse_promo_per_seller,
     )
     bonus_snapshot = (
         get_cart_bonus_snapshot(current_user.id, cart_items)
-        if is_loyalty_enabled() else []
+        if is_bonus_spending_enabled() else []
     )
-    loyalty_enabled_global = is_loyalty_enabled()
+    loyalty_enabled_global = is_bonus_spending_enabled()
 
     # Снимок применимых промокодов (для UI выпадающего списка).
     promo_snapshot = (
@@ -1263,16 +1263,16 @@ def order_review():
 
     # Снимок бонусов и выбор покупателя по списанию (из query ?bonus=)
     from app.utils.loyalty import (
-        get_cart_bonus_snapshot, is_loyalty_enabled,
+        get_cart_bonus_snapshot, is_bonus_spending_enabled,
         calculate_spendable_for_seller,
         get_applicable_promos_for_seller, calculate_promo_discount_amount,
         parse_promo_per_seller,
     )
     bonus_snapshot = (
         get_cart_bonus_snapshot(current_user.id, cart_items)
-        if is_loyalty_enabled() else []
+        if is_bonus_spending_enabled() else []
     )
-    loyalty_enabled_global = is_loyalty_enabled()
+    loyalty_enabled_global = is_bonus_spending_enabled()
 
     # Парсим выбранные к списанию бонусы: "sellerId:amount;sellerId:amount"
     bonus_raw = (request.args.get('bonus') or '').strip()
@@ -1518,6 +1518,8 @@ def checkout_submit():
     if not isinstance(current_user, Buyer):
         return jsonify({'success': False, 'error': 'Доступ только для покупателей'}), 403
 
+    Buyer.query.filter_by(id=current_user.id).with_for_update().one()
+
     import logging
     logger = logging.getLogger(__name__)
 
@@ -1587,13 +1589,13 @@ def checkout_submit():
         # Получаем выбранные к списанию бонусы (per-seller).
         # Формат скрытого поля: "sellerId:amount;sellerId:amount".
         from app.utils.loyalty import (
-            is_loyalty_enabled, calculate_spendable_for_seller, spend_bonuses,
+            is_bonus_spending_enabled, calculate_spendable_for_seller, spend_bonuses,
             get_applicable_promos_for_seller, calculate_promo_discount_amount,
             parse_promo_per_seller, consume_promo_code,
         )
         from app.models.promo import PromoCode
 
-        loyalty_on = is_loyalty_enabled()
+        loyalty_on = is_bonus_spending_enabled()
         bonus_raw = (request.form.get('bonus_per_seller') or '').strip()
         bonus_to_spend = {}  # {seller_id: amount}
         if bonus_raw and loyalty_on:
@@ -1795,6 +1797,9 @@ def checkout_submit():
             # Переписываем total_price: sum(price_at_order * qty) с учётом промо.
             order.total_price = round(items_subtotal_after_promos, 2)
 
+            from app.utils.review_rewards import apply_order_rewards
+            apply_order_rewards(order)
+
             # Уменьшаем остаток товара
             for item in items:
                 item.product.stock_quantity -= item.quantity
@@ -1807,11 +1812,14 @@ def checkout_submit():
             logger.info(f"Created pending order {order.id} for seller {seller_id}, buyer {current_user.id}")
             
             # Отправляем уведомление продавцу
-            send_new_order_notification_to_seller(order.id)
             # Создаём пустой диалог для заказа между покупателем и продавцом
             create_order_conversation(order)
         
         db.session.commit()
+
+        # Уведомления сами фиксируют очередь: вызываем только после атомарного оформления всех заказов.
+        for order_id in created_orders:
+            send_new_order_notification_to_seller(order_id)
 
         # Очищаем выбор промокодов в сессии — заказы уже оформлены.
         from flask import session
@@ -1939,7 +1947,7 @@ def checkout():
         # Считаем per-item лучшую скидку (current_discount / классические
         # discount-акции / second_with_discount) и суммируем.
         from app.utils.helpers import compute_best_discount_for_item
-        subtotal_price = sum(item.total_price for item in items)
+        subtotal_price = sum(float(item.product.price) * item.quantity for item in items)
         seller_discount = sum(
             compute_best_discount_for_item(it, items) for it in items
         )
@@ -2026,6 +2034,8 @@ def order_create():
     """
     if not isinstance(current_user, Buyer):
         return jsonify({'success': False, 'error': 'Доступ только для покупателей'}), 403
+
+    Buyer.query.filter_by(id=current_user.id).with_for_update().one()
 
     import logging
     logger = logging.getLogger(__name__)
@@ -2200,6 +2210,8 @@ def order_create():
                 # total_price = сумма по позициям после промо (без бонусов —
                 # бонусы списываются отдельной строкой).
                 order.total_price = round(items_subtotal_after_promos, 2)
+                from app.utils.review_rewards import apply_order_rewards
+                apply_order_rewards(order)
                 order.delivery_price = delivery_price
 
                 # Удаляем товары из корзины
@@ -2265,6 +2277,8 @@ def order_create():
                     item.product.stock_quantity -= item.quantity
 
                 order.total_price = round(items_subtotal_after_promos, 2)
+                from app.utils.review_rewards import apply_order_rewards
+                apply_order_rewards(order)
 
                 for item in items:
                     db.session.delete(item)
@@ -2427,7 +2441,7 @@ def profile():
     if not isinstance(current_user, Buyer):
         return redirect(url_for('main.index'))
 
-    from app.utils.loyalty import is_loyalty_enabled, is_promo_enabled
+    from app.utils.loyalty import is_bonus_spending_enabled, is_promo_enabled
 
     section = request.args.get('section', 'orders')
 
@@ -2514,17 +2528,17 @@ def profile():
                              unread_support=unread_support,
                              unread_stores=unread_stores,
                              is_order_chat=is_order_chat,
-                             loyalty_enabled=is_loyalty_enabled(),
+                             loyalty_enabled=is_bonus_spending_enabled(),
                              promo_enabled=is_promo_enabled())
     
     # Если это раздел "Бонусы" — плитки магазинов с накопленными баллами + история
     if section == 'bonuses':
         from app.utils.loyalty import (
-            is_loyalty_enabled,
+            is_bonus_spending_enabled,
             get_buyer_balances_grouped,
         )
         from app.models.orders import Bonus
-        loyalty_on = is_loyalty_enabled()
+        loyalty_on = is_bonus_spending_enabled()
         if loyalty_on:
             balances = get_buyer_balances_grouped(current_user.id)
         else:
@@ -2566,7 +2580,7 @@ def profile():
                              user=current_user,
                              products=favorite_products,
                              favorite_ids=favorite_ids,
-                             loyalty_enabled=is_loyalty_enabled(),
+                             loyalty_enabled=is_bonus_spending_enabled(),
                              promo_enabled=is_promo_enabled())
 
     # Если это раздел "Мои покупки" - получаем товары из полученных заказов
@@ -2610,7 +2624,7 @@ def profile():
                              purchased_items=purchased_items,
                              favorite_ids=favorite_ids,
                              reviewed_pairs=reviewed_pairs,
-                             loyalty_enabled=is_loyalty_enabled(),
+                             loyalty_enabled=is_bonus_spending_enabled(),
                              promo_enabled=is_promo_enabled())
 
     # Если это раздел "Мои отзывы" — только прошедшие модерацию
@@ -2637,7 +2651,7 @@ def profile():
                              section=section,
                              user=current_user,
                              reviews=reviews,
-                             loyalty_enabled=is_loyalty_enabled(),
+                             loyalty_enabled=is_bonus_spending_enabled(),
                              promo_enabled=is_promo_enabled())
 
     # Если это раздел адресов - получаем активные службы доставки и сохраненные адреса
@@ -2653,7 +2667,7 @@ def profile():
                              user=current_user,
                              delivery_services=delivery_services,
                              delivery_by_service=delivery_by_service,
-                             loyalty_enabled=is_loyalty_enabled(),
+                             loyalty_enabled=is_bonus_spending_enabled(),
                              promo_enabled=is_promo_enabled())
     
     # Если это раздел доставки
@@ -2668,7 +2682,7 @@ def profile():
                              user=current_user,
                              delivery_services=delivery_services,
                              delivery_by_service=delivery_by_service,
-                             loyalty_enabled=is_loyalty_enabled(),
+                             loyalty_enabled=is_bonus_spending_enabled(),
                              promo_enabled=is_promo_enabled())
 
     # Если это раздел "Промокоды" — список доступных этому покупателю
@@ -2732,7 +2746,7 @@ def profile():
 
     # Если это раздел заказов (по умолчанию)
     if section == 'orders' or section is None:
-        from app.utils.loyalty import is_loyalty_enabled, is_promo_enabled
+        from app.utils.loyalty import is_bonus_spending_enabled, is_promo_enabled
         # Получаем все заказы покупателя без фильтра по статусу
         status = request.args.get('status')
         query = Order.query.filter_by(buyer_id=current_user.id)
@@ -2760,15 +2774,15 @@ def profile():
                              user=current_user,
                              orders=orders,
                              current_status=status,
-                             loyalty_enabled=is_loyalty_enabled(),
+                             loyalty_enabled=is_bonus_spending_enabled(),
                              promo_enabled=is_promo_enabled())
     
-    from app.utils.loyalty import is_loyalty_enabled, is_promo_enabled
+    from app.utils.loyalty import is_bonus_spending_enabled, is_promo_enabled
     return render_template('main/profile.html',
                          title='Личный кабинет',
                          section=section,
                          user=current_user,
-                         loyalty_enabled=is_loyalty_enabled(),
+                         loyalty_enabled=is_bonus_spending_enabled(),
                          promo_enabled=is_promo_enabled())
 
 
