@@ -2,12 +2,20 @@
 <p>Заслуженные подарки за отзывы. Один подарок магазина автоматически добавляется к следующему заказу в этом магазине.</p>
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:20px">
 {% for reward in trophies %}
-<article style="border:1px solid #e5e7eb;border-radius:12px;padding:16px">
+<article class="product-card">
+  <div class="product-card-inner">
+    <div class="product-photo">
     {% if reward.gift_image %}<img src="{{ url_for('static', filename='uploads/products/' ~ reward.gift_image) }}"
-         alt="{{ reward.gift_name }}" style="width:100%;height:180px;object-fit:contain;{% if reward.status != 'redeemed' %}filter:grayscale(1);{% endif %}">{% endif %}
-    <h3>{{ reward.gift_name }}</h3><p>{{ reward.seller.store_name }}</p>
-    {% if reward.status == 'redeemed' %}<p>Добавлен к заказу · 0 ₽</p>
-    {% else %}<p>Заслужен · ждёт следующего заказа</p>{% endif %}
+         alt="{{ reward.gift_name }}" style="{% if reward.status != 'redeemed' %}filter:grayscale(1);{% endif %}">
+    {% else %}<div class="product-photo-placeholder">Нет фото</div>{% endif %}
+    </div>
+    <div class="product-info">
+      <div class="product-name" title="{{ reward.gift_name }}">{{ reward.gift_name }}</div>
+      <p style="margin:0;font-size:12px;color:var(--text-light)">{{ reward.seller.store_name }}</p>
+      {% if reward.status == 'redeemed' %}<p style="margin:0;font-size:13px">Добавлен к заказу · 0 ₽</p>
+      {% else %}<p style="margin:0;font-size:13px">Заслужен · ждёт следующего заказа</p>{% endif %}
+    </div>
+  </div>
 </article>
 {% else %}<p>Здесь появятся ваши подарки за отзывы.</p>{% endfor %}
 </div>
