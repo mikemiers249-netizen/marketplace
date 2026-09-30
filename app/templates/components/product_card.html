@@ -66,10 +66,11 @@
                 {{ product.name }}
             </a>
 
-            {# Системный артикул — мелким серым под названием #}
-            {% if product.system_sku %}
+            {# У старых товаров системный артикул может отсутствовать. #}
+            {% set card_sku = product.system_sku or product.article %}
+            {% if card_sku %}
             <div class="product-system-sku" style="font-size:11px; color:#9ca3af; margin-top:2px; font-family:monospace;">
-                {{ product.system_sku }}
+                {{ card_sku }}
             </div>
             {% endif %}
 
