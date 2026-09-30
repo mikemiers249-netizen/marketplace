@@ -455,7 +455,6 @@
 {% endblock %}
 
 {% block content %}
-{% include 'components/cart_review_rewards.html' %}
 <div class="container checkout-page">
     <div class="checkout-header">
         <h1>Оформление заказа</h1>
@@ -528,6 +527,20 @@
                             </td>
                         </tr>
 {% endfor %}
+                        {% for reward in cart_review_rewards if reward.kind == 'gift' and reward.seller_id == seller_id %}
+                        <tr class="order-item-row" data-gift-reward-id="{{ reward.id }}">
+                            <td>
+                                <div class="order-item-image">
+                                    {% if reward.gift_image %}<img src="{{ url_for('static', filename='uploads/products/' ~ reward.gift_image) }}" alt="{{ reward.gift_name }}">
+                                    {% else %}<div class="no-image">Нет фото</div>{% endif %}
+                                </div>
+                                <div class="order-item-info"><div class="order-item-name">{{ reward.gift_name }}</div></div>
+                            </td>
+                            <td><div class="order-item-price">0 ₽</div></td>
+                            <td>1 шт.</td>
+                            <td><span class="order-item-total">0 ₽</span></td>
+                        </tr>
+                        {% endfor %}
                     </tbody>
                 </table>
             </div>

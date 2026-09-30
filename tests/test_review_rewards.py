@@ -184,6 +184,18 @@ class ReviewRewardsTests(unittest.TestCase):
             response = self.client.get('/cart')
             self.assertEqual(response.status_code, 200)
             self.assertIn('Gift', response.get_data(as_text=True))
+            html = response.get_data(as_text=True)
+            gift_row = html.split('class="cart-items-list"', 1)[1].split('class="cart-summary"', 1)[0]
+            self.assertIn('data-gift-reward-id=', gift_row)
+            self.assertIn('0 ₽', gift_row)
+            self.assertNotIn('Применяются автоматически', html)
+            response = self.client.get('/order-review')
+            self.assertEqual(response.status_code, 200)
+            html = response.get_data(as_text=True)
+            gift_row = html.split('<tbody>', 1)[1].split('</tbody>', 1)[0]
+            self.assertIn('data-gift-reward-id=', gift_row)
+            self.assertIn('0 ₽', gift_row)
+            self.assertNotIn('Ваши награды за отзывы', html)
             response = self.client.post('/order-review/submit')
         self.assertEqual(response.status_code, 200, response.data)
         order = Order.query.filter_by(status='processing').one()

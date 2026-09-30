@@ -597,7 +597,6 @@
 
 {% block content %}
 <div class="container cart-page">
-    {% include 'components/cart_review_rewards.html' %}
     <div class="cart-header">
         <h1>Корзина</h1>
     </div>
@@ -671,6 +670,22 @@
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
+            {% endfor %}
+            {% for reward in cart_review_rewards if reward.kind == 'gift' %}
+            {% set total_items.value = total_items.value + 1 %}
+            <div class="cart-item-card" data-gift-reward-id="{{ reward.id }}">
+                <div class="cart-item-image">
+                    {% if reward.gift_image %}<img src="{{ url_for('static', filename='uploads/products/' ~ reward.gift_image) }}" alt="{{ reward.gift_name }}">
+                    {% else %}<div class="no-image">Нет фото</div>{% endif %}
+                </div>
+                <div class="cart-item-details">
+                    <div class="cart-item-name">{{ reward.gift_name }}</div>
+                    <div class="cart-item-seller">Продавец: {{ reward.seller.store_name }}</div>
+                    <div class="cart-item-price"><span class="current-price">0 ₽</span></div>
+                </div>
+                <div class="cart-item-quantity">1 шт.</div>
+                <div class="cart-item-total"><span class="total-price">0 ₽</span></div>
+            </div>
             {% endfor %}
         </div>
         
