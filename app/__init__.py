@@ -34,7 +34,9 @@ def create_app(config_class=None):
     Returns:
         Настроенное приложение Flask
     """
-    app = Flask(__name__)
+    from app.utils.message_files import PrivateFilesFlask, secure_message_files
+    app = PrivateFilesFlask(__name__)
+    app.cli.add_command(secure_message_files)
 
     # Загрузка конфигурации
     if config_class is None:
@@ -42,6 +44,8 @@ def create_app(config_class=None):
     elif isinstance(config_class, str):
         config_class = config_by_name.get(config_class, config_by_name['dev'])
     app.config.from_object(config_class)
+    if config_class.__name__ == 'ProductionConfig':
+        config_class.init_app(app)
 
     # Принудительно включаем авто-перечитку шаблонов Jinja по mtime.
     # По умолчанию это зависит от app.debug, но если debug по какой-то
@@ -66,6 +70,8 @@ def create_app(config_class=None):
     from app.email_worker import mail_check, mail_deliver
     from app.utils import email_events  # noqa: F401
     app.register_blueprint(email_bp)
+    from app.blueprints.privacy import init_privacy
+    init_privacy(app)
     app.cli.add_command(mail_check)
     app.cli.add_command(mail_deliver)
     
@@ -232,11 +238,11 @@ def init_extensions(app):
             
             if user_type == 'Buyer':
                 user = Buyer.query.get(user_id)
-                logging.getLogger(__name__).info(f"load_user: Buyer id={user_id} -> {user}")
+                logging.getLogger(__name__).debug("Buyer loaded")
                 return session_valid(user)
             elif user_type == 'Seller':
                 user = Seller.query.get(user_id)
-                logging.getLogger(__name__).info(f"load_user: Seller id={user_id} -> {user}")
+                logging.getLogger(__name__).debug("Seller loaded")
                 return session_valid(user)
         except (ValueError, AttributeError) as e:
             logging.getLogger(__name__).warning(f"load_user error for user_id={user_id!r}: {e}")
@@ -590,11 +596,13 @@ def setup_logging(app):
     logs_dir = os.path.dirname(app.config['LOG_FILE'])
     os.makedirs(logs_dir, exist_ok=True)
     
+    if logging.getLogger().handlers:
+        return
     logging.basicConfig(
         level=getattr(logging, app.config['LOG_LEVEL']),
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler(app.config['LOG_FILE']),
+            logging.FileHandler(app.config['LOG_FILE'], encoding='utf-8'),
             logging.StreamHandler()
         ]
     )

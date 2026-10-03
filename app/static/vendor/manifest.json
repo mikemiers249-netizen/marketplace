@@ -1,0 +1,70 @@
+{
+  "bootstrap/bootstrap.min.css": {
+    "source": "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css",
+    "sha256": "3017df4a76db5f01c2b99b603d88b03106df13bcfe18e67b7c13c2341d3a67df"
+  },
+  "bootstrap/bootstrap.bundle.min.js": {
+    "source": "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js",
+    "sha256": "82f64f62bb03c1bc1824b0f9c9e05f70dba33e146818e63cdf5c306c8cf3dedd"
+  },
+  "bootstrap/LICENSE": {
+    "source": "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/LICENSE",
+    "sha256": "3d0b0c88216e4752b9afd3d24e36faaf27873b5a45a61458bb3c83e794c26832"
+  },
+  "bootstrap-icons/bootstrap-icons.min.css": {
+    "source": "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css",
+    "sha256": "483e1bf6ead25d54b37456cf0e51ea0220d9de03ef6ba2a2d8c3f34a4bc34c17"
+  },
+  "bootstrap-icons/fonts/bootstrap-icons.woff2": {
+    "source": "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/fonts/bootstrap-icons.woff2",
+    "sha256": "5b2dd4d4f81cd1f52a50b0833ea12c8f63f2c4ae4d2c5a799fcc741feb2ea40f"
+  },
+  "bootstrap-icons/fonts/bootstrap-icons.woff": {
+    "source": "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/fonts/bootstrap-icons.woff",
+    "sha256": "d0346eea5a5ca9998be3c506fc655f0cbfccb42deb5fc6df39815425af867bb5"
+  },
+  "bootstrap-icons/LICENSE": {
+    "source": "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/LICENSE",
+    "sha256": "0623348b57e817b6897c41b6065380b599d5befe2839d83270566c605e430441"
+  },
+  "leaflet/leaflet.css": {
+    "source": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
+    "sha256": "a7837102824184820dfa198d1ebcd109ff6d0ff9a2672a074b9a1b4d147d04c6"
+  },
+  "leaflet/leaflet.js": {
+    "source": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+    "sha256": "db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a"
+  },
+  "leaflet/LICENSE": {
+    "source": "https://unpkg.com/leaflet@1.9.4/LICENSE",
+    "sha256": "53e8dc25862014e4324741ca18fbe3611e11d42ef69f59f86ea8c5389647d4cb"
+  },
+  "fullcalendar/index.global.min.js": {
+    "source": "https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js",
+    "sha256": "673b42b6c0032ca6d414afd7ea73989c9af479e9665765f77612c307f24ae9f3"
+  },
+  "fullcalendar/LICENSE": {
+    "source": "https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/LICENSE.md",
+    "sha256": "4c0b0dae26c99e3b11be70b990a703be4deb75e21884104582e0e217786d3209"
+  },
+  "leaflet/images/layers.png": {
+    "source": "https://unpkg.com/leaflet@1.9.4/dist/images/layers.png",
+    "sha256": "1dbbe9d028e292f36fcba8f8b3a28d5e8932754fc2215b9ac69e4cdecf5107c6"
+  },
+  "leaflet/images/layers-2x.png": {
+    "source": "https://unpkg.com/leaflet@1.9.4/dist/images/layers-2x.png",
+    "sha256": "066daca850d8ffbef007af00b06eac0015728dee279c51f3cb6c716df7c42edf"
+  },
+  "leaflet/images/marker-icon.png": {
+    "source": "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+    "sha256": "574c3a5cca85f4114085b6841596d62f00d7c892c7b03f28cbfa301deb1dc437"
+  },
+  "leaflet/images/marker-icon-2x.png": {
+    "source": "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+    "sha256": "00179c4c1ee830d3a108412ae0d294f55776cfeb085c60129a39aa6fc4ae2528"
+  },
+  "leaflet/images/marker-shadow.png": {
+    "source": "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+    "sha256": "264f5c640339f042dd729062cfc04c17f8ea0f29882b538e3848ed8f10edb4da"
+  }
+}

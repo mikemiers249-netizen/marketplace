@@ -2589,7 +2589,6 @@ def order_ship(order_id):
 
 
 @bp.route('/orders/<int:order_id>/cancel', methods=['POST'])
-@csrf.exempt
 @require_active_tariff
 def order_cancel(order_id):
     """
@@ -2638,7 +2637,6 @@ def order_cancel(order_id):
 # =============================================================================
 
 @bp.route('/api/shipment/check/<int:order_id>', methods=['GET'])
-@csrf.exempt
 def shipment_check(order_id):
     """
     Проверка данных для создания отгрузки.
@@ -2801,7 +2799,6 @@ def shipment_check(order_id):
 
 
 @bp.route('/api/shipment/create/<int:order_id>', methods=['POST'])
-@csrf.exempt
 @require_active_tariff
 def shipment_create(order_id):
     """
@@ -3384,7 +3381,6 @@ def chat_content(partner_type, partner_id):
 
 
 @bp.route('/messages/send', methods=['POST'])
-@csrf.exempt
 def message_send():
     """
     Отправка сообщения.
@@ -3428,6 +3424,9 @@ def message_send():
         except ValueError:
             return jsonify({'error': 'Неверный ID получателя'}), 400
     
+    from app.utils.message_files import validate_attachments
+    validate_attachments(image_path, file_path)
+
     msg = Message(
         sender_type='seller',
         sender_id=current_user.id,
@@ -4174,7 +4173,6 @@ def template_promotion_products(promotion_id):
 
 
 @bp.route('/promotions/template/<int:promotion_id>/products/add', methods=['POST'])
-@csrf.exempt
 @require_active_tariff
 def template_promotion_add_product(promotion_id):
     """Добавление товара продавца в шаблонную discount- или 1+1-акцию."""
@@ -4267,7 +4265,6 @@ def template_promotion_add_product(promotion_id):
 
 
 @bp.route('/promotions/template/<int:promotion_id>/products/<int:product_id>/remove', methods=['POST'])
-@csrf.exempt
 @require_active_tariff
 def template_promotion_remove_product(promotion_id, product_id):
     """Удаление товара из шаблонной discount- или 1+1-акции."""
@@ -4290,7 +4287,6 @@ def template_promotion_remove_product(promotion_id, product_id):
 
 
 @bp.route('/promotions/template/<int:promotion_id>/products/<int:product_id>/update', methods=['POST'])
-@csrf.exempt
 @require_active_tariff
 def template_promotion_update_product(promotion_id, product_id):
     """Изменение индивидуального процента скидки товара в акции (только discount)."""
@@ -4962,7 +4958,6 @@ def loyalty():
 
 @bp.route('/loyalty/save', methods=['POST'])
 @login_required
-@csrf.exempt
 def loyalty_save():
     """
     Сохранение выбора курса и % списания продавцом.
@@ -5021,7 +5016,6 @@ def loyalty_save():
 
 @bp.route('/loyalty/promo-toggle', methods=['POST'])
 @login_required
-@csrf.exempt
 def loyalty_promo_toggle():
     """
     Индивидуальный тумблер «промокоды» для текущего продавца.
@@ -5042,7 +5036,6 @@ def loyalty_promo_toggle():
 
 @bp.route('/loyalty/promo-generate', methods=['POST'])
 @login_required
-@csrf.exempt
 def loyalty_promo_generate():
     """
     Сгенерировать уникальный 6-символьный промокод (A-Z, 0-9), который
@@ -5074,7 +5067,6 @@ def loyalty_promo_generate():
 
 @bp.route('/loyalty/promo-create', methods=['POST'])
 @login_required
-@csrf.exempt
 def loyalty_promo_create():
     """
     Создать новый промокод.
@@ -5217,7 +5209,6 @@ def loyalty_promo_create():
 
 @bp.route('/loyalty/promo-toggle-active', methods=['POST'])
 @login_required
-@csrf.exempt
 def loyalty_promo_toggle_active():
     """
     Включить/выключить конкретный промокод продавца.
@@ -5248,7 +5239,6 @@ def loyalty_promo_toggle_active():
 
 @bp.route('/loyalty/promo-delete', methods=['POST'])
 @login_required
-@csrf.exempt
 def loyalty_promo_delete():
     """
     Удалить промокод продавца.
@@ -5273,7 +5263,6 @@ def loyalty_promo_delete():
 
 @bp.route('/loyalty/promo-buyer-search', methods=['POST'])
 @login_required
-@csrf.exempt
 def loyalty_promo_buyer_search():
     """
     Поиск покупателей по логину для индивидуального промокода.

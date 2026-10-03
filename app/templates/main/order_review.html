@@ -3,8 +3,8 @@
 {% block title %}{{ title }} - {{ super() }}{% endblock %}
 
 {% block extra_css %}
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css">
+<link href="/static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css">
 <style>
     .checkout-page {
         padding: 30px 0;
@@ -676,6 +676,8 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="bonus_per_seller" id="bonusPerSellerField" value="{{ bonus_per_seller_str or '' }}">
             <input type="hidden" name="promo_per_seller" id="promoPerSellerField" value="{{ promo_per_seller_str or '' }}">
+            <p class="text-muted">Нажимая кнопку оформления, вы принимаете <a href="/page/offer" target="_blank" rel="noopener">оферту</a>. Данные заказа обрабатываются для его исполнения согласно <a href="/page/privacy" target="_blank" rel="noopener">политике</a>.</p>
+            <input type="hidden" name="offer_version" value="{{ document_digest('offer') }}">
             <button type="submit" class="submit-btn">
                 Сделать заказ
             </button>
@@ -696,7 +698,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('checkout-form');

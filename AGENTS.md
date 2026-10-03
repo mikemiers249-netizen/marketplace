@@ -25,9 +25,9 @@
 
 ```
 APP_CONFIG=prod
-SECRET_KEY=c8f3e2a1d4b5c6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2
+SECRET_KEY=<уникальный секрет из настроек окружения>
 DATABASE_URI=postgresql+psycopg2://mpuser:<PWD>@amvera-honest-cnpg-marketplace-bd-rw:5432/mp
-MAIN_ADMIN_PASSWORD_HASH=<scrypt-хэш от admin123; см. историю чата или сгенерировать заново>
+MAIN_ADMIN_PASSWORD_HASH=<хэш уникального пароля администратора из окружения>
 SESSION_COOKIE_SECURE=True
 GUNICORN_WORKERS=2
 PORT=3000
@@ -40,12 +40,10 @@ PORT=3000
 
 ## Учётки
 
-- **Главный админ** (env-auth, не из БД): `https://mp-honest.amvera.io/main_admin/auth/login` — логин `admin`, пароль `admin123`.
-  Хэш `MAIN_ADMIN_PASSWORD_HASH` от `admin123` (scrypt):
-  `scrypt:32768:8:1$SJaazGSKNDog5nBW$bfac96176130e4b8da27ca8459075e464ca9816b11599cbc0c2fa1cd7d458242fe7c3f259ddbeb5675edb4492cc810c2aa02b64c36a59cc5161dd447efb6fa98`
-  Если поменяешь — `python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('admin123'))"`.
-- **Продавец Vibli** (id=1): `https://mp-honest.amvera.io/auth/seller/login` — `ronnie83@mail.ru` / `admin123`.
-- **Покупатель** (id=1): `https://mp-honest.amvera.io/auth/login` — `ronnie83@mail.ru` / `admin123`.
+Действующие пароли, хэши и контакты личных аккаунтов не хранятся в репозитории.
+Ранее опубликованные значения необходимо заменить, если они ещё используются.
+Авторизация администратора: `/main_admin/auth/login`, покупателей: `/auth/login`,
+продавца: `/auth/seller/login`. Секреты берутся из защищённого окружения.
 
 ## Ключевые файлы
 

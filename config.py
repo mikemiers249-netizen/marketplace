@@ -69,6 +69,7 @@ class Config:
     SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
+    PRIVACY_CLEANUP_ENABLED = _env_bool("PRIVACY_CLEANUP_ENABLED", True)
 
     # ===== Загрузка файлов =====
     UPLOAD_FOLDER = _env("UPLOAD_FOLDER") or os.path.join(
@@ -142,8 +143,9 @@ class ProductionConfig(Config):
 
     @classmethod
     def init_app(cls, app):
-        Config.init_app(app)
-        if not cls.MAIN_ADMIN_PASSWORD_HASH:
+        if app.config.get('SECRET_KEY') == 'dev-secret-key-change-in-prod' or not app.config.get('SECRET_KEY'):
+            raise RuntimeError('SECRET_KEY must be set in production environment')
+        if not app.config.get('MAIN_ADMIN_PASSWORD_HASH'):
             raise RuntimeError(
                 "MAIN_ADMIN_PASSWORD_HASH must be set in production environment"
             )

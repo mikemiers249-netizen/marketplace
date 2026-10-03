@@ -47,7 +47,8 @@
                     <div class="form-options">
                         <label class="checkbox-label">
                             <input type="checkbox" name="agree" required>
-                            <span>Согласен с <a href="#">правилами использования</a></span>
+                            <input type="hidden" name="terms_version" value="{{ document_digest('terms') }}">
+                            <span>Принимаю <a href="{{ url_for('main.footer_page', slug='terms') }}" target="_blank" rel="noopener">правила использования</a>. Данные аккаунта обрабатываются для исполнения договора согласно <a href="{{ url_for('main.footer_page', slug='privacy') }}" target="_blank" rel="noopener">политике</a>.</span>
                         </label>
                     </div>
                     

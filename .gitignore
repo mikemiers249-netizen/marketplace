@@ -62,6 +62,7 @@ __pycache__/
 
 # ===== Загруженные пользователями файлы (НЕ коммитим — там реальные данные) =====
 app/static/uploads/messages/
+app/static/uploads/.private/
 app/static/uploads/products/
 app/static/uploads/sellers/
 app/static/uploads/avatars/

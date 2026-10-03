@@ -8,6 +8,8 @@ from sqlalchemy import or_, and_, func, case
 from datetime import datetime
 import json
 from app import db, cache
+from app.utils.privacy import analytics_session_id
+from app.blueprints.privacy import has_consent
 from app.models.products import Category, Product, ProductPhoto, ProductParameter, ProductEvent
 from app.models.orders import CartItem, Favorite, Order, OrderItem, Banner, Promotion
 from app.models.users import Buyer, DeliveryService, BuyerDelivery, SellerDelivery, Seller
@@ -654,13 +656,14 @@ def product(product_id):
             # Пишем событие в таблицу событий — источник истины для
             # конверсии "просмотры → заказы" в заданном периоде.
             # Кэш-инкремент выше оставлен для UI-карточек/списков.
-            db.session.add(ProductEvent(
-                product_id=product.id,
-                seller_id=product.seller_id,
-                buyer_id=current_user.id if isinstance(current_user, Buyer) else None,
-                event_type='view',
-                session_id=request.cookies.get('session'),
-            ))
+            if has_consent('analytics'):
+                db.session.add(ProductEvent(
+                    product_id=product.id,
+                    seller_id=product.seller_id,
+                    buyer_id=current_user.id if isinstance(current_user, Buyer) else None,
+                    event_type='view',
+                    session_id=analytics_session_id(),
+                ))
             db.session.commit()
         except Exception:
             db.session.rollback()
@@ -1106,13 +1109,14 @@ def cart_add():
     # лежит в чьей-то корзине" — это про воронку, не про остатки.
     product.cart_adds_count = (product.cart_adds_count or 0) + 1
     # Событийный лог для конверсии по периоду (add_to_cart → order).
-    db.session.add(ProductEvent(
-        product_id=product.id,
-        seller_id=product.seller_id,
-        buyer_id=current_user.id if isinstance(current_user, Buyer) else None,
-        event_type='add_to_cart',
-        session_id=request.cookies.get('session'),
-    ))
+    if has_consent('analytics'):
+        db.session.add(ProductEvent(
+            product_id=product.id,
+            seller_id=product.seller_id,
+            buyer_id=current_user.id if isinstance(current_user, Buyer) else None,
+            event_type='add_to_cart',
+            session_id=analytics_session_id(),
+        ))
 
     db.session.commit()
     
@@ -1518,6 +1522,11 @@ def checkout_submit():
     if not isinstance(current_user, Buyer):
         return jsonify({'success': False, 'error': 'Доступ только для покупателей'}), 403
 
+    from app.blueprints.privacy import document_digest
+    offer_version = request.form.get('offer_version')
+    if offer_version and offer_version != document_digest('offer'):
+        return jsonify({'success': False, 'error': 'Оферта обновилась. Обновите страницу оформления.'}), 400
+
     Buyer.query.filter_by(id=current_user.id).with_for_update().one()
 
     import logging
@@ -1799,6 +1808,8 @@ def checkout_submit():
 
             from app.utils.review_rewards import apply_order_rewards
             apply_order_rewards(order)
+            from app.blueprints.privacy import record_order_terms
+            record_order_terms(order)
 
             # Уменьшаем остаток товара
             for item in items:
@@ -1892,7 +1903,7 @@ def checkout():
     delivery_info = []
     delivery_total = 0
     delivery_param = request.args.get('delivery', '')
-    logger.info(f"Checkout URL: {request.url}, delivery_param: '{delivery_param}'")
+    logger.debug("Delivery operation completed; payload omitted")
     if delivery_param:
         try:
             items = delivery_param.split(';')
@@ -1903,7 +1914,7 @@ def checkout():
                     delivery_id = int(parts[1])
                     pvz_code = parts[2]
                     cost = float(parts[3])
-                    logger.info(f"Parsed delivery: seller={seller_id}, delivery_id={delivery_id}, pvz={pvz_code}, cost={cost}")
+                    logger.debug("Delivery operation completed; payload omitted")
                     delivery_info.append({
                         'seller_id': seller_id,
                         'delivery_id': delivery_id,
@@ -1911,7 +1922,7 @@ def checkout():
                         'cost': cost
                     })
                     delivery_total += cost
-            logger.info(f"Final delivery_info: {delivery_info}, delivery_total: {delivery_total}")
+            logger.debug("Delivery operation completed; payload omitted")
         except (ValueError, IndexError) as e:
             logger.error(f"Error parsing delivery param: {e}")
             flash('Ошибка при чтении данных о доставке. Пожалуйста, рассчитайте доставку заново.', 'warning')
@@ -2035,6 +2046,11 @@ def order_create():
     if not isinstance(current_user, Buyer):
         return jsonify({'success': False, 'error': 'Доступ только для покупателей'}), 403
 
+    from app.blueprints.privacy import document_digest
+    offer_version = request.form.get('offer_version')
+    if offer_version and offer_version != document_digest('offer'):
+        return jsonify({'success': False, 'error': 'Оферта обновилась. Обновите страницу оформления.'}), 400
+
     Buyer.query.filter_by(id=current_user.id).with_for_update().one()
 
     import logging
@@ -2088,12 +2104,12 @@ def order_create():
     delivery_info = {}
     pvz_info = {}
     delivery_data = data.get('delivery_info')
-    logger.info(f"order_create delivery_data: {delivery_data}")
+    logger.debug("Order delivery details received")
     if delivery_data:
         import json
         try:
             delivery_list = json.loads(delivery_data)
-            logger.info(f"Parsed delivery_list: {delivery_list}")
+            logger.debug("Order delivery details parsed")
             for d in delivery_list:
                 seller_id = int(d.get('seller_id', 0))
                 if seller_id:
@@ -2102,9 +2118,9 @@ def order_create():
                         'pvz_code': d.get('pvz_code'),
                         'delivery_id': int(d.get('delivery_id', 0)) if d.get('delivery_id') else None
                     }
-            logger.info(f"Parsed delivery_info: {delivery_info}, pvz_info: {pvz_info}")
+            logger.debug("Delivery operation completed; payload omitted")
         except (json.JSONDecodeError, KeyError) as e:
-            logger.error(f"Error parsing delivery_info: {e}, data: {delivery_data}")
+            logger.warning("Invalid delivery input: %s", type(e).__name__)
     
     # Проверяем есть ли информация о доставке
     if not delivery_info:
@@ -2212,6 +2228,8 @@ def order_create():
                 order.total_price = round(items_subtotal_after_promos, 2)
                 from app.utils.review_rewards import apply_order_rewards
                 apply_order_rewards(order)
+                from app.blueprints.privacy import record_order_terms
+                record_order_terms(order)
                 order.delivery_price = delivery_price
 
                 # Удаляем товары из корзины
@@ -2279,6 +2297,8 @@ def order_create():
                 order.total_price = round(items_subtotal_after_promos, 2)
                 from app.utils.review_rewards import apply_order_rewards
                 apply_order_rewards(order)
+                from app.blueprints.privacy import record_order_terms
+                record_order_terms(order)
 
                 for item in items:
                     db.session.delete(item)
@@ -3546,7 +3566,7 @@ def calculate_cdek_delivery():
         if tariff_code:
             import logging
             logger = logging.getLogger(__name__)
-            logger.info(f"CDEK calculate_by_tariff: tariff={tariff_code}, from={from_location}, to={to_location}, weight={total_weight}")
+            logger.debug("Delivery operation completed; payload omitted")
             
             result = client.calculate_by_tariff(
                 from_location=from_location,
@@ -3554,7 +3574,7 @@ def calculate_cdek_delivery():
                 weight=total_weight,
                 tariff_code=tariff_code
             )
-            logger.info(f"CDEK calculate_by_tariff response: {result}")
+            logger.debug("Delivery operation completed; payload omitted")
             
             # Обрабатываем ответ API
             if result:
@@ -3610,7 +3630,7 @@ def calculate_cdek_delivery():
             if result:
                 import logging
                 logger = logging.getLogger(__name__)
-                logger.info(f"CDEK calculate response: {result}")
+                logger.debug("Delivery operation completed; payload omitted")
                 
                 # Обрабатываем новый формат: {'tariff_codes': [...]}
                 tariffs_list = None
@@ -3725,7 +3745,10 @@ def footer_page(slug):
     но шаблон подсказывает через data-display-mode, чтобы JS мог
     сразу открыть модалку и не показывать страницу.
     """
-    link = FooterLink.query.filter_by(slug=slug, is_active=True).first_or_404()
+    from app.blueprints.privacy import legal_document
+    link = legal_document(slug)
+    if not link:
+        abort(404)
     return render_template(
         'main/footer_page.html',
         title=link.title,
@@ -3738,9 +3761,12 @@ def footer_link_data(slug):
     """
     Возвращает JSON с контентом ссылки — для JS-модалки.
     """
-    link = FooterLink.query.filter_by(slug=slug, is_active=True).first_or_404()
+    from app.blueprints.privacy import legal_document
+    link = legal_document(slug)
+    if not link:
+        abort(404)
     return jsonify({
-        'id': link.id,
+        'id': getattr(link, 'id', None),
         'title': link.title,
         'content': link.content,
         'display_mode': link.display_mode,

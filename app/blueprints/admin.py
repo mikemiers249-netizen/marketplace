@@ -1478,7 +1478,6 @@ def products_moderation():
 
 
 @bp.route('/products/<int:product_id>/approve', methods=['POST'])
-@csrf.exempt
 def product_approve(product_id):
     """
     Одобрение товара.
@@ -1498,7 +1497,6 @@ def product_approve(product_id):
 
 
 @bp.route('/products/<int:product_id>/reject', methods=['POST'])
-@csrf.exempt
 def product_reject(product_id):
     """
     Отклонение товара.
@@ -2067,7 +2065,6 @@ def update_order_status(order_id):
 
 
 @bp.route('/orders/<int:order_id>/delete', methods=['POST'])
-@csrf.exempt
 def order_delete(order_id):
     """
     Полное удаление заказа админом.
@@ -2465,7 +2462,6 @@ def loyalty():
 
 
 @bp.route('/loyalty/toggle', methods=['POST'])
-@csrf.exempt
 def loyalty_toggle():
     """
     Глобальный тумблер «программа лояльности для продавцов».
@@ -2481,7 +2477,6 @@ def loyalty_toggle():
 
 
 @bp.route('/loyalty/promo-toggle', methods=['POST'])
-@csrf.exempt
 def loyalty_promo_toggle():
     """
     Глобальный тумблер «промокоды для продавцов».
@@ -2497,7 +2492,6 @@ def loyalty_promo_toggle():
 
 
 @bp.route('/loyalty/rates/new', methods=['POST'])
-@csrf.exempt
 def loyalty_rate_create():
     """
     Создание нового курса начисления.
@@ -2538,7 +2532,6 @@ def loyalty_rate_create():
 
 
 @bp.route('/loyalty/rates/<int:rate_id>/update', methods=['POST'])
-@csrf.exempt
 def loyalty_rate_update(rate_id):
     """
     Обновление курса.
@@ -2577,7 +2570,6 @@ def loyalty_rate_update(rate_id):
 
 
 @bp.route('/loyalty/rates/<int:rate_id>/toggle', methods=['POST'])
-@csrf.exempt
 def loyalty_rate_toggle(rate_id):
     """
     Показать/скрыть курс от селлеров.
@@ -2596,7 +2588,6 @@ def loyalty_rate_toggle(rate_id):
 
 
 @bp.route('/loyalty/rates/<int:rate_id>/delete', methods=['POST'])
-@csrf.exempt
 def loyalty_rate_delete(rate_id):
     """
     Удаление курса. Если есть подключённые селлеры — ошибка.
@@ -3069,6 +3060,9 @@ def send_message():
     elif partner_type == 'buyers':
         partner_type = 'buyer'
     
+    from app.utils.message_files import validate_attachments
+    validate_attachments(image_path, file_path)
+
     # Создаем сообщение
     message = Message(
         sender_type='admin',
@@ -3089,64 +3083,11 @@ def send_message():
 
 
 @bp.route('/api/upload-message-file', methods=['POST'])
-@csrf.exempt
 def upload_message_file():
-    """
-    API для загрузки файлов (изображений и PDF) в сообщениях.
-    URL: /main_admin/api/upload-message-file
-    """
     if not is_admin():
         return jsonify({'error': 'Unauthorized'}), 401
-    
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-    
-    # Проверяем тип файла
-    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf'}
-    file_ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
-    
-    if file_ext not in allowed_extensions:
-        return jsonify({'error': 'File type not allowed'}), 400
-    
-    # Проверяем размер (10MB max)
-    file.seek(0, 2)
-    file_size = file.tell()
-    file.seek(0)
-    
-    if file_size > 10 * 1024 * 1024:
-        return jsonify({'error': 'File too large (max 10MB)'}), 400
-    
-    # Создаём директорию для сообщений если её нет
-    import os
-    from flask import current_app
-    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'messages')
-    os.makedirs(upload_dir, exist_ok=True)
-    
-    # Генерируем уникальное имя файла
-    from werkzeug.utils import secure_filename
-    from datetime import datetime
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    original_name = secure_filename(file.filename)
-    filename = f"{timestamp}_{original_name}"
-    
-    # Сохраняем файл
-    file_path = os.path.join(upload_dir, filename)
-    file.save(file_path)
-    
-    # Возвращаем путь относительно static
-    static_path = f"uploads/messages/{filename}"
-    
-    return jsonify({
-        'success': True,
-        'path': static_path,
-        'filename': original_name,
-        'is_image': file_ext in {'png', 'jpg', 'jpeg', 'gif', 'webp'},
-        'is_pdf': file_ext == 'pdf'
-    })
+    from app.blueprints.messages import upload_message_file as upload_private_file
+    return upload_private_file()
 
 
 @bp.route('/api/search-users')
@@ -3448,7 +3389,7 @@ def logout():
 #   1. Amvera UI -> приложение MP -> переменные окружения ->
 #      добавить TARIFF_DEMO_NEAR_EXPIRY_ENABLED=True;
 #   2. Заставить Amvera передеплоить (или «Развернуть принудительно»).
-#   3. Залогиниться в https://wimli.ru/main_admin/auth/login под admin/admin123.
+#   3. Залогиниться в https://wimli.ru/main_admin/auth/login с действующими учётными данными администратора.
 #   4. Открыть ссылку:
 #        https://wimli.ru/main_admin/tariff-demo-near-expiry/1?days=5
 #   5. После проверки — удалить переменную окружения и снова задеплоить.

@@ -41,7 +41,6 @@ def seller_login_required(f):
 
 
 @bp.route('/login', methods=['GET', 'POST'])
-@csrf.exempt
 def login():
     """
     Страница входа для покупателей.
@@ -82,7 +81,6 @@ def login():
 
 
 @bp.route('/seller/login', methods=['GET', 'POST'])
-@csrf.exempt
 def seller_login():
     """
     Страница входа для продавцов.
@@ -207,6 +205,10 @@ def signup():
         return redirect(url_for('main.index'))
     
     if request.method == 'POST':
+        from app.blueprints.privacy import validate_terms, record_choice
+        if not validate_terms('terms'):
+            flash('Откройте актуальные правила и подтвердите их принятие.', 'error')
+            return render_template('auth/signup.html'), 400
         login = request.form.get('login')
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password')
@@ -249,6 +251,7 @@ def signup():
         
         db.session.add(buyer)
         db.session.flush()
+        record_choice('terms', True, 'registration checkbox', role='buyer', user_id=buyer.id)
         queued = request_link(buyer, 'verify', required=current_app.config.get('EMAIL_VERIFICATION_REQUIRED', True)) if configured() else False
         db.session.commit()
         if queued:
@@ -271,6 +274,10 @@ def seller_signup():
         return redirect(url_for('seller.dashboard'))
     
     if request.method == 'POST':
+        from app.blueprints.privacy import validate_terms, record_choice
+        if not validate_terms('seller-terms'):
+            flash('Откройте актуальные правила и подтвердите их принятие.', 'error')
+            return render_template('auth/seller_signup.html'), 400
         login = request.form.get('login')
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password')
@@ -325,6 +332,7 @@ def seller_signup():
         
         db.session.add(seller)
         db.session.flush()
+        record_choice('seller_terms', True, 'registration checkbox', role='seller', user_id=seller.id)
         queued = request_link(seller, 'verify', required=current_app.config.get('EMAIL_VERIFICATION_REQUIRED', True)) if configured() else False
         db.session.commit()
         if queued:

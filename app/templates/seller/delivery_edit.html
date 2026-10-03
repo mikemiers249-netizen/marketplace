@@ -3,8 +3,8 @@
 {% block title %}Редактирование доставки{% endblock %}
 
 {% block extra_js %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
+<script src="/static/vendor/leaflet/leaflet.js"></script>
 {% endblock %}
 
 {% block header_title %}
@@ -262,9 +262,9 @@ function initMap() {
         return;
     }
     map = L.map('pvzMap').setView([55.7558, 37.6173], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    WimliPrivacy.tileLayer(map, 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    });
 }
 
 function searchPvz() {

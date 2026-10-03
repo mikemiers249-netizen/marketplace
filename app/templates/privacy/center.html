@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4" style="max-width:850px">
+<h1>Конфиденциальность</h1>
+<p>Дополнительные цели можно включать и выключать независимо. Покупки, доставка и сервисные сообщения работают независимо от этих отметок.</p>
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="choices">
+<input type="hidden" name="personal_version" value="{{ document_digest('personal') }}">
+<input type="hidden" name="distribution_version" value="{{ document_digest('distribution') }}">
+{% if role == 'seller' %}<label for="subject_name">ФИО для согласия на распространение контактов</label><input class="form-control" id="subject_name" name="subject_name" maxlength="200" placeholder="Заполните, если хотите публиковать личные контакты">{% endif %}
+{% set labels = {'analytics':'Дополнительная аналитика просмотра товаров и корзины', 'marketing':'Рекламные сообщения Wimli по email и внутри сайта', 'public_phone':'Публиковать мой телефон в карточках магазина', 'public_email':'Публиковать мой email в карточках магазина'} %}
+{% for purpose in purposes %}
+<div class="form-check my-3"><input class="form-check-input" type="checkbox" name="{{ purpose }}" id="{{ purpose }}" {% if choices[purpose] %}checked{% endif %}><label class="form-check-label" for="{{ purpose }}">{{ labels[purpose] }}</label>
+<a href="{{ url_for('main.footer_page', slug='distribution' if purpose.startswith('public_') else 'personal') }}" target="_blank" rel="noopener">Условия отдельного согласия</a></div>
+{% endfor %}
+<button class="btn btn-primary">Сохранить выбор</button></form>
+<hr><h2>Обращения по персональным данным</h2>
+<p>Также можно написать <a href="mailto:admin@wimli.ru">admin@wimli.ru</a> или по адресу: г. Москва, ул. Шаболовка, 10. Оператор проверит личность и основания сохранения данных. Не отправляйте пароль, коды доступа или документы без запроса.</p>
+{% if role in ('buyer','seller') %}
+<p><a class="btn btn-outline-primary" href="{{ url_for('privacy.export_account') }}">Скачать основные данные моего аккаунта</a></p>
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="request">
+<label for="kind">Тип обращения</label><select class="form-select" name="kind" id="kind"><option value="access">Получить сведения и копию данных</option><option value="correct">Исправить данные</option><option value="withdraw">Отозвать дополнительные согласия</option><option value="delete">Прекратить обработку / удалить данные</option><option value="block">Заблокировать спорные данные</option></select>
+<label for="details">Описание</label><textarea class="form-control" name="details" id="details" required maxlength="5000" rows="4"></textarea><button class="btn btn-primary my-3">Отправить обращение</button></form>
+{% for ticket in tickets %}<div class="border rounded p-3 my-2"><strong>№{{ ticket.id }} — {{ {'new':'Получено','in_progress':'В работе','completed':'Исполнено','refused':'Мотивированный отказ'}[ticket.status] }}</strong><p>{{ ticket.details }}</p>{% if ticket.reply %}<p>Ответ: {{ ticket.reply }}</p>{% endif %}</div>{% endfor %}
+{% else %}<p>Для обращения через аккаунт <a href="{{ url_for('auth.login') }}">войдите</a>. Обращение по email доступно без регистрации.</p>{% endif %}
+</div>{% endblock %}

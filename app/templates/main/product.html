@@ -286,13 +286,16 @@
                     {# Контактная информация #}
                     <div class="seller-contacts">
                         <h4>Контактная информация</h4>
-                        {% if product.seller.phone %}
+                        <div class="seller-contact-item"><span class="contact-label">Wimli:</span>
+                            <a href="mailto:admin@wimli.ru">admin@wimli.ru</a> · <a href="tel:+79663133306">+7 966 313-33-06</a>
+                        </div>
+                        {% if product.seller.phone and public_contact_allowed(product.seller, 'phone') %}
                         <div class="seller-contact-item">
                             <span class="contact-label">Телефон:</span>
                             <span class="contact-value">{{ product.seller.phone }}</span>
                         </div>
                         {% endif %}
-                        {% if product.seller.email %}
+                        {% if product.seller.email and public_contact_allowed(product.seller, 'email') %}
                         <div class="seller-contact-item">
                             <span class="contact-label">Email:</span>
                             <span class="contact-value">{{ product.seller.email }}</span>
@@ -354,7 +357,7 @@
                     {% for review in reviews %}
                     <div class="review-item">
                         <div class="review-header">
-                            <span class="review-author">{{ review.buyer.login }}</span>
+                            <span class="review-author">Покупатель</span>
                             <span class="review-date">{{ review.created_at.strftime('%d.%m.%Y') }}</span>
                         </div>
                         <div class="review-rating">
@@ -389,6 +392,7 @@
                         <div class="form-group">
                             <label for="review-text">Комментарий:</label>
                             <textarea name="text" id="review-text" rows="4" placeholder="Поделитесь впечатлениями о товаре..."></textarea>
+                            <p class="text-muted">Отзыв публикуется с обозначением «Покупатель». Не указывайте личные данные и сведения о других людях.</p>
                         </div>
                         <button type="submit" class="btn btn-primary">Отправить отзыв</button>
                     </form>

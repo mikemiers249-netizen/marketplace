@@ -6,6 +6,15 @@ from datetime import datetime
 from app import db
 
 
+class MessageAttachment(db.Model):
+    __tablename__ = 'message_attachments'
+    id = db.Column(db.Integer, primary_key=True)
+    path = db.Column(db.String(255), nullable=False, unique=True)
+    owner_type = db.Column(db.String(20), nullable=False)
+    owner_id = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
 class Message(db.Model):
     """
     Модель личного сообщения.
@@ -235,7 +244,7 @@ class Mailing(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, nullable=True)  # admin_id
     
-    def send(self):
+    def send(self, marketing=True):
         """Отправка рассылки."""
         from app.models.users import Buyer, Seller
         
@@ -249,6 +258,11 @@ class Mailing(db.Model):
             recipients = (recipients if 'recipients' in dir() else []) + \
                          Seller.query.filter_by(is_active=True).all()
         
+        if marketing:
+            from app.models.privacy import PrivacyConsent
+            recipients = [user for user in recipients if PrivacyConsent.query.filter_by(
+                user_type='buyer' if isinstance(user, Buyer) else 'seller', user_id=user.id,
+                purpose='marketing', withdrawn_at=None).first() is not None]
         self.recipients_count = len(recipients)
         
         # Создание сообщений

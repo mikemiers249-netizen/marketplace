@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 from config import TestingConfig
+from app.blueprints.privacy import document_digest
 from app import create_app, db
 from app.models.users import Buyer, Seller
 from app.models.orders import Order
@@ -140,11 +141,11 @@ class EmailTests(unittest.TestCase):
 
     def test_legacy_login_and_new_registration(self):
         self.assertFalse(needs_verification(self.buyer))
-        response = self.client.post('/auth/signup', data={'login': 'new-user', 'email': 'new@example.test', 'password': 'new-password', 'password_confirm': 'new-password', 'phone': '123456789'})
+        response = self.client.post('/auth/signup', data={'agree': 'on', 'terms_version': document_digest('terms'), 'login': 'new-user', 'email': 'new@example.test', 'password': 'new-password', 'password_confirm': 'new-password', 'phone': '123456789'})
         self.assertEqual(response.status_code, 302)
         user = Buyer.query.filter_by(login='new-user').one()
         self.assertTrue(needs_verification(user))
-        response = self.client.post('/auth/login', data={'login': 'new-user', 'password': 'new-password'})
+        response = self.client.post('/auth/login', data={'agree': 'on', 'terms_version': document_digest('terms'), 'login': 'new-user', 'password': 'new-password'})
         self.assertIn('/auth/email/', response.location)
 
     def test_csrf_and_no_referrer(self):
@@ -177,7 +178,7 @@ class EmailTests(unittest.TestCase):
         self.assertEqual(EmailOutbox.query.count(), 2)
 
     def test_seller_signup_and_public_pages(self):
-        response = self.client.post('/auth/seller/signup', data={'login': 'new-seller', 'email': 'seller@example.test', 'password': 'new-password', 'password_confirm': 'new-password', 'store_name': 'New Store'})
+        response = self.client.post('/auth/seller/signup', data={'agree': 'on', 'terms_version': document_digest('seller-terms'), 'login': 'new-seller', 'email': 'seller@example.test', 'password': 'new-password', 'password_confirm': 'new-password', 'store_name': 'New Store'})
         self.assertEqual(response.status_code, 302)
         user = Seller.query.filter_by(login='new-seller').one()
         self.assertTrue(needs_verification(user))

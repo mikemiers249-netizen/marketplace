@@ -65,7 +65,8 @@
                     <div class="form-options">
                         <label class="checkbox-label">
                             <input type="checkbox" name="agree" required>
-                            <span>Согласен с <a href="#">правилами продавцов</a> и <a href="#">договором оферты</a></span>
+                            <input type="hidden" name="terms_version" value="{{ document_digest('seller-terms') }}">
+                            <span>Принимаю <a href="{{ url_for('main.footer_page', slug='seller-terms') }}" target="_blank" rel="noopener">правила панели продавца</a>. Ознакомлен с <a href="{{ url_for('main.footer_page', slug='offer') }}" target="_blank" rel="noopener">офертой</a> и <a href="{{ url_for('main.footer_page', slug='privacy') }}" target="_blank" rel="noopener">политикой</a>.</span>
                         </label>
                     </div>
                     

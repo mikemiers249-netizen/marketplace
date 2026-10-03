@@ -154,10 +154,7 @@ class CDEKClient:
         logger.error("=" * 80)
         logger.error("CDEK AUTH REQUEST")
         logger.error(f"URL: {auth_url}")
-        logger.error(f"Account: {account}")
-        logger.error(f"Secure: {secure}")
         logger.error(f"Test Mode: {self.test_mode}")
-        logger.error(f"Request Data: {data}")
         logger.error("=" * 80)
 
         response = requests.post(
@@ -171,8 +168,6 @@ class CDEKClient:
         logger.error("-" * 80)
         logger.error("CDEK AUTH RESPONSE")
         logger.error(f"Status Code: {response.status_code}")
-        logger.error(f"Response Headers: {dict(response.headers)}")
-        logger.error(f"Response Body: {response.text}")
         logger.error("-" * 80)
 
         # Для отладки
@@ -207,9 +202,6 @@ code=response.status_code
         # ПОДРОБНОЕ ЛОГИРОВАНИЕ ЗАПРОСА
         logger.error("=" * 80)
         logger.error(f"CDEK API REQUEST: {method} {full_url}")
-        logger.error(f"Headers: {headers}")
-        logger.error(f"Query Params: {data}")
-        logger.error(f"JSON Body: {json_data}")
         logger.error("=" * 80)
 
         if method.upper() == "GET":
@@ -226,7 +218,6 @@ code=response.status_code
         # ПОДРОБНОЕ ЛОГИРОВАНИЕ ОТВЕТА
         logger.error("-" * 80)
         logger.error(f"CDEK API RESPONSE: {response.status_code}")
-        logger.error(f"Response Body: {response.text}")
         logger.error("-" * 80)
 
         if response.status_code == 401:
@@ -369,7 +360,7 @@ code=response.status_code
             # Логируем детали ошибки для диагностики
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"CDEK calculate error: status={response.status_code}, errors={error_details}, request_data={data}")
+            logger.error(f"CDEK calculate error: status={response.status_code}, details omitted")
 
             # Добавляем подсказку по локации в сообщение об ошибке
             if has_location_error:
@@ -605,8 +596,6 @@ def get_cdek_client(seller_delivery=None):
     if seller_delivery:
         logger.error(f"  is_test_mode from DB: {getattr(seller_delivery, 'is_test_mode', 'N/A')}")
     logger.error(f"  Final test_mode: {test_mode}")
-    logger.error(f"  Account: {account}")
-    logger.error(f"  Secure: {secure[:10]}..." if secure else "  Secure: None")
     logger.error("=" * 80)
 
     return CDEKClient(account=account, secure=secure, test_mode=test_mode)

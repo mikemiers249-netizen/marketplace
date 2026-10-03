@@ -22,6 +22,9 @@ def get_user_type():
     Определение типа текущего пользователя.
     Returns: 'admin', 'seller', 'buyer' или None
     """
+    from flask import session
+    if session.get('main_admin_authenticated'):
+        return 'admin'
     if not current_user.is_authenticated:
         return None
     
@@ -344,6 +347,8 @@ def send_message(sender_type, sender_id, receiver_type, receiver_id, text, image
     Returns:
         Message: созданное сообщение или None при ошибке
     """
+    from app.utils.message_files import validate_attachments
+    validate_attachments(image_path, file_path)
     if not text or not text.strip():
         if not image_path and not file_path:
             return None
@@ -431,6 +436,8 @@ def chat(partner_type, partner_id):
             pass
         
         if order:
+            from app.utils.message_files import require_order_participant
+            require_order_participant(order)
             actual_partner_type = 'seller' if user_type == 'buyer' else 'buyer'
             actual_partner_id = order.seller_id if user_type == 'buyer' else order.buyer_id
             
@@ -582,18 +589,9 @@ def chat_content(partner_type, partner_id):
     from datetime import datetime
     
     logger = logging.getLogger(__name__)
-    log_path = os.path.join(os.path.dirname(__file__), '..', '..', 'logs', 'debug.log')
-    
     def debug_log(msg):
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        log_line = f"[{timestamp}] [CHAT_CONTENT] {msg}\n"
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(log_line)
-        except:
-            pass
-        print(log_line.strip())
-    
+        logger.debug(msg)
+
     debug_log("=== chat_content() called ===")
     debug_log(f"partner_type: {partner_type}, partner_id: {partner_id}")
     
@@ -623,6 +621,8 @@ def chat_content(partner_type, partner_id):
         from app.models.orders import Order
         order = Order.query.get(partner_id)
         if order:
+            from app.utils.message_files import require_order_participant
+            require_order_participant(order)
             is_order_chat = True
             # Определяем реального партнёра
             actual_partner_type = 'seller' if user_type == 'buyer' else 'buyer'
@@ -693,6 +693,8 @@ def new_messages(partner_type, partner_id):
         from app.models.orders import Order
         order = Order.query.get(partner_id)
         if order:
+            from app.utils.message_files import require_order_participant
+            require_order_participant(order)
             # Определяем реального партнёра
             actual_partner_type = 'seller' if user_type == 'buyer' else 'buyer'
             actual_partner_id = order.seller_id if user_type == 'buyer' else order.buyer_id
@@ -761,7 +763,6 @@ def new_messages(partner_type, partner_id):
 
 
 @bp.route('/messages/send', methods=['POST'])
-@csrf.exempt
 def send():
     """
     Отправка сообщения (общий endpoint).
@@ -795,6 +796,8 @@ def send():
         from app.models.orders import Order
         order = Order.query.get(conversation_id)
         if order:
+            from app.utils.message_files import require_order_participant
+            require_order_participant(order)
             # Определяем получателя в зависимости от текущего пользователя
             if user_type == 'seller':
                 receiver_type = 'buyer'
@@ -813,118 +816,29 @@ def send():
 
 
 @bp.route('/api/upload-message-file', methods=['POST'])
-@csrf.exempt
 def upload_message_file():
-    """
-    Загрузка файла (изображения или PDF) для сообщения.
-    """
-    import logging
-    import os
-    from datetime import datetime
-    
-    logger = logging.getLogger(__name__)
-    log_path = os.path.join(os.path.dirname(__file__), '..', '..', 'logs', 'debug.log')
-    
-    def debug_log(msg):
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        log_line = f"[{timestamp}] [UPLOAD] {msg}\n"
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(log_line)
-        except:
-            pass
-        print(log_line.strip())
-    
-    debug_log("=== upload_message_file() called ===")
-    
-    user_type = get_user_type()
-    user_id = get_user_id()
-    debug_log(f"user_type: {user_type}, user_id: {user_id}")
-    debug_log(f"request.files: {list(request.files.keys()) if request.files else 'EMPTY'}")
-    debug_log(f"request.headers: {dict(request.headers)}")
-    
-    if not user_type:
-        debug_log("ERROR: Unauthorized request")
-        logger.warning("[UPLOAD] Unauthorized request")
+    """Upload into protected persistent storage; keep the existing API shape."""
+    from app.utils.message_files import actor, save_attachment
+    role, _ = actor()
+    if not role:
         return jsonify({'error': 'Unauthorized'}), 401
-    
-    if 'file' not in request.files:
-        debug_log("ERROR: No file in request.files")
-        logger.warning("[UPLOAD] No file in request")
+    file = request.files.get('file')
+    if not file or not file.filename:
         return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    debug_log(f"File received: {file.filename}, content_type: {file.content_type}")
-    logger.info(f"[UPLOAD] File received: {file.filename}, content_type: {file.content_type}")
-    
-    if file.filename == '':
-        debug_log("ERROR: Empty filename")
-        logger.warning("[UPLOAD] Empty filename")
-        return jsonify({'error': 'No file selected'}), 400
-    
-    # Проверяем тип файла
-    allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
-    content_type = file.content_type
-    debug_log(f"Content type check: {content_type} in {allowed_types} = {content_type in allowed_types}")
-    
-    if content_type not in allowed_types:
-        debug_log(f"ERROR: Invalid file type: {content_type}")
-        return jsonify({'error': 'Invalid file type. Allowed: images (JPEG, PNG, GIF, WebP) and PDF'}), 400
-    
-    # Проверяем размер (10 MB max)
-    file.seek(0, 2)  # Seek to end
+    types = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif',
+             'image/webp': 'webp', 'application/pdf': 'pdf'}
+    extension = types.get(file.content_type)
+    if not extension:
+        return jsonify({'error': 'File type not allowed'}), 400
+    file.seek(0, 2)
     size = file.tell()
-    file.seek(0)  # Reset position
-    debug_log(f"File size: {size} bytes")
-    
+    file.seek(0)
     if size > 10 * 1024 * 1024:
-        debug_log(f"ERROR: File too large: {size}")
-        return jsonify({'error': 'File too large. Maximum size: 10 MB'}), 400
-    
-    # Генерируем уникальное имя файла
-    import secrets
-    from datetime import datetime
-    
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext == '.jpeg':
-        ext = '.jpg'
-    
-    filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{secrets.token_hex(8)}{ext}"
-    debug_log(f"Generated filename: {filename}")
-    
-    # Создаем папку для загрузок если её нет
-    upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'messages')
-    debug_log(f"Upload folder: {upload_folder}")
-    os.makedirs(upload_folder, exist_ok=True)
-    
-    filepath = os.path.join(upload_folder, filename)
-    debug_log(f"Saving to: {filepath}")
-    file.save(filepath)
-    
-    # Проверяем что файл сохранился
-    if os.path.exists(filepath):
-        actual_size = os.path.getsize(filepath)
-        debug_log(f"File saved successfully, actual size: {actual_size}")
-    else:
-        debug_log("ERROR: File was NOT saved!")
-    
-    # Относительный путь для хранения в БД
-    relative_path = f"uploads/messages/{filename}"
-    
-    # Определяем тип файла
-    is_image = content_type.startswith('image/')
-    
-    debug_log(f"SUCCESS - saved to: {filepath}, relative_path: {relative_path}, is_image: {is_image}")
-    logger.info(f"[UPLOAD] SUCCESS - saved to: {filepath}, relative_path: {relative_path}, is_image: {is_image}")
-    
-    return jsonify({
-        'success': True,
-        'path': relative_path,
-        'filename': file.filename,
-        'is_image': is_image,
-        'is_pdf': content_type == 'application/pdf',
-        'size': size
-    })
+        return jsonify({'error': 'File too large (max 10MB)'}), 400
+    path = save_attachment(file, extension)
+    return jsonify({'success': True, 'path': path, 'filename': file.filename,
+                    'is_image': extension != 'pdf', 'is_pdf': extension == 'pdf',
+                    'size': size})
 
 
 @bp.route('/api/conversations')
@@ -1071,6 +985,8 @@ def buyer_messages():
             from app.models.orders import Order
             order = Order.query.get(partner_id)
             if order:
+                from app.utils.message_files import require_order_participant
+                require_order_participant(order)
                 is_order_chat = True
                 # Получаем сообщения через conversation_type='order'
                 messages = Message.query.filter(
@@ -1140,21 +1056,11 @@ def seller_messages():
     from datetime import datetime
     
     logger = logging.getLogger(__name__)
-    log_path = os.path.join(os.path.dirname(__file__), '..', '..', 'logs', 'debug.log')
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    
     def debug_log(msg):
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        log_line = f"[{timestamp}] [SELLER_MESSAGES] {msg}\n"
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(log_line)
-        except:
-            pass
-        print(log_line.strip())
-    
+        logger.debug(msg)
+
     debug_log("=== seller_messages() called ===")
-    debug_log(f"current_user: {current_user}")
+    debug_log("seller_messages authentication check")
     debug_log(f"is_authenticated: {current_user.is_authenticated if current_user else 'N/A'}")
     if current_user.is_authenticated:
         debug_log(f"isinstance Seller: {isinstance(current_user, Seller)}")
@@ -1193,6 +1099,8 @@ def seller_messages():
             from app.models.orders import Order
             order = Order.query.get(partner_id)
             if order:
+                from app.utils.message_files import require_order_participant
+                require_order_participant(order)
                 is_order_chat = True
                 # Получаем сообщения через conversation_type='order'
                 messages = Message.query.filter(
