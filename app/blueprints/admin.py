@@ -2865,6 +2865,32 @@ def settings():
                          settings=settings)
 
 
+@bp.route('/settings/notifications', methods=['GET', 'POST'])
+def notification_settings():
+    from flask import session
+    if not (session.get('main_admin_authenticated') or
+            (current_user.is_authenticated and isinstance(current_user, Admin))):
+        return redirect(url_for('admin.login'))
+    from app.utils.admin_notifications import (
+        EVENTS, SETTING_KEY, notification_settings as load_settings, valid_email)
+    from app.utils.email_service import configured
+    preferences = load_settings()
+    if request.method == 'POST':
+        recipient = request.form.get('recipient', '').strip()
+        preferences = {'enabled': request.form.get('enabled') == 'on',
+                       'recipient': recipient,
+                       'events': [key for key in EVENTS if request.form.get(key) == 'on']}
+        if (recipient and not valid_email(recipient)) or (preferences['enabled'] and not recipient):
+            flash('Укажите корректный email для системных уведомлений.', 'error')
+            return render_template('admin/notification_settings.html', preferences=preferences,
+                                   events=EVENTS, mail_ready=configured()), 400
+        Settings.set(SETTING_KEY, preferences, 'json')
+        flash('Настройки системных уведомлений сохранены.', 'success')
+        return redirect(url_for('admin.notification_settings'))
+    return render_template('admin/notification_settings.html', preferences=preferences,
+                           events=EVENTS, mail_ready=configured())
+
+
 @bp.route('/messages')
 def messages():
     """

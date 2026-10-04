@@ -69,6 +69,7 @@ def create_app(config_class=None):
     from app.blueprints.email_account import bp as email_bp
     from app.email_worker import mail_check, mail_deliver
     from app.utils import email_events  # noqa: F401
+    from app.utils import admin_notifications  # noqa: F401
     app.register_blueprint(email_bp)
     from app.blueprints.privacy import init_privacy
     init_privacy(app)

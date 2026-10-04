@@ -1,0 +1,24 @@
+{% extends 'admin/layout.html' %}
+{% block title %}Рассылки и уведомления — Админ-панель{% endblock %}
+{% block content %}
+<div class="admin-page-header"><h1>Рассылки и уведомления</h1></div>
+<p><a class="btn btn-secondary" href="{{ url_for('admin.settings') }}">Основные настройки</a></p>
+{% for category, message in get_flashed_messages(with_categories=true) %}
+<div class="alert {{ 'alert-danger' if category == 'error' else 'alert-success' }}">{{ message }}</div>
+{% endfor %}
+<div class="settings-container" style="max-width:800px">
+<h2>Системные уведомления администратору</h2>
+<p>Выберите события и почтовый ящик. Каждое письмо содержит описание события и ссылку на вход в админку с логином и паролем.</p>
+{% if not mail_ready %}<div class="alert alert-warning">Отправка почты на сервере пока не настроена. Вы можете сохранить настройки; письма начнут формироваться после подключения почты.</div>{% endif %}
+<form method="post" class="settings-form">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="form-check my-3"><input type="checkbox" class="form-check-input" name="enabled" id="enabled" {% if preferences.enabled %}checked{% endif %}><label class="form-check-label" for="enabled">Включить системные уведомления по email</label></div>
+<div class="form-group"><label for="recipient">Email для системных уведомлений</label><input type="email" class="form-control" name="recipient" id="recipient" maxlength="254" value="{{ preferences.recipient or '' }}" placeholder="admin@example.ru"></div>
+<h3 class="mt-4">Какие уведомления получать</h3>
+{% for key, label in events.items() %}
+<div class="form-check my-3"><input type="checkbox" class="form-check-input" name="{{ key }}" id="{{ key }}" {% if key in (preferences.events or []) %}checked{% endif %}><label class="form-check-label" for="{{ key }}">{{ label }}</label></div>
+{% endfor %}
+<p class="text-muted">Уведомления о заказах отправляются после оформления, о товарах — после отправки на модерацию. Сообщения между покупателем и продавцом не входят в уведомления поддержки.</p>
+<button type="submit" class="btn btn-primary">Сохранить настройки</button>
+</form></div>
+{% endblock %}
