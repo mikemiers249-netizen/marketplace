@@ -90,6 +90,16 @@
     color: white;
 }
 
+.nav-section-title {
+    color: white;
+    font-weight: 600;
+}
+
+.sidebar-nav .nav-submenu .nav-link {
+    padding-left: 36px;
+    font-size: 13px;
+}
+
 /* Подсветка пункта меню при наличии непрочитанных сообщений.
    Красный акцент: иконка + текст + маленький кружок-индикатор справа. */
 .nav-link.has-unread {
@@ -816,6 +826,10 @@
     .nav-link {
         justify-content: center;
         padding: 15px;
+    }
+
+    .sidebar-nav .nav-submenu .nav-link {
+        padding: 12px;
     }
     
     .admin-main {
