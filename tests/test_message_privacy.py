@@ -135,6 +135,47 @@ class MessagePrivacyTests(unittest.TestCase):
         for suffix in ('', '/content', '/new?last_id=0'):
             self.assertEqual(self.client.get(f'/messages/order/{order.id}{suffix}').status_code, 404)
 
+    def test_permanent_support_contact_and_admin_replies(self):
+        from app.blueprints.messages import get_conversations
+        for user, role, page, send in (
+            (self.buyer, 'buyer', '/messages/buyer', '/messages/send'),
+            (self.seller, 'seller', '/seller/messages', '/seller/messages/send'),
+        ):
+            self.login(user)
+            contacts = get_conversations(role, user.id, 'support')
+            self.assertEqual(list(contacts), ['admin:0'])
+            self.assertEqual(contacts['admin:0']['name'], 'Поддержка')
+            self.assertEqual(contacts['admin:0']['unread_count'], 0)
+            response = self.client.get(page + '?filter=support')
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('data-partner-type="admin"', response.text)
+            self.assertIn('data-partner-id="0"', response.text)
+            self.assertIn('<span class="dialog-name">Поддержка</span>', response.text)
+            response = self.client.get(page + '?filter=support&partner_type=admin&partner_id=0')
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('name="receiver_id" value="0"', response.text)
+            self.assertEqual(self.client.get('/messages/admin/0/content').status_code, 200)
+            data = {'receiver_type': 'admin', 'receiver_id': 0, 'text': role + ' support request'}
+            response = (self.client.post(send, json=data) if role == 'seller'
+                        else self.client.post(send, data=data))
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json['success'])
+            self.assertEqual(list(get_conversations(role, user.id, 'support')), ['admin:0'])
+            self.login(admin=True)
+            tab = 'buyers' if role == 'buyer' else 'sellers'
+            response = self.client.get(f'/main_admin/messages?tab={tab}&dialog_id={user.id}')
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(role + ' support request', response.text)
+            response = self.client.post('/main_admin/messages/send', data={
+                'partner_type': role, 'partner_id': user.id, 'text': role + ' support reply'})
+            self.assertEqual(response.status_code, 302)
+            self.login(user)
+            contact = get_conversations(role, user.id, 'support')['admin:0']
+            self.assertEqual(contact['unread_count'], 1)
+            response = self.client.get(page + '?filter=support&partner_type=admin&partner_id=0')
+            self.assertIn(role + ' support reply', response.text)
+            self.assertEqual(get_conversations(role, user.id, 'support')['admin:0']['unread_count'], 0)
+
     def test_legacy_migration_keeps_urls_and_is_repeatable(self):
         old_dir = Path(self.app.static_folder) / 'uploads' / 'messages'
         old_dir.mkdir(parents=True)

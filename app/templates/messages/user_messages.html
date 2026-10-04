@@ -294,7 +294,7 @@ function stopPolling() {
 
 // Check for new messages via AJAX
 function checkNewMessages() {
-    if (!currentPartnerType || !currentPartnerId) return;
+    if (!currentPartnerType || currentPartnerId === null || currentPartnerId === undefined) return;
     
     fetch(`/messages/${currentPartnerType}/${currentPartnerId}/new?last_id=${lastMessageId}`, {
         headers: {

@@ -222,12 +222,12 @@ def get_conversations(user_type, user_id, filter_type=None):
                 conversations[key]['last_message_full'] = msg
                 conversations[key]['_timestamp'] = msg.timestamp
     
-    # Покупатель должен иметь возможность первым написать в поддержку.
+    # Покупатель и продавец могут первыми написать в поддержку.
     # Общий почтовый ящик администратора использует id=0 (см. get_user_id).
-    if user_type == 'buyer' and filter_type == 'support':
+    if user_type in ('buyer', 'seller') and filter_type == 'support':
         conversations.setdefault('admin:0', {
             'id': 0,
-            'name': 'Служба поддержки',
+            'name': 'Поддержка',
             'partner_type': 'admin',
             'partner_id': 0,
             'last_message': '',
@@ -249,7 +249,7 @@ def get_partner_name(partner_type, partner_id):
         partner = Seller.query.get(partner_id)
         return partner.store_name if partner else f'Магазин #{partner_id}'
     elif partner_type == 'admin':
-        return 'Служба поддержки'
+        return 'Поддержка'
     return 'Неизвестный'
 
 
