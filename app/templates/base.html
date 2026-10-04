@@ -14,6 +14,7 @@
 <script src="/static/js/privacy-ui.js"></script>
 </head>
 <body>
+    {% include 'privacy/_cookie_notice.html' %}
     <div class="container py-2" style="font-size:14px">
         <a href="{{ url_for('privacy.center') }}">Настройки конфиденциальности</a>
         · <a href="{{ url_for('main.footer_page', slug='privacy') }}">Политика обработки данных</a>
@@ -209,6 +210,7 @@
             </div>
 
             <div class="footer-bottom">
+                <p><a href="{{ url_for('privacy.center') }}">Настройки cookies и конфиденциальности</a></p>
                 <p>&copy; {{ current_year }} Маркетплейс. Все права защищены.</p>
             </div>
         </div>

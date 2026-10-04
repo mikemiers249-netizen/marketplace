@@ -1,0 +1,20 @@
+{% if show_cookie_notice() %}
+<aside class="wimli-cookie-notice" aria-labelledby="cookie-notice-title">
+    <div><strong id="cookie-notice-title">Cookies на Wimli</strong>
+    <p>Мы используем необходимые cookies для входа и защиты форм. Дополнительная аналитика просмотра товаров и корзины включается только с вашего согласия. Вы можете отказаться и продолжить пользоваться сайтом.</p>
+    <a href="/page/privacy">Политика конфиденциальности</a> · <a href="/privacy-center">Настройки</a></div>
+    <form method="post" action="{{ url_for('privacy.cookie_choice') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="personal_version" value="{{ document_digest('personal') }}">
+        <input type="hidden" name="return_to" value="{{ request.full_path }}">
+        <button type="submit" name="choice" value="necessary" class="btn btn-outline-primary">Только необходимые</button>
+        <button type="submit" name="choice" value="analytics" class="btn btn-outline-primary">Разрешить аналитику</button>
+        <small>Выбор можно изменить в настройках конфиденциальности.</small>
+    </form>
+</aside>
+<style>
+.wimli-cookie-notice{position:fixed;bottom:16px;left:16px;right:16px;z-index:1080;max-width:1100px;margin:auto;padding:20px;background:#fff;color:#212529;border:1px solid #d9dee5;border-radius:16px;box-shadow:0 8px 32px #0003;display:flex;gap:24px;align-items:center}
+.wimli-cookie-notice p{margin:8px 0;font-size:14px;line-height:1.5}.wimli-cookie-notice form{flex-shrink:0;display:flex;flex-direction:column;gap:8px;max-width:290px}.wimli-cookie-notice small{font-size:12px}
+@media(max-width:700px){.wimli-cookie-notice{padding:16px;gap:12px;display:block;max-height:65vh;overflow:auto}.wimli-cookie-notice form{margin-top:12px;max-width:none}}
+</style>
+{% endif %}

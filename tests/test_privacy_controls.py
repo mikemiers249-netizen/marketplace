@@ -15,6 +15,27 @@ from app.privacy_cleanup import cleanup
 
 
 class PrivacyControlsTests(unittest.TestCase):
+    def test_cookie_notice_choice_and_revocation(self):
+        self.login()
+        response = self.client.get('/privacy-center')
+        self.assertIn('id="cookie-notice-title"', response.text)
+        data = {'choice': 'necessary', 'personal_version': document_digest('personal'),
+                'return_to': '//example.test'}
+        response = self.client.post('/privacy/cookies', data=data)
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.location, '/')
+        self.assertEqual(PrivacyConsent.query.filter_by(purpose='analytics').count(), 0)
+        self.assertNotIn('id="cookie-notice-title"', self.client.get('/privacy-center').text)
+        data['choice'] = 'analytics'
+        self.assertEqual(self.client.post('/privacy/cookies', data=data).status_code, 303)
+        self.assertEqual(PrivacyConsent.query.filter_by(purpose='analytics', withdrawn_at=None).count(), 1)
+        self.assertNotIn('id="cookie-notice-title"', self.client.get('/privacy-center').text)
+        self.choices()
+        self.assertEqual(PrivacyConsent.query.filter_by(purpose='analytics', withdrawn_at=None).count(), 0)
+        self.assertNotIn('id="cookie-notice-title"', self.client.get('/privacy-center').text)
+        data['personal_version'] = 'outdated'
+        self.assertEqual(self.client.post('/privacy/cookies', data=data).status_code, 400)
+
     setUp = privacy_fixtures.MessagePrivacyTests.setUp
     tearDown = privacy_fixtures.MessagePrivacyTests.tearDown
     login = privacy_fixtures.MessagePrivacyTests.login

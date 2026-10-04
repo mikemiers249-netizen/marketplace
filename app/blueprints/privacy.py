@@ -173,6 +173,7 @@ def center():
                     from app.models.products import ProductEvent
                     ProductEvent.query.filter_by(buyer_id=user_id).delete(synchronize_session=False)
             db.session.commit()
+            session['cookie_notice_choice'] = list(subject()[:2])
             flash('Настройки сохранены. Отказ от дополнительных целей не ограничивает покупки.', 'success')
         elif action == 'request':
             if role not in ('buyer', 'seller'):
@@ -299,6 +300,26 @@ def install_documents():
     click.echo('Installed versioned Wimli legal documents.')
 
 
+@bp.route('/privacy/cookies', methods=['POST'])
+def cookie_choice():
+    choice = request.form.get('choice')
+    if choice not in ('necessary', 'analytics'):
+        abort(400)
+    if request.form.get('personal_version') != document_digest('personal'):
+        abort(400, description='Условия изменились. Обновите страницу.')
+    record_choice('analytics', choice == 'analytics', 'cookie notice button')
+    db.session.commit()
+    session['cookie_notice_choice'] = list(subject()[:2])
+    target = request.form.get('return_to', '/')
+    if not target.startswith('/') or target.startswith('//') or '\\' in target:
+        target = '/'
+    return redirect(target, code=303)
+
+
+def show_cookie_notice():
+    return session.get('cookie_notice_choice') != list(subject()[:2]) and not has_consent('analytics')
+
+
 def init_privacy(app):
     app.register_blueprint(bp)
     app.cli.add_command(install_documents)
@@ -307,4 +328,5 @@ def init_privacy(app):
     from app.privacy_cleanup import cleanup_command
     app.cli.add_command(cleanup_command)
     app.jinja_env.globals.update(document_digest=document_digest,
-        public_contact_allowed=public_contact_allowed, has_privacy_consent=has_consent)
+        public_contact_allowed=public_contact_allowed, has_privacy_consent=has_consent,
+        show_cookie_notice=show_cookie_notice)
