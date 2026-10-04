@@ -3424,6 +3424,22 @@ def message_send():
         except ValueError:
             return jsonify({'error': 'Неверный ID получателя'}), 400
     
+    payload = data if data else request.form
+    conversation_type = payload.get('conversation_type')
+    conversation_id = payload.get('conversation_id')
+    if conversation_type == 'order':
+        from app.models.orders import Order
+        from app.utils.message_files import require_order_participant
+        try:
+            conversation_id = int(conversation_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Неверный ID заказа'}), 400
+        order = db.session.get(Order, conversation_id)
+        if not order:
+            abort(404)
+        require_order_participant(order)
+        receiver_type, receiver_id = 'buyer', order.buyer_id
+
     from app.utils.message_files import validate_attachments
     validate_attachments(image_path, file_path)
 
@@ -3434,7 +3450,9 @@ def message_send():
         receiver_id=receiver_id,
         text=text or None,
         image_path=image_path,
-        file_path=file_path
+        file_path=file_path,
+        conversation_type=conversation_type,
+        conversation_id=conversation_id,
     )
     db.session.add(msg)
     db.session.commit()

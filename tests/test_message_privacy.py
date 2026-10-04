@@ -176,6 +176,38 @@ class MessagePrivacyTests(unittest.TestCase):
             self.assertIn(role + ' support reply', response.text)
             self.assertEqual(get_conversations(role, user.id, 'support')['admin:0']['unread_count'], 0)
 
+    def test_order_image_send_and_reload(self):
+        from app.models.orders import Order
+        order = Order(order_number='IMAGE-TEST', total_price=0,
+                      buyer_id=self.buyer.id, seller_id=self.seller.id)
+        db.session.add(order)
+        db.session.commit()
+        for user, endpoint, receiver_type, receiver_id in (
+            (self.seller, '/seller/messages/send', 'buyer', self.buyer.id),
+            (self.buyer, '/messages/send', 'seller', self.seller.id),
+        ):
+            self.login(user)
+            page = self.client.get(f'/messages/order/{order.id}')
+            self.assertEqual(page.status_code, 200)
+            self.assertIn(f'name="receiver_type" value="{receiver_type}"', page.text)
+            path = self.upload(mime='image/png').json['path']
+            response = self.client.post(endpoint, data={
+                'receiver_type': receiver_type, 'receiver_id': receiver_id,
+                'conversation_type': 'order', 'conversation_id': order.id, 'image_path': path})
+            self.assertEqual(response.status_code, 200)
+            message = db.session.get(Message, response.json['message_id'])
+            self.assertEqual(message.conversation_type, 'order')
+            self.assertEqual(message.conversation_id, order.id)
+            self.assertEqual(message.receiver_type, receiver_type)
+            self.assertEqual(message.receiver_id, receiver_id)
+            self.assertIn(path, self.client.get(f'/messages/order/{order.id}/content').text)
+            self.login(self.buyer if user is self.seller else self.seller)
+            response = self.client.get(f'/messages/order/{order.id}/new?last_id=0')
+            self.assertIn(path, response.text)
+            response = self.client.get('/static/' + path)
+            self.assertEqual(response.status_code, 200)
+            response.close()
+
     def test_legacy_migration_keeps_urls_and_is_repeatable(self):
         old_dir = Path(self.app.static_folder) / 'uploads' / 'messages'
         old_dir.mkdir(parents=True)

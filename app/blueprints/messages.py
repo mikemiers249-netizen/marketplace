@@ -475,7 +475,9 @@ def chat(partner_type, partner_id):
                 'partner_id': partner_id,
                 'name': order_key,
                 'order_id': order.id,
-                'order_number': order.order_number
+                'order_number': order.order_number,
+                'receiver_type': actual_partner_type,
+                'receiver_id': actual_partner_id,
             }
             
             return render_template('messages/user_messages.html',
