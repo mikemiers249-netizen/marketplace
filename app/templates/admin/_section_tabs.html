@@ -1,0 +1,19 @@
+{% set endpoint = request.endpoint or '' %}
+{% if endpoint.startswith('admin.product') or endpoint.startswith('admin.review') %}
+<nav class="admin-section-tabs" aria-label="Модерация">
+    <a class="btn {{ 'btn-primary' if endpoint.startswith('admin.product') else 'btn-secondary' }}" href="{{ url_for('admin.products_moderation') }}">Модерация товаров</a>
+    <a class="btn {{ 'btn-primary' if endpoint.startswith('admin.review') else 'btn-secondary' }}" href="{{ url_for('admin.reviews') }}">Модерация отзывов</a>
+</nav>
+{% elif endpoint in ('admin.messages', 'privacy.requests_admin') %}
+<nav class="admin-section-tabs" aria-label="Сообщения">
+    <a class="btn {{ 'btn-primary' if endpoint == 'admin.messages' else 'btn-secondary' }}" href="{{ url_for('admin.messages') }}">Диалоги</a>
+    <a class="btn {{ 'btn-primary' if endpoint == 'privacy.requests_admin' else 'btn-secondary' }}" href="{{ url_for('privacy.requests_admin') }}">Обращения по данным</a>
+</nav>
+{% elif endpoint in ('admin.settings', 'admin.notification_settings', 'privacy.center') or endpoint.startswith('admin.footer_link') %}
+<nav class="admin-section-tabs" aria-label="Настройки">
+    <a class="btn {{ 'btn-primary' if endpoint == 'admin.settings' else 'btn-secondary' }}" href="{{ url_for('admin.settings') }}">Основные</a>
+    <a class="btn {{ 'btn-primary' if endpoint == 'admin.notification_settings' else 'btn-secondary' }}" href="{{ url_for('admin.notification_settings') }}">Рассылки и уведомления</a>
+    <a class="btn {{ 'btn-primary' if endpoint.startswith('admin.footer_link') else 'btn-secondary' }}" href="{{ url_for('admin.footer_links') }}">Ссылки в подвале</a>
+    <a class="btn {{ 'btn-primary' if endpoint == 'privacy.center' else 'btn-secondary' }}" href="{{ url_for('privacy.center') }}">Настройки конфиденциальности</a>
+</nav>
+{% endif %}

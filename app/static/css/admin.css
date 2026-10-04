@@ -90,14 +90,11 @@
     color: white;
 }
 
-.nav-section-title {
-    color: white;
-    font-weight: 600;
-}
-
-.sidebar-nav .nav-submenu .nav-link {
-    padding-left: 36px;
-    font-size: 13px;
+.admin-section-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
 }
 
 /* Подсветка пункта меню при наличии непрочитанных сообщений.
@@ -828,9 +825,6 @@
         padding: 15px;
     }
 
-    .sidebar-nav .nav-submenu .nav-link {
-        padding: 12px;
-    }
     
     .admin-main {
         margin-left: 70px;

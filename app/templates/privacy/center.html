@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'admin/layout.html' if role == 'admin' else 'base.html' %}
 {% block content %}
 <div class="container py-4" style="max-width:850px">
 <h1>Конфиденциальность</h1>

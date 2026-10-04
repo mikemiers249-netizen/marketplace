@@ -62,14 +62,10 @@
                         </a>
                     </li>
                     <li>
-                        <div class="nav-link nav-section-title">
+                        <a href="{{ url_for('admin.products_moderation') }}" class="nav-link{% if 'products' in request.endpoint or 'review' in request.endpoint %} active{% endif %}">
                             <span class="nav-icon"><i class="bi bi-box-seam"></i></span>
                             <span>Модерация</span>
-                        </div>
-                        <ul class="nav-submenu" aria-label="Модерация">
-                            <li><a href="{{ url_for('admin.products_moderation') }}" title="Модерация товаров" class="nav-link{% if 'products' in request.endpoint %} active{% endif %}"><span class="nav-icon"><i class="bi bi-box-seam"></i></span><span>Модерация товаров</span></a></li>
-                            <li><a href="{{ url_for('admin.reviews') }}" title="Модерация отзывов" class="nav-link{% if 'review' in request.endpoint %} active{% endif %}"><span class="nav-icon"><i class="bi bi-star"></i></span><span>Модерация отзывов</span></a></li>
-                        </ul>
+                        </a>
                     </li>
                     <li>
                         <a href="{{ url_for('admin.orders') }}" class="nav-link{% if 'orders' in request.endpoint %} active{% endif %}">
@@ -80,7 +76,7 @@
                     <li>
                         <a href="{{ url_for('admin.messages') }}"
                            data-unread-url="{{ url_for('admin.unread_message_count') }}"
-                           class="nav-link{% if 'message' in request.endpoint %} active{% endif %}{% if unread_messages_count %} has-unread{% endif %}"
+                           class="nav-link{% if 'message' in request.endpoint or request.endpoint == 'privacy.requests_admin' %} active{% endif %}{% if unread_messages_count %} has-unread{% endif %}"
                            {% if unread_messages_count %}style="color: #ff4d4f !important;"{% endif %}>
                             <span class="nav-icon" {% if unread_messages_count %}style="color: #ff4d4f !important;"{% endif %}><i class="bi bi-chat-dots"></i></span>
                             <span {% if unread_messages_count %}style="color: #ff4d4f !important;"{% endif %}>Сообщения</span>
@@ -96,9 +92,6 @@
                                          box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.3) !important;"></span>
                             {% endif %}
                         </a>
-                        <ul class="nav-submenu" aria-label="Сообщения">
-                            <li><a href="{{ url_for('privacy.requests_admin') }}" title="Обращения по данным" class="nav-link{% if request.endpoint == 'privacy.requests_admin' %} active{% endif %}"><span class="nav-icon"><i class="bi bi-file-earmark-text"></i></span><span>Обращения по данным</span></a></li>
-                        </ul>
                     </li>
                     <li>
                         <a href="{{ url_for('admin.categories') }}" class="nav-link{% if 'categor' in request.endpoint %} active{% endif %}">
@@ -137,13 +130,10 @@
                         </a>
                     </li>
                     <li>
-                        <a href="{{ url_for('admin.settings') }}" class="nav-link{% if 'setting' in request.endpoint %} active{% endif %}">
+                        <a href="{{ url_for('admin.settings') }}" class="nav-link{% if 'setting' in request.endpoint or 'footer_link' in request.endpoint or request.endpoint == 'privacy.center' %} active{% endif %}">
                             <span class="nav-icon"><i class="bi bi-gear"></i></span>
                             <span>Настройки</span>
                         </a>
-                        <ul class="nav-submenu" aria-label="Настройки">
-                            <li><a href="{{ url_for('privacy.center') }}" title="Настройки конфиденциальности" class="nav-link{% if request.endpoint == 'privacy.center' %} active{% endif %}"><span class="nav-icon"><i class="bi bi-shield-lock"></i></span><span>Настройки конфиденциальности</span></a></li>
-                        </ul>
                     </li>
                     <li>
                         <a href="{{ url_for('admin.info') }}" class="nav-link{% if request.endpoint == 'admin.info' or request.endpoint == 'admin.info_delete' %} active{% endif %}">
@@ -176,6 +166,7 @@
             </header>
             
             <div class="admin-content">
+                {% include 'admin/_section_tabs.html' %}
                 {% block content %}{% endblock %}
             </div>
         </main>
