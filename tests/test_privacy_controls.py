@@ -15,6 +15,24 @@ from app.privacy_cleanup import cleanup
 
 
 class PrivacyControlsTests(unittest.TestCase):
+    def test_admin_cookie_choice_with_seller_session(self):
+        for choice in ('necessary', 'analytics'):
+            self.login(self.seller)
+            with self.client.session_transaction() as session:
+                session['main_admin_authenticated'] = True
+            response = self.client.get('/main_admin/settings/notifications')
+            self.assertIn('id="cookie-notice-title"', response.text)
+            self.assertIn('action="/main_admin/privacy/cookies"', response.text)
+            response = self.client.post('/main_admin/privacy/cookies', data={
+                'choice': choice, 'personal_version': document_digest('personal'),
+                'return_to': '/main_admin/settings/notifications'}, follow_redirects=True)
+            self.assertEqual(response.status_code, 200)
+            self.assertNotIn('id="cookie-notice-title"', response.text)
+            self.assertNotIn('id="cookie-notice-title"',
+                             self.client.get('/main_admin/settings/notifications').text)
+            self.assertEqual(PrivacyConsent.query.filter_by(user_type='seller', purpose='analytics').count(), 0)
+        self.assertEqual(PrivacyConsent.query.filter_by(user_type='admin', purpose='analytics', withdrawn_at=None).count(), 1)
+
     def test_cookie_notice_choice_and_revocation(self):
         self.login()
         response = self.client.get('/privacy-center')

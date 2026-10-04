@@ -2891,6 +2891,16 @@ def notification_settings():
                            events=EVENTS, mail_ready=configured())
 
 
+@bp.route('/privacy/cookies', methods=['POST'])
+def cookie_choice():
+    from flask import session
+    if not (session.get('main_admin_authenticated') or
+            (current_user.is_authenticated and isinstance(current_user, Admin))):
+        return redirect(url_for('admin.login'))
+    from app.blueprints.privacy import cookie_choice as save_choice
+    return save_choice()
+
+
 @bp.route('/messages')
 def messages():
     """

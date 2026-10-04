@@ -3,7 +3,7 @@
     <div><strong id="cookie-notice-title">Cookies на Wimli</strong>
     <p>Мы используем необходимые cookies для входа и защиты форм. Дополнительная аналитика просмотра товаров и корзины включается только с вашего согласия. Вы можете отказаться и продолжить пользоваться сайтом.</p>
     <a href="/page/privacy">Политика конфиденциальности</a> · <a href="/privacy-center">Настройки</a></div>
-    <form method="post" action="{{ url_for('privacy.cookie_choice') }}">
+    <form method="post" action="{{ url_for('admin.cookie_choice' if request.blueprint == 'admin' else 'privacy.cookie_choice') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="personal_version" value="{{ document_digest('personal') }}">
         <input type="hidden" name="return_to" value="{{ request.full_path }}">
