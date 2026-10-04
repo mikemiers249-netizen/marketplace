@@ -2867,7 +2867,7 @@ def settings():
 
 @bp.route('/settings/notifications', methods=['GET', 'POST'])
 def notification_settings():
-    from flask import session
+    from flask import session, current_app
     if not (session.get('main_admin_authenticated') or
             (current_user.is_authenticated and isinstance(current_user, Admin))):
         return redirect(url_for('admin.login'))
@@ -2875,6 +2875,19 @@ def notification_settings():
         EVENTS, SETTING_KEY, notification_settings as load_settings, valid_email)
     from app.utils.email_service import configured
     preferences = load_settings()
+    if request.method == 'POST' and request.form.get('action') == 'test_email':
+        recipient = preferences.get('recipient', '')
+        if not valid_email(recipient) or not configured():
+            flash('Сохраните email получателя и настройте отправку почты на сервере.', 'error')
+        else:
+            from app.utils.email_service import enqueue
+            login = current_app.config['PUBLIC_BASE_URL'].rstrip('/') + '/main_admin/auth/login'
+            enqueue(recipient, 'Wimli — Проверка уведомлений администратору',
+                    'Это тестовое системное уведомление Wimli.\n\nВойти в админку:\n' +
+                    login + '\nВведите логин и пароль администратора.')
+            db.session.commit()
+            flash('Тестовое письмо поставлено в очередь отправки на сохранённый email.', 'success')
+        return redirect(url_for('admin.notification_settings'))
     if request.method == 'POST':
         recipient = request.form.get('recipient', '').strip()
         preferences = {'enabled': request.form.get('enabled') == 'on',

@@ -28,6 +28,7 @@ class AdminNotificationTests(unittest.TestCase):
         return EmailOutbox.query.filter_by(recipient='admin@example.test').all()
 
     def test_all_events_and_delivery(self):
+        self.app.config['MAIL_DEFAULT_SENDER'] = 'noreply@wimli.ru'
         self.enable()
         buyer = Buyer(login='newbuyer', email='newbuyer@example.test', password_hash='test')
         seller = Seller(login='newseller', email='newseller@example.test', password_hash='test',
@@ -57,6 +58,24 @@ class AdminNotificationTests(unittest.TestCase):
             connection.return_value.__enter__.return_value = smtp
             self.assertEqual(deliver_batch(), 7)
         self.assertEqual(smtp.send_message.call_count, 7)
+        for call in smtp.send_message.call_args_list:
+            self.assertEqual(call.args[0]['From'], 'noreply@wimli.ru')
+
+    def test_test_email_uses_saved_recipient_without_changing_preferences(self):
+        self.enable(['buyer_message'])
+        page = '/main_admin/settings/notifications'
+        self.assertEqual(self.client.post(page, data={'action': 'test_email'}).status_code, 302)
+        self.assertEqual(len(self.admin_rows()), 0)
+        with self.client.session_transaction() as session:
+            session['main_admin_authenticated'] = True
+        saved = Settings.get(SETTING_KEY)
+        response = self.client.post(page, data={'action': 'test_email', 'recipient': 'other@example.test'})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Settings.get(SETTING_KEY), saved)
+        rows = self.admin_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertIn('Проверка уведомлений', rows[0].subject)
+        self.assertIn('/main_admin/auth/login', rows[0].body)
 
     def test_transitions_filters_and_no_duplicate_on_other_edits(self):
         self.enable(['order_created', 'product_moderation'])
