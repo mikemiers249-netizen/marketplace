@@ -3,7 +3,7 @@ from pathlib import Path, PurePosixPath
 import secrets
 
 import click
-from flask import Flask, abort, current_app, send_from_directory, session
+from flask import Flask, abort, current_app, request, send_from_directory, session
 from flask_login import current_user
 from flask.cli import with_appcontext
 from sqlalchemy import and_, or_
@@ -21,7 +21,7 @@ class PrivateFilesFlask(Flask):
 
 def actor():
     from app.models.users import Buyer, Seller, Admin
-    if session.get('main_admin_authenticated'):
+    if request.blueprint == 'admin' and session.get('main_admin_authenticated'):
         return 'admin', 0
     if current_user.is_authenticated:
         if isinstance(current_user, Admin):
@@ -30,6 +30,8 @@ def actor():
             return 'seller', current_user.id
         if isinstance(current_user, Buyer):
             return 'buyer', current_user.id
+    if session.get('main_admin_authenticated'):
+        return 'admin', 0
     return None, None
 
 

@@ -22,19 +22,8 @@ def get_user_type():
     Определение типа текущего пользователя.
     Returns: 'admin', 'seller', 'buyer' или None
     """
-    from flask import session
-    if session.get('main_admin_authenticated'):
-        return 'admin'
-    if not current_user.is_authenticated:
-        return None
-    
-    if isinstance(current_user, Admin):
-        return 'admin'
-    elif isinstance(current_user, Seller):
-        return 'seller'
-    elif isinstance(current_user, Buyer):
-        return 'buyer'
-    return None
+    from app.utils.message_files import actor
+    return actor()[0]
 
 
 def get_user_id():

@@ -118,6 +118,23 @@ class MessagePrivacyTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         response.close()
 
+    def test_seller_order_chat_with_existing_admin_session(self):
+        from app.models.orders import Order
+        order = Order(order_number='ROLE-TEST', total_price=0,
+                      buyer_id=self.buyer.id, seller_id=self.seller.id)
+        db.session.add(order)
+        db.session.commit()
+        self.login(self.seller)
+        with self.client.session_transaction() as session:
+            session['main_admin_authenticated'] = True
+        for suffix in ('', '/content', '/new?last_id=0'):
+            response = self.client.get(f'/messages/order/{order.id}{suffix}')
+            self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(self.upload('/main_admin/api/upload-message-file').status_code, 200)
+        self.login(self.other)
+        for suffix in ('', '/content', '/new?last_id=0'):
+            self.assertEqual(self.client.get(f'/messages/order/{order.id}{suffix}').status_code, 404)
+
     def test_legacy_migration_keeps_urls_and_is_repeatable(self):
         old_dir = Path(self.app.static_folder) / 'uploads' / 'messages'
         old_dir.mkdir(parents=True)
