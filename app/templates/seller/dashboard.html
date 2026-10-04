@@ -65,7 +65,7 @@
                 <i class="bi bi-currency-dollar"></i>
             </div>
             <div class="stat-info">
-                <span class="stat-value">{{ format_price(revenue) }}</span>
+                <span class="stat-value revenue-value" style="white-space:nowrap; font-size:18px">{{ format_price(revenue) }}</span>
                 <span class="stat-label">Выручка за 30 дней</span>
             </div>
         </div>
@@ -176,4 +176,28 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (() => {
+        const value = document.querySelector('.revenue-value');
+        if (!value) return;
+        const info = value.parentElement;
+        info.style.minWidth = '0';
+        info.style.flex = '1';
+        info.previousElementSibling.style.flexShrink = '0';
+        const fit = () => {
+            const width = info.clientWidth;
+            if (!width) return;
+            value.style.fontSize = '24px';
+            if (value.scrollWidth > width) {
+                value.style.fontSize = `${Math.floor(24 * width / value.scrollWidth * 10) / 10}px`;
+            }
+        };
+        new ResizeObserver(fit).observe(info);
+        if (document.fonts) document.fonts.ready.then(fit);
+        fit();
+    })();
+</script>
 {% endblock %}
