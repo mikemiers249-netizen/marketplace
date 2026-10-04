@@ -15,10 +15,6 @@
 </head>
 <body>
     {% include 'privacy/_cookie_notice.html' %}
-    <div class="container py-2" style="font-size:14px">
-        <a href="{{ url_for('privacy.center') }}">Настройки конфиденциальности</a>
-        · <a href="{{ url_for('main.footer_page', slug='privacy') }}">Политика обработки данных</a>
-    </div>
     {# Header #}
     <header class="main-header">
         <div class="container">
@@ -137,7 +133,8 @@
                 <div class="footer-column">
                     <h4>Информация</h4>
                     <ul>
-                        {% for link in (footer_links.get('info') or []) %}
+                        <li><a href="{{ url_for('main.footer_page', slug='privacy') }}" class="footer-link">Политика обработки данных</a></li>
+                        {% for link in (footer_links.get('info') or []) if link.slug != 'privacy' %}
                             <li>
                                 {% if link.display_mode == 'modal' %}
                                     <a href="{{ url_for('main.footer_page', slug=link.slug) }}"
@@ -163,7 +160,7 @@
                     <h4>Служба поддержки</h4>
                     <ul>
                         <li><span>support@wimli.ru</span></li>
-                        {% for link in (footer_links.get('support') or []) %}
+                        {% for link in (footer_links.get('support') or []) if link.slug != 'privacy' %}
                             <li>
                                 {% if link.display_mode == 'modal' %}
                                     <a href="{{ url_for('main.footer_page', slug=link.slug) }}"
@@ -188,7 +185,8 @@
                 <div class="footer-column">
                     <h4>Дополнительно</h4>
                     <ul>
-                        {% for link in (footer_links.get('additional') or []) %}
+                        <li><a href="{{ url_for('privacy.center') }}" class="footer-link">Настройки конфиденциальности</a></li>
+                        {% for link in (footer_links.get('additional') or []) if link.slug != 'privacy' %}
                             <li>
                                 {% if link.display_mode == 'modal' %}
                                     <a href="{{ url_for('main.footer_page', slug=link.slug) }}"
