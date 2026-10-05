@@ -61,11 +61,11 @@
                     <p>Уже есть аккаунт? <a href="{{ url_for('auth.login') }}">Войти</a></p>
                 </div>
                 
+                {% if seller_links_enabled %}
                 <div class="auth-divider">
                     <span>или</span>
                 </div>
                 
-                {% if seller_links_enabled %}
                 <div class="seller-link">
                     <p>Хотите продавать? <a href="{{ url_for('auth.seller_signup') }}">Стать продавцом</a></p>
                 </div>

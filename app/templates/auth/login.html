@@ -41,11 +41,11 @@
                     <p>Нет аккаунта? <a href="{{ url_for('auth.signup') }}">Зарегистрироваться</a></p>
                 </div>
                 
+                {% if seller_links_enabled %}
                 <div class="auth-divider">
                     <span>или</span>
                 </div>
                 
-                {% if seller_links_enabled %}
                 <div class="seller-link">
                     <p>Вы продавец? <a href="{{ url_for('auth.seller_login') }}">Войти как продавец</a></p>
                 </div>
