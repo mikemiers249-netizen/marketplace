@@ -15,8 +15,22 @@ from app.privacy_cleanup import cleanup
 
 
 class PrivacyControlsTests(unittest.TestCase):
+    def test_cookie_notice_survives_session_reset_without_granting_analytics(self):
+        response = self.client.post('/privacy/cookies', data={
+            'choice': 'necessary', 'personal_version': document_digest('personal')})
+        self.assertEqual(response.status_code, 303)
+        self.assertIn('Max-Age=15552000', response.headers.get('Set-Cookie', ''))
+        with self.client.session_transaction() as session:
+            session.clear()
+        self.assertNotIn('id="cookie-notice-title"', self.client.get('/auth/login').text)
+        self.assertEqual(PrivacyConsent.query.filter_by(purpose='analytics', withdrawn_at=None).count(), 0)
+        with self.client.session_transaction() as session:
+            session['main_admin_authenticated'] = True
+        self.assertNotIn('id="cookie-notice-title"', self.client.get('/main_admin/settings').text)
+
     def test_admin_cookie_choice_with_seller_session(self):
         for choice in ('necessary', 'analytics'):
+            self.client.delete_cookie('wimli_cookie_notice')
             self.login(self.seller)
             with self.client.session_transaction() as session:
                 session['main_admin_authenticated'] = True

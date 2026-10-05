@@ -15,6 +15,7 @@ from app.models.communications import Settings
 from app.models.privacy import LegalSnapshot, PrivacyConsent, PrivacyRequest
 from app.utils.message_files import actor
 from sqlalchemy.exc import IntegrityError
+from itsdangerous import URLSafeTimedSerializer, BadSignature
 
 bp = Blueprint('privacy', __name__)
 DOCUMENTS = {
@@ -200,7 +201,8 @@ def center():
             flash(f'Обращение №{ticket.id} зарегистрировано.', 'success')
         else:
             abort(400)
-        return redirect(url_for('privacy.center'))
+        response = redirect(url_for('privacy.center'))
+        return remember_cookie_notice(response) if action == 'choices' else response
     tickets = PrivacyRequest.query.filter_by(user_type=role, user_id=user_id).order_by(
         PrivacyRequest.created_at.desc()).all() if role in ('buyer', 'seller') else []
     return render_template('privacy/center.html', title='Конфиденциальность',
@@ -313,10 +315,32 @@ def cookie_choice():
     target = request.form.get('return_to', '/')
     if not target.startswith('/') or target.startswith('//') or '\\' in target:
         target = '/'
-    return redirect(target, code=303)
+    return remember_cookie_notice(redirect(target, code=303))
+
+
+COOKIE_NOTICE_MAX_AGE = 180 * 24 * 60 * 60
+
+
+def cookie_notice_signer():
+    return URLSafeTimedSerializer(current_app.secret_key, salt='cookie-notice-acknowledgement')
+
+
+def remember_cookie_notice(response):
+    # This acknowledges the notice only; analytics always requires its own consent.
+    response.set_cookie('wimli_cookie_notice', cookie_notice_signer().dumps(document_digest('personal')),
+                        max_age=COOKIE_NOTICE_MAX_AGE, httponly=True,
+                        secure=current_app.config.get('SESSION_COOKIE_SECURE', False), samesite='Lax')
+    return response
 
 
 def show_cookie_notice():
+    acknowledgement = request.cookies.get('wimli_cookie_notice')
+    if acknowledgement:
+        try:
+            if cookie_notice_signer().loads(acknowledgement, max_age=COOKIE_NOTICE_MAX_AGE) == document_digest('personal'):
+                return False
+        except BadSignature:
+            pass
     return session.get('cookie_notice_choice') != list(subject()[:2]) and not has_consent('analytics')
 
 
