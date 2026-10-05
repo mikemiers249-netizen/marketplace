@@ -500,6 +500,7 @@ def register_context_processors(app):
         return {
             'main_admin_config': get_main_admin_config(),
             'seller_links_enabled': Settings.get('seller_links_enabled', True),
+            'site_name': Settings.get('site_name', 'Wimli') or 'Wimli',
             'format_price': format_price,
             'promo_info': compute_product_promotion_info,
             'Buyer': Buyer,
