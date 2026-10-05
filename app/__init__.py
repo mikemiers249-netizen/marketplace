@@ -431,7 +431,7 @@ def register_context_processors(app):
         """Добавление глобальных переменных в шаблоны."""
         from flask import g
         from app.models.users import Buyer, Seller, Admin
-        from app.models.communications import Message
+        from app.models.communications import Message, Settings
         from app.utils.helpers import (
             get_main_admin_config,
             format_price,
@@ -499,6 +499,7 @@ def register_context_processors(app):
 
         return {
             'main_admin_config': get_main_admin_config(),
+            'seller_links_enabled': Settings.get('seller_links_enabled', True),
             'format_price': format_price,
             'promo_info': compute_product_promotion_info,
             'Buyer': Buyer,

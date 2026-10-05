@@ -23,6 +23,10 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="settings-section">
             <h3>Основные настройки</h3>
+            <div class="form-group">
+                <label for="seller_links_enabled"><input type="checkbox" id="seller_links_enabled" name="seller_links_enabled" {% if settings.seller_links_enabled %}checked{% endif %}> Работа с селлерами</label>
+                <p class="text-muted">Показывать ссылки на вход продавцов и «Стать продавцом» на страницах входа и регистрации.</p>
+            </div>
             
             <div class="form-group">
                 <label for="site_name">Название магазина</label>

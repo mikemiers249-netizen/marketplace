@@ -2820,6 +2820,7 @@ def settings():
         'min_order_amount': Settings.get('min_order_amount', 0),
         'free_delivery_threshold': Settings.get('free_delivery_threshold', 0),
         'require_phone': Settings.get('require_phone', False),
+        'seller_links_enabled': Settings.get('seller_links_enabled', True),
         'bonus_percent': Settings.get('bonus_percent', 1),
         'bonus_expiration_days': Settings.get('bonus_expiration_days', 365),
         'meta_title': Settings.get('meta_title', ''),
@@ -2852,6 +2853,7 @@ def settings():
         Settings.set('min_order_amount', request.form.get('min_order_amount', 0, type=int))
         Settings.set('free_delivery_threshold', request.form.get('free_delivery_threshold', 0, type=int))
         Settings.set('require_phone', 'require_phone' in request.form)
+        Settings.set('seller_links_enabled', 'seller_links_enabled' in request.form, 'json')
         Settings.set('bonus_percent', request.form.get('bonus_percent', 1, type=float))
         Settings.set('bonus_expiration_days', request.form.get('bonus_expiration_days', 365, type=int))
         Settings.set('meta_title', request.form.get('meta_title', ''))
