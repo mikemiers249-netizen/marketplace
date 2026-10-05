@@ -3,7 +3,8 @@ Blueprint панели продавца.
 Работает на поддомене seller.domain
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app
+from itsdangerous import URLSafeTimedSerializer, BadSignature
 from flask_login import login_required, current_user
 from sqlalchemy import func, or_, and_
 from datetime import datetime, timedelta
@@ -538,113 +539,12 @@ def _get_active_subscription(seller):
 
 
 def _expire_global_auto_and_create_pending_self(seller) -> SellerTariffSubscription | None:
-    """На границе истечения global_auto: выписать счёт за прошлый период.
+    """Compatibility hook: expiration never renews or charges automatically.
 
-    UPDATE-семантика: одна подписка на селлера. Если есть ``global_auto``
-    с истёкшим ``expires_at`` и нет ещё непогашенного счёта
-    (``TariffTransaction`` с note ``auto_from_global_auto:``), то:
-
-      • продлеваем ``expires_at`` этой же записи на ``period_days`` от now;
-      • ставим ``is_paid=False`` (есть счёт к оплате);
-      • создаём ``TariffTransaction`` с суммой = turnover × percent / 100
-        за прошлый период и ``note`` вида ``auto_from_global_auto:<id>``.
-
-    Идемпотентность: повторный вход не создаст дубль, пока счёт не оплачен.
-    После оплаты ``is_paid=True`` — функция перестаёт срабатывать.
+    Renewal is now requested explicitly and applied only by payment confirmation.
+    Existing unpaid invoices remain payable through the legacy payment routes.
     """
-    if seller is None or not getattr(seller, 'id', None):
-        return None
-    try:
-        now = datetime.utcnow()
-        # Ищем глобальные подписки с истёкшим сроком, которые ещё активны
-        # (включая paused: после границы такие тоже должны конвертироваться).
-        expired = (
-            SellerTariffSubscription.query
-            .filter(
-                SellerTariffSubscription.seller_id == seller.id,
-                SellerTariffSubscription.source == SellerTariffSubscription.SOURCE_GLOBAL_AUTO,
-                SellerTariffSubscription.status.in_((
-                    SellerTariffSubscription.STATUS_ACTIVE,
-                    SellerTariffSubscription.STATUS_PAUSED,
-                )),
-                SellerTariffSubscription.expires_at <= now,
-            )
-            .order_by(SellerTariffSubscription.expires_at.desc())
-            .all()
-        )
-        if not expired:
-            return None
-
-        # На случай, если по какой-то причине есть несколько истёкших —
-        # обрабатываем только самую свежую (старейшую по expires_at desc
-        # уже выбрали выше; несколько — редкий случай, берём [0]).
-        old = expired[0]
-
-        # Проверка идемпотентности: нет ли уже pending self-sub по этому периоду.
-        marker = f'auto_from_global_auto:{old.id}'
-        already = (
-            TariffTransaction.query
-            .filter(
-                TariffTransaction.seller_id == seller.id,
-                TariffTransaction.note.like(f'{marker}%'),
-            )
-            .first()
-        )
-        if already is not None:
-            return None
-
-        row = old.row
-        if row is None:
-            # Без строки тарифа не можем посчитать оборот и срок — тушим
-            # global_auto без создания pending, чтобы UI ушёл в 'none'.
-            old.disable()
-            db.session.commit()
-            return None
-
-        period_days = row.effective_period_days
-        period_start = max(old.activated_at, old.last_billed_at or old.activated_at)
-        period_end = old.expires_at
-        amount = float(
-            row.compute_billed_amount(seller, period_start, period_end)
-            or 0.0
-        )
-
-        # UPDATE-семантика: НЕ создаём новой подписки.
-        # Продлеваем ту же global_auto-запись: expires_at += period_days,
-        # is_paid=False (есть счёт к оплате). Source остаётся global_auto —
-        # он же изначально был фиксацией глобального правила.
-        old.expires_at = now + timedelta(days=period_days)
-        old.status = SellerTariffSubscription.STATUS_ACTIVE
-        old.is_paid = False
-        old.recompute_grace(TARIFF_GRACE_DAYS)
-        old.last_billed_at = period_end
-
-        # Счёт за прошлый период.
-        period_label = (
-            f'{period_start.strftime("%d.%m.%Y")}–'
-            f'{period_end.strftime("%d.%m.%Y")}'
-        )
-        db.session.add(
-            TariffTransaction(
-                seller_id=seller.id,
-                row_id=row.id,
-                subscription_id=old.id,
-                amount=amount,
-                paid_at=None,  # ещё не оплачено
-                note=f'{marker}|период:{period_label}',
-            )
-        )
-
-        db.session.commit()
-        return old
-    except Exception as _e:
-        import logging as _log
-        db.session.rollback()
-        _log.getLogger(__name__).exception(
-            "_expire_global_auto_and_create_pending_self failed for seller=%s: %s",
-            getattr(seller, 'id', None), _e,
-        )
-        return None
+    return None
 
 
 def _resolve_tariff_state(seller) -> dict:
@@ -1094,146 +994,37 @@ def tariff_activate_global():
     return redirect(url_for('seller.tariffs', tab='my'))
 
 
+def _renewal_serializer():
+    return URLSafeTimedSerializer(current_app.config['SECRET_KEY'], salt='seller-tariff-renewal')
+
+
 @bp.route('/tariffs/subscriptions/<int:subscription_id>/extend', methods=['POST'])
 def tariff_subscription_extend(subscription_id):
-    """
-    Продлить существующую подписку (в т.ч. в грейсе или после блокировки).
-
-    Поведение (двухшаговое, начиная с этой ревизии):
-
-    • Self-тариф (фикс) — старая логика: продлеваем сразу, списываем
-      row.price_amount, is_paid=True.
-
-    • Global-правило (процент) — НОВАЯ логика:
-        1) считаем оборот за период [sub.activated_at, sub.expires_at];
-        2) если оборот == 0 → продлеваем БЕСПЛАТНО (без списания):
-           новая global_auto-подписка на period_days с is_paid=False,
-           без TariffTransaction. Это нормально, потому что процент
-           от нулевого оборота — ноль;
-        3) если оборот > 0 → создаём pending self-подписку
-           (source=SOURCE_SELF, is_paid=False) с прикреплённой
-           TariffTransaction (paid_at=NULL) на сумму процента и
-           редиректим на форму оплаты /pay. После оплаты is_paid=True,
-           грейс пересчитывается, подписка активна.
-
-    Срок продления в обоих случаях:
-        base = sub.expires_at если жива, иначе now;
-        expires_at = base + row.effective_period_days.
-
-    Старая запись переводится в status='disabled' (чтобы она больше не
-    попадала в _get_active_subscription() и не путала UI).
-    """
+    """Prepare a signed renewal quote without changing the subscription."""
     if not current_user.is_authenticated or not isinstance(current_user, Seller):
         return redirect(url_for('auth_seller.seller_login'))
-
     sub = db.session.get(SellerTariffSubscription, subscription_id)
     if not sub or sub.seller_id != current_user.id:
         abort(404)
-
     row = sub.row
-    if not row:
-        flash('Тариф больше не доступен.', 'error')
+    if not row or not row.is_active or not row.is_published:
+        flash('Тариф больше недоступен.', 'error')
         return redirect(url_for('seller.tariffs', tab='my'))
-
-    now = datetime.utcnow()
-    period_days = row.effective_period_days
-
-    # Запоминаем СТАРЫЙ expires_at — он нужен для расчёта оборота в глобальной ветке.
-    old_expires_at = sub.expires_at
+    # Existing unpaid invoices must be settled before another renewal.
+    if sub.transactions.filter(TariffTransaction.paid_at.is_(None)).first():
+        return redirect(url_for('seller.tariff_pay', subscription_id=sub.id))
     from app.utils.tariff_billing import renewal_quote
+    now = datetime.utcnow()
     quote = renewal_quote(sub, now)
-
-    # База для продления: если подписка ещё жива — от её expires_at,
-    # иначе — от now (типичный случай — подписка в грейсе или истекла).
-    if (
-        sub.status == SellerTariffSubscription.STATUS_ACTIVE
-        and old_expires_at
-        and old_expires_at > now
-    ):
-        base = old_expires_at
-    else:
-        base = now
-    new_expires_at = base + timedelta(days=period_days)
-
-    # UPDATE-семантика: НЕ создаём новую строку. У селлера ВСЕГДА одна
-    # подписка на конкретный row_id; продление = продление expires_at.
-    sub.expires_at = new_expires_at
-    sub.status = SellerTariffSubscription.STATUS_ACTIVE
-    sub.recompute_grace(TARIFF_GRACE_DAYS)
-    sub.last_billed_at = quote['period_end']
-
-    # ---- Ветка 1: self-тариф (фикс) — продлеваем сразу, списываем. ----
-    if row.is_purchasable:
-        amount = float(row.price_amount or 0.0)
-        sub.is_paid = True
-        db.session.add(
-            TariffTransaction(
-                seller_id=current_user.id,
-                row_id=row.id,
-                subscription_id=sub.id,
-                amount=amount,
-                paid_at=now,
-                note='Продление тарифа',
-            )
-        )
-        db.session.commit()
-
-        flash(
-            f'Тариф «{row.name}» продлён до {new_expires_at.strftime("%d.%m.%Y")}. '
-            f'Списано {format_price(amount)} ₽.',
-            'success',
-        )
-        return redirect(url_for('seller.tariffs', tab='my'))
-
-    # ---- Ветка 2: global-правило (процент) — двухшаговая логика. ----
-    # Тот же расчёт, что показан администратору перед продлением.
-    period_start, period_end = quote['period_start'], quote['period_end']
-    turnover_only, amount = quote['turnover'], quote['amount']
-
-    if turnover_only <= 0:
-        # Продаж не было — продлеваем бесплатно. Та же строка.
-        sub.is_paid = False
-        db.session.commit()
-
-        flash(
-            f'Тариф «{row.name}» продлён до {new_expires_at.strftime("%d.%m.%Y")} '
-            f'бесплатно: продаж за период не было.',
-            'success',
-        )
-        return redirect(url_for('seller.tariffs', tab='my'))
-
-    # Продажи были — выставляем счёт. Та же строка, source сохраняется
-    # (global_auto для глобального правила). Гасится через tariff_pay.
-    sub.is_paid = False
-    period_label = (
-        f'{period_start.strftime("%d.%m.%Y")}–'
-        f'{period_end.strftime("%d.%m.%Y")}'
-    )
-    db.session.add(
-        TariffTransaction(
-            seller_id=current_user.id,
-            row_id=row.id,
-            subscription_id=sub.id,
-            amount=amount,
-            paid_at=None,
-            note=(
-                f'extend_from:{sub.id}|'
-                f'период:{period_label}'
-            ),
-        )
-    )
-    db.session.commit()
-
-    flash(
-        f'За период {period_label} оборот составил '
-        f'{format_price(turnover_only)} ₽. '
-        f'К оплате {format_price(amount)} ₽ '
-        f'({row.percent_rate:g}% от оборота).',
-        'info',
-    )
-    return redirect(
-        url_for('seller.tariff_pay', subscription_id=sub.id)
-    )
+    payload = dict(seller_id=current_user.id, subscription_id=sub.id,
+                   expires_at=sub.expires_at.isoformat(),
+                   last_billed_at=sub.last_billed_at.isoformat() if sub.last_billed_at else None,
+                   amount=quote['amount'], turnover=quote['turnover'],
+                   period_start=quote['period_start'].isoformat(),
+                   period_end=quote['period_end'].isoformat(),
+                   days=row.effective_period_days, fixed=quote['fixed'])
+    token = _renewal_serializer().dumps(payload)
+    return redirect(url_for('seller.tariff_pay', subscription_id=sub.id, renewal=token))
 
 
 @bp.route('/tariffs/subscriptions/<int:subscription_id>/pay', methods=['GET', 'POST'])
@@ -1260,10 +1051,53 @@ def tariff_pay(subscription_id):
     if (
         not sub
         or sub.seller_id != current_user.id
-        or sub.status != SellerTariffSubscription.STATUS_ACTIVE
+        or (sub.status != SellerTariffSubscription.STATUS_ACTIVE and not request.args.get('renewal'))
     ):
         flash('Счёт не найден.', 'error')
         return redirect(url_for('seller.tariffs', tab='my'))
+
+    token = request.args.get('renewal')
+    if token:
+        try:
+            quote = _renewal_serializer().loads(token, max_age=3600)
+        except BadSignature:
+            flash('Форма оплаты устарела. Нажмите «Продлить» ещё раз.', 'error')
+            return redirect(url_for('seller.tariffs', tab='my'))
+        last_billed = sub.last_billed_at.isoformat() if sub.last_billed_at else None
+        if (quote['seller_id'] != current_user.id or quote['subscription_id'] != sub.id
+                or quote['expires_at'] != sub.expires_at.isoformat()
+                or quote['last_billed_at'] != last_billed
+                or not sub.row or not sub.row.is_active or not sub.row.is_published
+                or sub.transactions.filter(TariffTransaction.paid_at.is_(None)).first()):
+            flash('Состояние тарифа изменилось. Откройте оплату заново.', 'info')
+            return redirect(url_for('seller.tariffs', tab='my'))
+        now = datetime.utcnow()
+        base = max(sub.expires_at, now)
+        renewed_until = base + timedelta(days=quote['days'])
+        if request.method == 'POST':
+            # Serialize competing submissions; the second sees the updated dates.
+            db.session.refresh(sub, with_for_update=True)
+            if (sub.expires_at.isoformat() != quote['expires_at']
+                    or (sub.last_billed_at.isoformat() if sub.last_billed_at else None)
+                    != quote['last_billed_at']):
+                flash('Это продление уже обработано.', 'info')
+                return redirect(url_for('seller.tariffs', tab='my'))
+            sub.expires_at = renewed_until
+            sub.last_billed_at = datetime.fromisoformat(quote['period_end'])
+            sub.is_paid = True
+            sub.status = SellerTariffSubscription.STATUS_ACTIVE
+            sub.recompute_grace(TARIFF_GRACE_DAYS)
+            db.session.add(TariffTransaction(
+                seller_id=current_user.id, row_id=sub.row_id, subscription_id=sub.id,
+                amount=quote['amount'], paid_at=now,
+                note='Продление тарифа (подтверждено кнопкой «Оплатить»)'))
+            db.session.commit()
+            flash(f'Оплачено {format_price(quote["amount"])} ₽. Тариф продлён до '
+                  f'{renewed_until.strftime("%d.%m.%Y")}.', 'success')
+            return redirect(url_for('seller.tariffs', tab='my'))
+        return render_template('seller/pay.html', sub=sub, pending_tx=[],
+                               total=quote['amount'], renewal_quote=quote,
+                               renewed_until=renewed_until, title='Оплата тарифа')
 
     pending_tx = (
         TariffTransaction.query
@@ -1314,58 +1148,7 @@ def tariff_pay(subscription_id):
 
 @bp.route('/tariffs/subscriptions/<int:subscription_id>/renew', methods=['POST'])
 def tariff_subscription_renew(subscription_id):
-    """
-    Продлить фикс-тариф: продлеваем ту же запись (UPDATE-семантика),
-    ноль новых строк. Добавляется TariffTransaction со списанием.
-
-    • Если подписка жива — продлеваем от её expires_at.
-    • Если истекла / приостановлена — стартуем от now.
-    Длительность прибавки = row.duration_days.
-    """
-    if not current_user.is_authenticated or not isinstance(current_user, Seller):
-        return redirect(url_for('auth_seller.seller_login'))
-
-    sub = db.session.get(SellerTariffSubscription, subscription_id)
-    if not sub or sub.seller_id != current_user.id:
-        abort(404)
-
-    row = sub.row
-    if not row or not row.is_purchasable:
-        flash('Тариф больше недоступен.', 'error')
-        return redirect(url_for('seller.tariffs', tab='my'))
-
-    now = datetime.utcnow()
-    if (
-        sub.status == SellerTariffSubscription.STATUS_ACTIVE
-        and sub.expires_at
-        and sub.expires_at > now
-    ):
-        base = sub.expires_at
-    else:
-        base = now
-    new_expires_at = base + timedelta(days=row.duration_days)
-
-    # UPDATE-семантика: продлеваем ту же запись, ноль новых строк.
-    sub.expires_at = new_expires_at
-    sub.status = SellerTariffSubscription.STATUS_ACTIVE
-    sub.is_paid = True
-    sub.recompute_grace(TARIFF_GRACE_DAYS)
-
-    amount = float(row.price_amount or 0.0)
-    db.session.add(
-        TariffTransaction(
-            seller_id=current_user.id,
-            row_id=row.id,
-            subscription_id=sub.id,
-            amount=amount,
-            paid_at=now,
-            note='Продление тарифа',
-        )
-    )
-    db.session.commit()
-
-    flash(f'Тариф «{row.name}» продлён до {new_expires_at.strftime("%d.%m.%Y")}.', 'success')
-    return redirect(url_for('seller.tariffs', tab='my'))
+    return tariff_subscription_extend(subscription_id)
 
 
 @bp.route('/tariffs/subscriptions/<int:subscription_id>/pause', methods=['POST'])

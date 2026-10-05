@@ -24,9 +24,24 @@
         </div>
         <div class="tariff-current-card-body">
             <p>
-                Вы продлили глобальное правило <strong>{{ sub.plan.name }}</strong>
-                на следующий период до <strong>{{ sub.expires_at.strftime('%d.%m.%Y') }}</strong>.
+                Тариф <strong>{{ sub.plan.name }}</strong>.
+                {% if renewal_quote %}
+                После оплаты срок действия будет продлён до
+                <strong>{{ renewed_until.strftime('%d.%m.%Y') }}</strong>.
+                {% else %}
+                Срок действия: до <strong>{{ sub.expires_at.strftime('%d.%m.%Y') }}</strong>.
+                {% endif %}
             </p>
+            {% if renewal_quote %}
+            <p>
+                {% if renewal_quote.fixed %}
+                Стоимость продления по тарифу: {{ '%.2f'|format(total) }} ₽.
+                {% else %}
+                Оборот за расчётный период: {{ '%.2f'|format(renewal_quote.turnover) }} ₽.
+                Комиссия по тарифу: {{ sub.row.percent_rate }}%.
+                {% endif %}
+            </p>
+            {% endif %}
             <ul class="tariff-current-card-rules">
                 {% for tx in pending_tx %}
                 <li>
@@ -49,7 +64,7 @@
 
             <p class="tariff-current-card-hint">
                 После оплаты тариф будет активен до
-                <strong>{{ sub.expires_at.strftime('%d.%m.%Y') }}</strong>,
+                <strong>{{ (renewed_until if renewal_quote else sub.expires_at).strftime('%d.%m.%Y') }}</strong>,
                 действует 5-дневный грейс-период для следующего продления.
                 Платёжный модуль ещё не подключён — кнопка «Оплатить» сразу
                 помечает счёт как оплаченный.

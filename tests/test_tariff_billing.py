@@ -162,9 +162,53 @@ class TariffBillingTests(unittest.TestCase):
             clock.utcnow.return_value = self.now
             response = self.client.post(f'/seller/tariffs/subscriptions/{self.sub.id}/extend')
         self.assertEqual(response.status_code, 302)
+        self.assertEqual(TariffTransaction.query.count(), 0)
+        self.assertEqual(self.sub.expires_at, self.end)
+        self.assertEqual(self.sub.last_billed_at, self.start + timedelta(days=10))
+        payment_url = response.location
+        form = self.client.get(payment_url)
+        self.assertEqual(form.status_code, 200)
+        self.assertIn('10.00 ₽', form.get_data(as_text=True))
+        with patch('app.blueprints.seller.datetime', wraps=datetime) as clock:
+            clock.utcnow.return_value = self.now
+            self.client.post(payment_url)
         self.assertEqual(TariffTransaction.query.one().amount, 10)
         self.assertEqual(self.sub.last_billed_at, self.now)
         self.assertEqual(renewal_quote(self.sub, self.now + timedelta(seconds=1))['amount'], 0)
+        self.client.post(payment_url)
+        self.assertEqual(TariffTransaction.query.count(), 1)
+
+    def test_fixed_renewal_requires_payment_and_cancel_changes_nothing(self):
+        self.row.kind = 'cards'
+        self.row.price_amount = 750
+        self.row.duration_days = 30
+        self.sub.is_paid = True
+        db.session.commit()
+        with self.client.session_transaction() as session:
+            session['_user_id'] = self.seller.get_id()
+            session['_fresh'] = True
+        with patch('app.blueprints.seller.datetime', wraps=datetime) as clock:
+            clock.utcnow.return_value = self.now
+            response = self.client.post(f'/seller/tariffs/subscriptions/{self.sub.id}/renew')
+            form = self.client.get(response.location)
+            self.assertEqual(form.status_code, 200)
+            self.assertIn('750.00 ₽', form.get_data(as_text=True))
+            self.assertEqual(self.sub.expires_at, self.end)
+            self.assertEqual(TariffTransaction.query.count(), 0)
+            self.client.post(response.location)
+        self.assertEqual(self.sub.expires_at, self.end + timedelta(days=30))
+        self.assertEqual(TariffTransaction.query.one().amount, 750)
+
+    def test_zero_turnover_also_shows_payment_form(self):
+        with self.client.session_transaction() as session:
+            session['_user_id'] = self.seller.get_id()
+            session['_fresh'] = True
+        response = self.client.post(f'/seller/tariffs/subscriptions/{self.sub.id}/extend')
+        form = self.client.get(response.location)
+        self.assertEqual(form.status_code, 200)
+        self.assertIn('Оплатить 0.00 ₽', form.get_data(as_text=True))
+        self.assertEqual(self.sub.expires_at, self.end)
+        self.assertEqual(TariffTransaction.query.count(), 0)
 
     def test_admin_status_updates_record_first_completion(self):
         order = self.order('status-change', 200, status='shipped')
