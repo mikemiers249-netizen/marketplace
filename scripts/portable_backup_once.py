@@ -49,8 +49,15 @@ def main():
                 result = subprocess.run(['pg_dump', '--format=custom', '--snapshot=' + snapshot,
                     '--file=' + str(temp / 'mp.dump')], env=env, capture_output=True)
                 if result.returncode:
-                    # Do not log credentials embedded in libpq error messages.
-                    raise RuntimeError('pg_dump failed; exit code ' + str(result.returncode))
+                    # Keep diagnostic details private and strip credentials before logging.
+                    detail = result.stderr.decode(errors='replace').replace(uri, '[database]')
+                    for item in psycopg2.extensions.parse_dsn(uri).values():
+                        if item and len(item) > 3:
+                            detail = detail.replace(item, '[redacted]')
+                    (output / 'FAILED.json').write_text(json.dumps(dict(
+                        client=subprocess.check_output(['pg_dump', '--version']).decode().strip(),
+                        server=connection.server_version, error=detail), indent=2))
+                    raise RuntimeError('pg_dump failed: ' + detail[:1500])
                 counts = {}
                 for schema, name in tables:
                     cursor.execute(sql.SQL('SELECT count(*) FROM {}').format(sql.Identifier(schema, name)))
