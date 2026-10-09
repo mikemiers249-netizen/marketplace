@@ -44,7 +44,11 @@ def main():
                 cursor.execute('SELECT pg_export_snapshot()')
                 snapshot = cursor.fetchone()[0]
                 env = os.environ.copy()
-                env['PGDATABASE'] = uri
+                # Unlike psycopg2, pg_dump does not expand a URI supplied through
+                # PGDATABASE. Pass parsed libpq parameters via individual env keys.
+                pg_names = {'dbname': 'PGDATABASE', 'application_name': 'PGAPPNAME'}
+                for key, value in psycopg2.extensions.parse_dsn(uri).items():
+                    env[pg_names.get(key, 'PG' + key.upper())] = value
                 env['PGCONNECT_TIMEOUT'] = '15'
                 result = subprocess.run(['pg_dump', '--format=custom', '--snapshot=' + snapshot,
                     '--file=' + str(temp / 'mp.dump')], env=env, capture_output=True)
