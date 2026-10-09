@@ -8,6 +8,7 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
         gcc \
         libpq-dev \
+        postgresql-client \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -54,4 +55,4 @@ EXPOSE 5000
 # (3) обновить s1y2s3t4u5m6 в строке flask db stamp на новую ревизию.
 # Если задан RESET_DB=1 в env — сначала сбрасывает public schema (только
 # для свежей БД). PORT, GUNICORN_WORKERS, APP_CONFIG — из env Coolify.
-CMD ["sh", "-c", "if [ \"$RESET_DB\" = \"1\" ]; then FLASK_APP=wsgi.py flask reset-public-schema --yes; fi && FLASK_APP=wsgi.py flask db-init && FLASK_APP=wsgi.py flask fix-password-length && FLASK_APP=wsgi.py flask ensure-system-sku && FLASK_APP=wsgi.py flask secure-message-files && FLASK_APP=wsgi.py flask privacy-install && FLASK_APP=wsgi.py flask privacy-pseudonymize-events && FLASK_APP=wsgi.py flask db stamp a93f28c6d104 && if [ \"$PURGE_SELLER_SUBS_ON_BOOT\" = \"1\" ]; then FLASK_APP=wsgi.py flask clear-seller-subs --seller-id \"${PURGE_SELLER_ID:-1}\" --yes; fi && if [ -n \"$GRANT_TEST_TARIFF_SELLER_ID\" ]; then FLASK_APP=wsgi.py flask grant-test-tariff \"$GRANT_TEST_TARIFF_SELLER_ID\" --days \"${GRANT_TEST_TARIFF_DAYS:-30}\"; fi && gunicorn --config gunicorn.conf.py wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers ${GUNICORN_WORKERS:-2} --timeout 60 --access-logfile - --error-logfile -"]
+CMD ["sh", "-c", "if [ \"$RESET_DB\" = \"1\" ]; then FLASK_APP=wsgi.py flask reset-public-schema --yes; fi && FLASK_APP=wsgi.py flask db-init && FLASK_APP=wsgi.py flask fix-password-length && FLASK_APP=wsgi.py flask ensure-system-sku && FLASK_APP=wsgi.py flask secure-message-files && FLASK_APP=wsgi.py flask privacy-install && FLASK_APP=wsgi.py flask privacy-pseudonymize-events && FLASK_APP=wsgi.py flask db stamp a93f28c6d104 && if [ \"$PURGE_SELLER_SUBS_ON_BOOT\" = \"1\" ]; then FLASK_APP=wsgi.py flask clear-seller-subs --seller-id \"${PURGE_SELLER_ID:-1}\" --yes; fi && if [ -n \"$GRANT_TEST_TARIFF_SELLER_ID\" ]; then FLASK_APP=wsgi.py flask grant-test-tariff \"$GRANT_TEST_TARIFF_SELLER_ID\" --days \"${GRANT_TEST_TARIFF_DAYS:-30}\"; fi && python scripts/portable_backup_once.py && gunicorn --config gunicorn.conf.py wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers ${GUNICORN_WORKERS:-2} --timeout 60 --access-logfile - --error-logfile -"]
