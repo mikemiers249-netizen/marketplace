@@ -5,7 +5,7 @@ from flask_mail import Message
 from app import db
 from app.utils.email_service import enqueue
 from app.models.orders import Order, OrderItem
-from app.models.users import Seller
+from app.models.users import Seller, Buyer
 from app.models.communications import Message as MessageModel
 
 logger = logging.getLogger(__name__)
@@ -64,6 +64,30 @@ def create_order_conversation(order):
         return None, None
 
 
+def order_notification_details(order):
+    with db.session.no_autoflush:
+        from datetime import datetime, timezone, timedelta
+        created = order.created_at or datetime.utcnow()
+        when = (created.replace(tzinfo=timezone.utc) if created and created.tzinfo is None else created)
+        when = when.astimezone(timezone(timedelta(hours=3))).strftime('%d.%m.%Y %H:%M:%S МСК') if when else '—'
+        buyer = order.buyer or db.session.get(Buyer, order.buyer_id)
+        customer = f'{buyer.full_name} (ID {buyer.id})' if buyer else '—'
+        contact = f'{buyer.email or "—"}; телефон: {buyer.phone or "—"}' if buyer else '—'
+        positions = list(order.items.all())
+        positions.extend(i for i in db.session.new if isinstance(i, OrderItem)
+                         and (i.order is order or (order.id is not None and i.order_id == order.id)))
+        items = '\n'.join(
+            f'  - {i.product.name if i.product else "Удалённый товар"}: {i.quantity} шт. × '
+            f'{i.price_at_order:.2f} ₽ = {i.total_price:.2f} ₽' for i in positions) or '—'
+        delivery = order.delivery_service.name if order.delivery_service else 'Не указан'
+        return (f'Номер заказа: {order.order_number}\nДата и время: {when}\n'
+                f'Покупатель: {customer}\nКонтакты: {contact}\n\nПозиции:\n{items}\n\n'
+                f'Сумма товаров: {order.total_price:.2f} ₽\nДоставка: {order.delivery_price or 0:.2f} ₽\n'
+                f'Бонусы: {order.bonus_used or 0:.2f} ₽\nПромокод: {order.promo_discount or 0:.2f} ₽\n'
+                f'Итого: {order.grand_total:.2f} ₽\nСпособ доставки: {delivery}\n'
+                f'ПВЗ: {order.pvz_code or "—"}\nАдрес доставки: {order.delivery_address or "—"}\n')
+
+
 def send_new_order_notification_to_seller(order_id):
     """
     Отправка уведомления продавцу о новом заказе.
@@ -89,51 +113,9 @@ def send_new_order_notification_to_seller(order_id):
             logger.warning(f"Seller {seller.id} has no email address")
             return False
         
-        # Получаем список товаров в заказе
-        items = OrderItem.query.filter_by(order_id=order_id).all()
-        items_list = []
-        for item in items:
-            items_list.append({
-                'name': item.product.name,
-                'quantity': item.quantity,
-                'price': item.price_at_order,
-                'total': item.total_price
-            })
-        
-        items_text = '\n'.join([
-            f"  - {item['name']} x{item['quantity']} = {item['total']:.2f} ₽"
-            for item in items_list
-        ])
-        
-        subject = f"Новый заказ #{order.order_number}"
-        
-        body = f"""
-Здравствуйте, {seller.store_name}!
+        subject = f"Wimli — новый заказ #{order.order_number}"
+        body = f'Здравствуйте, {seller.store_name}!\n\nНовый заказ.\n\n' + order_notification_details(order)
 
-Вы получили новый заказ!
-
-Номер заказа: {order.order_number}
-Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}
-
-Товары:
-{items_text}
-
-Сумма товаров: {order.total_price:.2f} ₽
-Доставка: {order.delivery_price:.2f} ₽
-Итого: {order.grand_total:.2f} ₽
-
-Адрес доставки: {order.delivery_address or 'Самовывоз'}
-
----
-Маркетплейс
-"""
-        
-        msg = Message(
-            subject=subject,
-            recipients=[seller.email],
-            body=body
-        )
-        
         if not enqueue(seller.email, subject, body):
             return False
         db.session.commit()

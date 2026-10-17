@@ -94,6 +94,8 @@ def create_app(config_class=None):
     
     # Регистрация обработчиков ошибок
     register_error_handlers(app)
+    from app.utils.buyer_errors import install as install_buyer_errors
+    install_buyer_errors(app)
 
     # На проде таблицы создаются миграциями Alembic (flask db upgrade),
     # которые вызываются через release-фазу в Procfile. db.create_all()
@@ -591,6 +593,8 @@ def register_error_handlers(app):
     
     @app.errorhandler(500)
     def internal_error(error):
+        from flask import g
+        g.buyer_error = getattr(error, "original_exception", None)
         db.session.rollback()
         return {'error': 'Внутренняя ошибка сервера'}, 500
 

@@ -305,5 +305,7 @@ def success():
 @login_required
 def fail():
     # A browser return is untrusted and must never cancel a paid invoice/order.
+    from app.utils.buyer_errors import report
+    report('Оплата не завершена')
     flash('Оплата не завершена. Повторить оплату можно на странице проверки заказа.', 'info')
     return redirect(url_for('main.order_review'))

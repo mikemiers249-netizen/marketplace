@@ -262,6 +262,45 @@
         });
     })();
     </script>
+    <script>
+    (function () {
+        const send = window.fetch.bind(window);
+        let reports = 0;
+        function report(kind, source, line) {
+            if (++reports > 5) return;
+            let path;
+            try { const u = new URL(source || location.pathname, location.origin);
+                if (u.origin !== location.origin) return;
+                path = u.pathname;
+            } catch (_) { return; }
+            send('/diagnostics/client-error', {
+                method: 'POST', credentials: 'same-origin',
+                headers: {'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content},
+                body: JSON.stringify({kind: kind, source: path, page: location.pathname, line: line || 0})
+            }).catch(function () {});
+        }
+        window.addEventListener('error', function (e) { report('javascript', e.filename, e.lineno); });
+        window.addEventListener('unhandledrejection', function () { report('promise', location.pathname); });
+        window.fetch = function () {
+            const args = arguments;
+            return send.apply(window, args).then(function (response) {
+                if (response.ok && (response.headers.get('Content-Type') || '').includes('application/json')) {
+                    response.clone().json().then(function (data) {
+                        if (data && (data.success === false || data.error)) report('application', response.url);
+                    }).catch(function () {});
+                }
+                return response;
+            }).catch(function (error) {
+                const target = typeof args[0] === 'string' ? args[0] : args[0] && args[0].url;
+                if (target && !String(target).includes('/diagnostics/client-error') && error.name !== 'AbortError') {
+                    report('network', target);
+                }
+                throw error;
+            });
+        };
+    })();
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>
