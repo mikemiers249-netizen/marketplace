@@ -2335,76 +2335,15 @@ def order_create():
 @bp.route('/payment')
 @login_required
 def payment():
-    """
-    Страница оплаты заказа.
-    Показывает информацию о заказе и форму оплаты.
-    """
-    if not isinstance(current_user, Buyer):
-        return redirect(url_for('main.index'))
-    
-    # Получаем последний заказ со статусом processing
-    order = Order.query.filter_by(
-        buyer_id=current_user.id,
-        status='processing'
-    ).order_by(Order.created_at.desc()).first()
-    
-    if not order:
-        flash('Заказ не найден', 'warning')
-        return redirect(url_for('main.profile_orders'))
-    
-    # Получаем все заказы этого покупателя со статусом processing (их может быть несколько от разных продавцов)
-    orders = Order.query.filter_by(
-        buyer_id=current_user.id,
-        status='processing'
-    ).all()
-    
-    # Подсчитываем общую сумму
-    total_price = sum(o.total_price + o.delivery_price for o in orders)
-    delivery_price = sum(o.delivery_price for o in orders)
-    items_count = sum(len(o.items.all()) for o in orders)
-    
-    # Номер первого заказа (основной)
-    order_number = orders[0].order_number if orders else '—'
-    order_id = order.id
-    
-    return render_template('main/payment.html',
-                         title='Оплата заказа',
-                         order_number=order_number,
-                         order_id=order_id,
-                         total_price=total_price,
-                         delivery_price=delivery_price,
-                         items_count=items_count,
-                         payment_status=None)
+    from app.blueprints.payments import checkout_page
+    return checkout_page()
 
 
 @bp.route('/payment/process', methods=['POST'])
 @login_required
 def payment_process():
-    """
-    Обработка оплаты.
-    После успешной оплаты перенаправляет на страницу заказов.
-    """
-    if not isinstance(current_user, Buyer):
-        return redirect(url_for('main.index'))
-    
-    # Получаем заказы со статусом processing
-    orders = Order.query.filter_by(
-        buyer_id=current_user.id,
-        status='processing'
-    ).all()
-    
-    if not orders:
-        flash('Заказ не найден', 'warning')
-        return redirect(url_for('main.profile_orders'))
-    
-    # Меняем статус на paid (оплачен)
-    for order in orders:
-        order.status = 'paid'
-    
-    db.session.commit()
-    
-    flash('Оплата успешно проведена!', 'success')
-    return redirect(url_for('main.profile_orders'))
+    from app.blueprints.payments import start_payment
+    return start_payment()
 
 
 @bp.route('/favorite/add', methods=['POST'])

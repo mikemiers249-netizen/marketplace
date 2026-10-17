@@ -276,6 +276,8 @@ def register_blueprints(app):
 
     # Основной домен (покупатели)
     app.register_blueprint(main_bp)
+    from app.blueprints.payments import bp as payments_bp
+    app.register_blueprint(payments_bp)
     from app.blueprints.review_rewards import bp as review_rewards_bp
     app.register_blueprint(review_rewards_bp)
 

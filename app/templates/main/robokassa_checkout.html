@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Оплата заказов — {{ super() }}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 720px">
+  <h1>Оплата заказов</h1>
+  {% if not ready %}<p role="status">Онлайн-оплата пока не подключена.</p>{% endif %}
+  {% if ready and is_test %}<div class="alert alert-warning">Тестовый режим. Деньги не списываются, заказы не отмечаются оплаченными.</div>{% endif %}
+  {% for order in orders %}
+  <section class="card p-4 my-3">
+    <h2 class="h5">Заказ {{ order.order_number }}</h2>
+    <p>{{ order.seller.store_name }}</p>
+    <p>Товары: {{ order.item_count }} шт. · Доставка: {{ '%.2f'|format(order.delivery_price or 0) }} ₽</p>
+    <p><strong>К оплате с учётом скидок и бонусов: {{ '%.2f'|format(order.grand_total) }} ₽</strong></p>
+    {% if ready and eligible(order) and order.grand_total > 0 %}
+    <form method="post" action="{{ url_for('main.payment_process') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="order_id" value="{{ order.id }}">
+      <p>Выбор доступного способа оплаты — на защищённой странице Robokassa.</p>
+      <button class="btn btn-success" type="submit">{% if is_test %}Тестовая оплата{% else %}Оплатить{% endif %} {{ '%.2f'|format(order.grand_total) }} ₽</button>
+    </form>
+    {% elif not eligible(order) %}<p>Онлайн-оплата для этого продавца пока недоступна.</p>
+    {% elif order.grand_total <= 0 %}<p>Денежная оплата не требуется. Уточните подтверждение заказа у продавца.</p>{% endif %}
+  </section>
+  {% else %}<p>Нет заказов, ожидающих оплаты.</p>{% endfor %}
+  <a href="{{ url_for('main.profile_orders') }}">Перейти к заказам</a>
+</div>
+{% endblock %}
