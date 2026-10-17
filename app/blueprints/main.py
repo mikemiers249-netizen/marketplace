@@ -1601,7 +1601,8 @@ def checkout_submit():
         }, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
         active_checkout = db.session.get(RobokassaCheckout, current_user.id)
         if active_checkout:
-            if active_checkout.fingerprint == fingerprint and active_checkout.invoice.status == 'pending':
+            if (active_checkout.fingerprint == fingerprint and active_checkout.invoice.status == 'pending'
+                    and active_checkout.invoice.is_test == bool(current_app.config['ROBOKASSA_TEST_MODE'])):
                 return jsonify(success=True, redirect=gateway_url(active_checkout.invoice))
             old_order = Order.query.filter_by(id=active_checkout.invoice.order_id).with_for_update().one()
             release_reservation(old_order)

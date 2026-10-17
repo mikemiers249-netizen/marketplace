@@ -288,6 +288,18 @@ class RobokassaTests(unittest.TestCase):
         self.assertEqual(invoice.order.status, 'payment_expired')
         self.assertEqual(product.stock_quantity, 20)
 
+    def test_switch_to_live_replaces_pending_demo_invoice(self):
+        product = self.cart_product()
+        self.app.config['ROBOKASSA_TEST_MODE'] = True
+        first = self.pay_from_review(product)
+        self.app.config['ROBOKASSA_TEST_MODE'] = False
+        second = self.pay_from_review(product)
+        self.assertIn('IsTest=1', first.json['redirect'])
+        self.assertNotIn('IsTest=', second.json['redirect'])
+        self.assertEqual(RobokassaPayment.query.count(), 2)
+        self.assertEqual(product.stock_quantity, 19)
+        self.assertEqual(RobokassaPayment.query.order_by(RobokassaPayment.id).first().status, 'expired')
+
     def test_double_click_and_legacy_checkout_reuse_same_invoice(self):
         product = self.cart_product()
         first = self.pay_from_review(product)
