@@ -181,3 +181,12 @@ class RobokassaTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'105.00', response.data)
         self.assertIn(b'ORDER-1', response.data)
+
+    def test_payment_link_in_actual_profile_orders_section(self):
+        response = self.client.get('/profile?section=orders')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(f'/payment?order_id={self.order.id}'.encode(), response.data)
+        self.order.seller = self.other_seller
+        db.session.commit()
+        response = self.client.get('/profile?section=orders')
+        self.assertNotIn(f'/payment?order_id={self.order.id}'.encode(), response.data)
