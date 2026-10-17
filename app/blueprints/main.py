@@ -1839,10 +1839,18 @@ def checkout_submit():
 
         logger.info(f"Checkout complete. Created {len(created_orders)} orders for buyer {current_user.id}")
 
-        # Перенаправляем на страницу заказов
+        # Only the configured seller can use this Robokassa merchant account.
+        from app.blueprints.payments import configured, eligible
+        destination = url_for('main.profile', section='orders')
+        if configured():
+            for created_id in created_orders:
+                created_order = db.session.get(Order, created_id)
+                if eligible(created_order) and created_order.grand_total > 0:
+                    destination = url_for('main.payment', order_id=created_id)
+                    break
         return jsonify({
             'success': True,
-            'redirect': url_for('main.profile', section='orders')
+            'redirect': destination
         })
         
     except Exception as e:

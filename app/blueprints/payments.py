@@ -54,7 +54,13 @@ def eligible(order):
 @bp.app_context_processor
 def payment_context():
     return {'robokassa_can_pay': lambda order: configured() and eligible(order)
-            and order.status == 'processing'}
+            and order.status == 'processing' and not test_paid(order),
+            'robokassa_test_paid': test_paid}
+
+
+def test_paid(order):
+    return current_app.config['ROBOKASSA_TEST_MODE'] and any(
+        invoice.is_test and invoice.status == 'paid' for invoice in order.robokassa_payments)
 
 
 def checkout_page():
@@ -67,7 +73,7 @@ def checkout_page():
     else:
         orders = query.order_by(Order.created_at.desc()).all()
     return render_template('main/robokassa_checkout.html', orders=orders,
-                           ready=configured(), eligible=eligible,
+                           ready=configured(), eligible=eligible, test_paid=test_paid,
                            is_test=current_app.config['ROBOKASSA_TEST_MODE'])
 
 

@@ -342,7 +342,9 @@
                         <span class="total-amount">{{ order.grand_total }} ₽</span>
                     </div>
                 </div>
-                {% if robokassa_can_pay(order) %}
+                {% if robokassa_test_paid(order) %}
+                <span class="status-badge status-delivered">Тестовая оплата пройдена</span>
+                {% elif robokassa_can_pay(order) %}
                 <a href="{{ url_for('main.payment', order_id=order.id) }}" class="btn btn-sm btn-success">Оплатить</a>
                 {% endif %}
                 <a href="{{ url_for('main.order_detail', order_id=order.id) }}" class="btn btn-sm btn-secondary">Подробнее</a>

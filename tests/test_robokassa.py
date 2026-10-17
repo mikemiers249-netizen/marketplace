@@ -2,6 +2,7 @@ import hashlib
 import logging
 import tempfile
 import unittest
+from unittest.mock import patch
 from decimal import Decimal
 from pathlib import Path
 from flask import g
@@ -190,3 +191,36 @@ class RobokassaTests(unittest.TestCase):
         db.session.commit()
         response = self.client.get('/profile?section=orders')
         self.assertNotIn(f'/payment?order_id={self.order.id}'.encode(), response.data)
+
+    def test_completed_sandbox_has_success_marker_instead_of_retry_button(self):
+        self.app.config['ROBOKASSA_TEST_MODE'] = True
+        invoice = self.invoice()
+        self.client.post('/payments/robokassa/result', data=self.callback(invoice, secret='sandbox-two'))
+        page = self.client.get(f'/payment?order_id={self.order.id}')
+        self.assertIn('Тестовая оплата пройдена'.encode(), page.data)
+        self.assertNotIn(b'id="payment-form"', page.data)
+        self.assertNotIn(b'action="/payment/process"', page.data)
+        profile = self.client.get('/profile?section=orders')
+        self.assertIn('Тестовая оплата пройдена'.encode(), profile.data)
+        self.assertNotIn(f'/payment?order_id={self.order.id}'.encode(), profile.data)
+
+    def test_actual_checkout_redirects_only_selected_seller_to_payment(self):
+        from app.models.products import Category, Product
+        from app.models.orders import CartItem
+        from app.models.users import DeliveryService
+        category = Category(name='Goods', slug='goods')
+        product = Product(name='Goods', slug='goods', article='goods', seller=self.seller,
+                          category=category, price=100, stock_quantity=20,
+                          status='approved', current_discount=0)
+        db.session.add_all([category, product, DeliveryService(id=1, name='Delivery', code='test')])
+        db.session.flush()
+        for selected in (True, False):
+            product.seller = self.seller if selected else self.other_seller
+            db.session.add(CartItem(buyer=self.buyer, product=product, quantity=1))
+            db.session.commit()
+            with patch('app.blueprints.main._visible_seller_ids', return_value={product.seller_id}), \
+                 patch('app.blueprints.main.send_new_order_notification_to_seller'):
+                response = self.client.post('/order-review/submit')
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertTrue(response.json['success'])
+            self.assertEqual(response.json['redirect'].startswith('/payment?order_id='), selected)

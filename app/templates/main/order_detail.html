@@ -350,7 +350,9 @@
             Вернуться к списку заказов
         </a>
         <h1>Заказ #{{ order.order_number }}</h1>
-        {% if robokassa_can_pay(order) %}
+        {% if robokassa_test_paid(order) %}
+        <p class="text-success">Тестовая оплата пройдена. Деньги не списывались.</p>
+        {% elif robokassa_can_pay(order) %}
         <a href="{{ url_for('main.payment', order_id=order.id) }}" class="btn btn-success">Оплатить заказ</a>
         {% endif %}
     </div>
