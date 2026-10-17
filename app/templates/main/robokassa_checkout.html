@@ -11,7 +11,9 @@
     <p>{{ order.seller.store_name }}</p>
     <p>Товары: {{ order.item_count }} шт. · Доставка: {{ '%.2f'|format(order.delivery_price or 0) }} ₽</p>
     <p><strong>К оплате с учётом скидок и бонусов: {{ '%.2f'|format(order.grand_total) }} ₽</strong></p>
-    {% if test_paid(order) %}
+    {% if order.payment_confirmed %}
+    <div class="alert alert-success">Оплата заказа подтверждена.</div>
+    {% elif test_paid(order) %}
     <div class="alert alert-success">Тестовая оплата пройдена. Деньги не списывались. Для настоящей оплаты потребуется включить рабочий режим.</div>
     {% elif ready and eligible(order) and order.grand_total > 0 %}
     <form method="post" action="{{ url_for('main.payment_process') }}">

@@ -139,6 +139,12 @@ class Order(db.Model):
     returns = db.relationship('Return', back_populates='order', lazy='dynamic')
     
     @property
+    def payment_confirmed(self):
+        """Payment is independent from the assembly/shipping lifecycle."""
+        return any(not invoice.is_test and invoice.status == 'paid'
+                   for invoice in self.robokassa_payments)
+
+    @property
     def grand_total(self):
         """Общая сумма к оплате (товары + доставка − бонусы − промокод)."""
         return round(

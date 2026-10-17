@@ -54,7 +54,7 @@ def eligible(order):
 @bp.app_context_processor
 def payment_context():
     return {'robokassa_can_pay': lambda order: configured() and eligible(order)
-            and order.status == 'processing' and not test_paid(order),
+            and order.status == 'processing' and not test_paid(order) and not order.payment_confirmed,
             'robokassa_test_paid': test_paid}
 
 
@@ -87,7 +87,7 @@ def start_payment():
     order = Order.query.filter_by(id=order_id, buyer_id=current_user.id).with_for_update().first_or_404()
     if not eligible(order):
         abort(403)
-    if order.status != 'processing':
+    if order.status != 'processing' or order.payment_confirmed:
         abort(409, description='Этот заказ сейчас нельзя оплатить.')
     try:
         amount = money(order.grand_total)
@@ -152,9 +152,7 @@ def result():
         invoice.paid_at = datetime.utcnow()
         invoice.status = 'paid'
         if not invoice.is_test:
-            if order.status == 'processing' and Decimal(str(order.grand_total)) == invoice.amount:
-                order.status = 'paid'
-            else:
+            if order.status != 'processing' or Decimal(str(order.grand_total)) != invoice.amount:
                 invoice.status = 'needs_review'
                 current_app.logger.error('Paid Robokassa invoice %s requires review for order %s',
                                          invoice.id, order.id)

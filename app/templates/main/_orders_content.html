@@ -344,8 +344,8 @@
                 </div>
                 {% if robokassa_test_paid(order) %}
                 <span class="status-badge status-delivered">Тестовая оплата пройдена</span>
-                {% elif robokassa_can_pay(order) %}
-                <a href="{{ url_for('main.payment', order_id=order.id) }}" class="btn btn-sm btn-success">Оплатить</a>
+                {% elif order.payment_confirmed %}
+                <span class="status-badge status-delivered">Оплачен</span>
                 {% endif %}
                 <a href="{{ url_for('main.order_detail', order_id=order.id) }}" class="btn btn-sm btn-secondary">Подробнее</a>
             </div>

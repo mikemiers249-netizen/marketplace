@@ -4,9 +4,10 @@
 <div class="container py-5">
   <h1>Оплата через Robokassa</h1>
   <p>Сумма к оплате: {{ params.OutSum }} ₽. Нажмите кнопку, чтобы перейти на защищённую страницу оплаты.</p>
-  <form method="post" action="{{ gateway }}">
+  <form method="post" action="{{ gateway }}" id="robokassa-form">
     {% for key, value in params.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
     <button class="btn btn-success" type="submit">Перейти в Robokassa</button>
   </form>
+  <script>document.getElementById('robokassa-form').submit();</script>
 </div>
 {% endblock %}
