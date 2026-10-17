@@ -96,7 +96,8 @@ def dashboard():
     week_ago = datetime.utcnow() - timedelta(days=7)
     weekly_orders = Order.query.filter(
         Order.seller_id == seller.id,
-        Order.created_at >= week_ago
+        Order.created_at >= week_ago,
+        Order.status.notin_(('awaiting_payment', 'payment_expired', 'payment_demo'))
     ).count()
     
     # Выручка за последние 30 дней
@@ -108,7 +109,8 @@ def dashboard():
     ).scalar() or 0
     
     # Недавние заказы
-    recent_orders = Order.query.filter_by(seller_id=seller.id).order_by(
+    recent_orders = Order.query.filter_by(seller_id=seller.id).filter(
+        Order.status.notin_(('awaiting_payment', 'payment_expired', 'payment_demo'))).order_by(
         Order.created_at.desc()
     ).limit(5).all()
     
@@ -2144,7 +2146,8 @@ def orders():
     from_dt = _parse_date(from_date, end_of_day=False)
     to_dt = _parse_date(to_date, end_of_day=True)
 
-    query = Order.query.filter_by(seller_id=current_user.id)
+    query = Order.query.filter_by(seller_id=current_user.id).filter(
+        Order.status.notin_(('awaiting_payment', 'payment_expired', 'payment_demo')))
     
     # Актуальные статусы (исключаем только canceled)
     actual_statuses = ['pending', 'processing', 'in_assembly', 'assembled', 'paid', 'shipped', 'in_transit', 'delivered', 'received']
@@ -2196,7 +2199,7 @@ def order_detail(order_id):
         return redirect(url_for('auth_seller.seller_login'))
 
     order = db.session.get(Order, order_id)
-    if not order or order.seller_id != current_user.id:
+    if not order or order.seller_id != current_user.id or order.status in ('awaiting_payment', 'payment_expired', 'payment_demo'):
         abort(404)
 
     # items — это dynamic relationship, joinedload к нему применить нельзя.
@@ -2227,7 +2230,7 @@ def order_assemble(order_id):
         return redirect(url_for('auth_seller.seller_login'))
     
     order = db.session.get(Order, order_id)
-    if not order or order.seller_id != current_user.id:
+    if not order or order.seller_id != current_user.id or order.status in ('awaiting_payment', 'payment_expired', 'payment_demo'):
         abort(404)
     
     if order.status != 'processing':
@@ -2251,7 +2254,7 @@ def order_mark_shipped(order_id):
         return redirect(url_for('auth_seller.seller_login'))
 
     order = db.session.get(Order, order_id)
-    if not order or order.seller_id != current_user.id:
+    if not order or order.seller_id != current_user.id or order.status in ('awaiting_payment', 'payment_expired', 'payment_demo'):
         abort(404)
 
     if order.status not in ['processing', 'in_assembly', 'assembled', 'shipped']:
@@ -2280,7 +2283,7 @@ def order_set_track(order_id):
         return redirect(url_for('auth_seller.seller_login'))
 
     order = db.session.get(Order, order_id)
-    if not order or order.seller_id != current_user.id:
+    if not order or order.seller_id != current_user.id or order.status in ('awaiting_payment', 'payment_expired', 'payment_demo'):
         abort(404)
 
     track_number = (request.form.get('track_number') or '').strip()
@@ -2334,7 +2337,7 @@ def order_mark_delivered(order_id):
         return redirect(url_for('auth_seller.seller_login'))
 
     order = db.session.get(Order, order_id)
-    if not order or order.seller_id != current_user.id:
+    if not order or order.seller_id != current_user.id or order.status in ('awaiting_payment', 'payment_expired', 'payment_demo'):
         abort(404)
 
     if order.status != 'shipped':
@@ -2357,7 +2360,7 @@ def order_ship(order_id):
         return redirect(url_for('auth_seller.seller_login'))
     
     order = db.session.get(Order, order_id)
-    if not order or order.seller_id != current_user.id:
+    if not order or order.seller_id != current_user.id or order.status in ('awaiting_payment', 'payment_expired', 'payment_demo'):
         abort(404)
     
     track_number = request.form.get('track_number')
@@ -2390,7 +2393,7 @@ def order_cancel(order_id):
         return redirect(url_for('auth_seller.seller_login'))
     
     order = db.session.get(Order, order_id)
-    if not order or order.seller_id != current_user.id:
+    if not order or order.seller_id != current_user.id or order.status in ('awaiting_payment', 'payment_expired', 'payment_demo'):
         logger.warning(f"Order {order_id} not found or access denied for seller {current_user.id}")
         abort(404)
     
@@ -2430,7 +2433,7 @@ def shipment_check(order_id):
         return jsonify({'error': 'Unauthorized'}), 401
     
     order = db.session.get(Order, order_id)
-    if not order or order.seller_id != current_user.id:
+    if not order or order.seller_id != current_user.id or order.status in ('awaiting_payment', 'payment_expired', 'payment_demo'):
         return jsonify({'error': 'Order not found'}), 404
     
     # Допустимые статусы для создания отгрузки (включая старые и paid)
@@ -2592,7 +2595,7 @@ def shipment_create(order_id):
         return jsonify({'error': 'Unauthorized'}), 401
     
     order = db.session.get(Order, order_id)
-    if not order or order.seller_id != current_user.id:
+    if not order or order.seller_id != current_user.id or order.status in ('awaiting_payment', 'payment_expired', 'payment_demo'):
         return jsonify({'error': 'Order not found'}), 404
     
     # Допустимые статусы (включая старый in_assembly и paid)
@@ -3306,7 +3309,8 @@ def analytics():
     from_date = request.args.get('from_date')
     to_date = request.args.get('to_date')
     
-    query = Order.query.filter_by(seller_id=current_user.id)
+    query = Order.query.filter_by(seller_id=current_user.id).filter(
+        Order.status.notin_(('awaiting_payment', 'payment_expired', 'payment_demo')))
     
     if from_date:
         query = query.filter(Order.created_at >= from_date)
@@ -3397,7 +3401,8 @@ def analytics():
     
     buyer_order_counts = (
         db.session.query(Order.buyer_id, _sa_func.count(Order.id))
-        .filter(Order.seller_id == current_user.id)
+        .filter(Order.seller_id == current_user.id,
+                Order.status.notin_(('awaiting_payment', 'payment_expired', 'payment_demo')))
     )
     if from_date:
         buyer_order_counts = buyer_order_counts.filter(Order.created_at >= from_date)

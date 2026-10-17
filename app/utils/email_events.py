@@ -16,6 +16,8 @@ def queue_order_status(session, flush_context, instances):
     for order in list(session.dirty):
         if not isinstance(order, Order) or not inspect(order).attrs.status.history.has_changes():
             continue
+        if order.status in ('awaiting_payment', 'payment_expired', 'payment_demo'):
+            continue
         subject = f'Wimli — заказ №{order.order_number}: {labels.get(order.status, order.status)}'
         body = f'Статус заказа №{order.order_number}: {labels.get(order.status, order.status)}.\nПодробности доступны в личном кабинете.\n\nWimli'
         for user in (order.buyer, order.seller):

@@ -27,6 +27,12 @@ class ReviewRewardsTests(unittest.TestCase):
             SQLALCHEMY_ENGINE_OPTIONS = {}
             MAIL_WORKER_ENABLED = False
             MAIL_PASSWORD = None
+            ROBOKASSA_ENABLED = True
+            ROBOKASSA_MERCHANT_LOGIN = 'test'
+            ROBOKASSA_SELLER_EMAIL = 'seller@example.test'
+            ROBOKASSA_TEST_MODE = True
+            ROBOKASSA_TEST_PASSWORD1 = 'test-one'
+            ROBOKASSA_TEST_PASSWORD2 = 'test-two'
             LOG_FILE = str(Path(self.directory.name) / 'test.log')
         self.app = create_app(Config)
         self.context = self.app.app_context()
@@ -198,7 +204,7 @@ class ReviewRewardsTests(unittest.TestCase):
             self.assertNotIn('Ваши награды за отзывы', html)
             response = self.client.post('/order-review/submit')
         self.assertEqual(response.status_code, 200, response.data)
-        order = Order.query.filter_by(status='processing').one()
+        order = Order.query.filter_by(status='awaiting_payment').one()
         self.assertEqual(order.total_price, 900)
         self.assertEqual(order.items.filter_by(product_id=gift.product_id).one().price_at_order, 0)
         response = self.client.get('/profile?section=trophies')
@@ -221,7 +227,7 @@ class ReviewRewardsTests(unittest.TestCase):
             self.assertEqual(page.status_code, 200, page.data)
             response = self.client.post('/order-review/submit', data={'bonus_per_seller': '1:1000'})
         self.assertEqual(response.status_code, 200, response.data)
-        order = Order.query.filter_by(status='processing').one()
+        order = Order.query.filter_by(status='awaiting_payment').one()
         self.assertEqual(order.total_price, 720)
         self.assertEqual(order.bonus_used, 360)
         self.assertEqual(order.grand_total, 360)
@@ -247,12 +253,12 @@ class ReviewRewardsTests(unittest.TestCase):
         self.login(self.buyer)
         with patch('app.blueprints.main._visible_seller_ids', return_value={self.seller.id}), \
              patch('app.blueprints.main.send_new_order_notification_to_seller'):
-            response = self.client.get('/checkout?delivery=1:1:PVZ:0')
+            response = self.client.get('/checkout?delivery=1:1:PVZ:0', follow_redirects=True)
             self.assertEqual(response.status_code, 200, response.data)
             self.assertEqual(ReviewReward.query.filter_by(status='available').count(), 1)
             response = self.client.post('/order/create', data={'delivery_info':'[{"seller_id":1,"cost":0}]'})
         self.assertEqual(response.status_code, 200, response.data)
-        order = Order.query.filter_by(seller_id=self.seller.id, status='processing').one()
+        order = Order.query.filter_by(seller_id=self.seller.id, status='awaiting_payment').one()
         self.assertEqual(order.total_price, 800)
         self.assertEqual(ReviewReward.query.one().redeemed_order_id, order.id)
 

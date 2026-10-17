@@ -15,3 +15,12 @@ class RobokassaPayment(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     paid_at = db.Column(db.DateTime)
     order = db.relationship('Order', backref='robokassa_payments')
+
+
+class RobokassaCheckout(db.Model):
+    """One active, idempotent checkout per buyer (buyer row serializes writes)."""
+    __tablename__ = 'robokassa_checkouts'
+    buyer_id = db.Column(db.Integer, db.ForeignKey('buyers.id'), primary_key=True)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('robokassa_payments.id'), nullable=False, unique=True)
+    fingerprint = db.Column(db.String(64), nullable=False)
+    invoice = db.relationship('RobokassaPayment')

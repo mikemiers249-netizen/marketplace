@@ -667,7 +667,7 @@
         {# Правовая информация #}
         <div class="legal-info-card">
             <p class="legal-text">
-                Данная площадка предоставляет информационные услуги о реализуемых товарах, их потребительских свойствах и стоимости. Нажимая кнопку, вы отправляете запрос о покупке выбранных товаров их продавцам и в рамках двухстороннего диалога с продавцом самостоятельно определяете способы доставки, приемки и оплаты этих товаров.
+                Проверьте товары и доставку. После нажатия «Оплатить» откроется защищённая страница Robokassa. Заказ будет принят и передан продавцу только после подтверждения оплаты.
             </p>
         </div>
 
@@ -676,10 +676,10 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="bonus_per_seller" id="bonusPerSellerField" value="{{ bonus_per_seller_str or '' }}">
             <input type="hidden" name="promo_per_seller" id="promoPerSellerField" value="{{ promo_per_seller_str or '' }}">
-            <p class="text-muted">Нажимая кнопку оформления, вы принимаете <a href="/page/offer" target="_blank" rel="noopener">оферту</a>. Данные заказа обрабатываются для его исполнения согласно <a href="/page/privacy" target="_blank" rel="noopener">политике</a>.</p>
+            <p class="text-muted">Нажимая «Оплатить», вы принимаете <a href="/page/offer" target="_blank" rel="noopener">оферту</a>. Данные заказа обрабатываются для его исполнения согласно <a href="/page/privacy" target="_blank" rel="noopener">политике</a>.</p>
             <input type="hidden" name="offer_version" value="{{ document_digest('offer') }}">
             <button type="submit" class="submit-btn">
-                Сделать заказ
+                Оплатить
             </button>
         </form>
     </div>
@@ -737,7 +737,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // Отправляем форму
+            const payButton = form.querySelector('button[type="submit"]');
+            payButton.disabled = true;
+            payButton.textContent = 'Переходим к оплате…';
             fetch(form.action, {
                 method: 'POST',
                 body: new FormData(form),
@@ -748,16 +750,18 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Перенаправляем на страницу заказов
-                    window.location.href = data.redirect || '/profile?section=orders';
+                    window.location.href = data.redirect;
                 } else {
                     alert(data.error || 'Произошла ошибка при оформлении заказа');
+                    payButton.disabled = false;
+                    payButton.textContent = 'Оплатить';
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                // Если ошибка сети - всё равно перенаправляем на профиль
-                window.location.href = '/profile?section=orders';
+                alert('Не удалось перейти к оплате. Заказ не принят. Попробуйте ещё раз.');
+                payButton.disabled = false;
+                payButton.textContent = 'Оплатить';
             });
         });
         

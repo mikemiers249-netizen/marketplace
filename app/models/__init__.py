@@ -34,7 +34,7 @@ from app.models.footer import (
 )
 
 from app.models.email_delivery import EmailIdentity, EmailToken, EmailOutbox
-from app.models.payments import RobokassaPayment
+from app.models.payments import RobokassaPayment, RobokassaCheckout
 from app.models.privacy import LegalSnapshot, PrivacyConsent, PrivacyRequest, PrivacyCleanupRun
 from app.models.review_rewards import ReviewRewardProgram, ReviewGift, RewardReviewReceipt, ReviewReward
 

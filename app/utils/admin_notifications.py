@@ -68,9 +68,10 @@ def queue_admin_notifications(session, flush_context, instances):
             if not new and history.has_changes():
                 previous = (history.deleted[0] if history.deleted else
                             session.connection().execute(select(Order.status).where(Order.id == row.id)).scalar())
-            if (new and row.status not in (None, 'pending', 'canceled', 'cancelled')) or (
-                    not new and history.has_changes() and previous == 'pending'
-                    and row.status not in ('pending', 'canceled', 'cancelled')):
+            excluded = (None, 'pending', 'canceled', 'cancelled', 'awaiting_payment', 'payment_expired', 'payment_demo')
+            if (new and row.status not in excluded) or (
+                    not new and history.has_changes() and previous in ('pending', 'awaiting_payment')
+                    and row.status not in excluded):
                 kind, text = 'order_created', f'На платформе оформлен новый заказ №{row.order_number}.'
         elif isinstance(row, Review) and entering(session, row, 'pending', new, default='pending'):
             kind, text = 'review_moderation', 'Поступил новый отзыв, требующий модерации.'

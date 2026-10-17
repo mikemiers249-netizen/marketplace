@@ -2,7 +2,7 @@
 Blueprint основного сайта (публичная часть для покупателей).
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import or_, and_, func, case
 from datetime import datetime
@@ -1584,6 +1584,34 @@ def checkout_submit():
         minimum_error = minimum_order_error(cart_items)
         if minimum_error:
             return jsonify(success=False, error=minimum_error), 400
+
+        from app.blueprints.payments import configured, prepare_invoice, release_reservation, gateway_url
+        from app.models.payments import RobokassaCheckout
+        if not configured():
+            return jsonify(success=False, error='Онлайн-оплата пока недоступна. Заказ не принят.'), 503
+        allowed_email = current_app.config['ROBOKASSA_SELLER_EMAIL'].strip().casefold()
+        if any((item.product.seller.email or '').strip().casefold() != allowed_email for item in cart_items):
+            return jsonify(success=False, error='Для одного из продавцов онлайн-оплата пока недоступна. Заказ не принят.'), 400
+
+        import hashlib
+        fingerprint = hashlib.sha256(json.dumps({
+            'items': sorted((item.product_id, item.quantity) for item in cart_items),
+            'form': sorted((key, value) for key, value in request.form.items(multi=True)
+                           if key != 'csrf_token'),
+        }, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
+        active_checkout = db.session.get(RobokassaCheckout, current_user.id)
+        if active_checkout:
+            if active_checkout.fingerprint == fingerprint and active_checkout.invoice.status == 'pending':
+                return jsonify(success=True, redirect=gateway_url(active_checkout.invoice))
+            old_order = Order.query.filter_by(id=active_checkout.invoice.order_id).with_for_update().one()
+            release_reservation(old_order)
+            db.session.flush()
+
+        Product.query.filter(Product.id.in_([item.product_id for item in cart_items])).order_by(
+            Product.id).populate_existing().with_for_update().all()
+        if any(item.quantity <= 0 or item.quantity > item.product.stock_quantity for item in cart_items):
+            db.session.rollback()
+            return jsonify(success=False, error='Количество товара изменилось. Проверьте корзину.'), 400
         
         from datetime import datetime
         created_orders = []
@@ -1720,13 +1748,13 @@ def checkout_submit():
                     f"seller {seller_id}; creating order without PVZ"
                 )
             
-            # Создаём заказ со статусом processing (в обработке)
+            # Private reservation only: no accepted order until signed payment confirmation.
             order = Order(
                 order_number=order_number_prefix,
                 buyer_id=current_user.id,
                 seller_id=seller_id,
                 total_price=total_price,
-                status='processing',
+                status='awaiting_payment',
                 delivery_service_id=delivery_service_id,
                 pvz_code=pvz_code,
                 delivery_address=pvz_address
@@ -1815,22 +1843,18 @@ def checkout_submit():
             for item in items:
                 item.product.stock_quantity -= item.quantity
 
-            # Удаляем товары из корзины
-            for item in items:
-                db.session.delete(item)
-            
             created_orders.append(order.id)
             logger.info(f"Created pending order {order.id} for seller {seller_id}, buyer {current_user.id}")
             
-            # Отправляем уведомление продавцу
-            # Создаём пустой диалог для заказа между покупателем и продавцом
-            create_order_conversation(order)
+            # The cart stays intact; notifications and conversations are created only after payment.
+            if order.grand_total <= 0:
+                db.session.rollback()
+                return jsonify(success=False, error='Проверьте сумму к оплате.'), 400
+            invoice = prepare_invoice(order)
+            db.session.add(RobokassaCheckout(buyer_id=current_user.id, invoice_id=invoice.id,
+                                             fingerprint=fingerprint))
         
         db.session.commit()
-
-        # Уведомления сами фиксируют очередь: вызываем только после атомарного оформления всех заказов.
-        for order_id in created_orders:
-            send_new_order_notification_to_seller(order_id)
 
         # Очищаем выбор промокодов в сессии — заказы уже оформлены.
         from flask import session
@@ -1839,18 +1863,9 @@ def checkout_submit():
 
         logger.info(f"Checkout complete. Created {len(created_orders)} orders for buyer {current_user.id}")
 
-        # Only the configured seller can use this Robokassa merchant account.
-        from app.blueprints.payments import configured, eligible
-        destination = url_for('main.profile', section='orders')
-        if configured():
-            for created_id in created_orders:
-                created_order = db.session.get(Order, created_id)
-                if eligible(created_order) and created_order.grand_total > 0:
-                    destination = url_for('main.payment', order_id=created_id)
-                    break
         return jsonify({
             'success': True,
-            'redirect': destination
+            'redirect': gateway_url(invoice)
         })
         
     except Exception as e:
@@ -1863,481 +1878,21 @@ def checkout_submit():
 @bp.route('/checkout')
 @login_required
 def checkout():
-    """
-    Оформление заказа.
-    URL: /checkout
-    Создаёт черновики заказов (pending) при переходе на форму.
-    """
     if not isinstance(current_user, Buyer):
-        flash('Оформление заказа доступно только покупателям.', 'error')
         return redirect(url_for('main.index'))
-
-    cart_items = CartItem.query.filter_by(buyer_id=current_user.id).all()
-
-    # Чистим корзину от товаров заблокированных продавцов (tariff state in
-    # 'locked', 'none'). Если после очистки корзина пуста — редиректим в /cart.
-    # NB: visible_sids_ch может быть пустым — тогда удаляем всё.
-    visible_sids_ch = _visible_seller_ids()
-    if cart_items:
-        removable_ch = [
-            ci for ci in cart_items
-            if ci.product and ci.product.seller_id not in visible_sids_ch
-        ]
-        if removable_ch:
-            for ci in removable_ch:
-                db.session.delete(ci)
-            try:
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
-            else:
-                cart_items = [ci for ci in cart_items if ci not in removable_ch]
-
-    if not cart_items:
-        flash('Корзина пуста.', 'info')
+    items = CartItem.query.filter_by(buyer_id=current_user.id).all()
+    error = minimum_order_error(items)
+    if error:
+        flash(error, 'warning')
         return redirect(url_for('main.cart'))
-
-    cart_total = get_cart_total(current_user.id)
-
-    delivery_profiles = BuyerDelivery.query.filter_by(
-        buyer_id=current_user.id
-    ).all()
-
-    delivery_services = DeliveryService.query.filter_by(is_active=True).all()
-    
-    # Получаем информацию о доставке из URL параметров
-    import logging
-    logger = logging.getLogger(__name__)
-    delivery_info = []
-    delivery_total = 0
-    delivery_param = request.args.get('delivery', '')
-    logger.debug("Delivery operation completed; payload omitted")
-    if delivery_param:
-        try:
-            items = delivery_param.split(';')
-            for item in items:
-                parts = item.split(':')
-                if len(parts) >= 4:
-                    seller_id = int(parts[0])
-                    delivery_id = int(parts[1])
-                    pvz_code = parts[2]
-                    cost = float(parts[3])
-                    logger.debug("Delivery operation completed; payload omitted")
-                    delivery_info.append({
-                        'seller_id': seller_id,
-                        'delivery_id': delivery_id,
-                        'pvz_code': pvz_code,
-                        'cost': cost
-                    })
-                    delivery_total += cost
-            logger.debug("Delivery operation completed; payload omitted")
-        except (ValueError, IndexError) as e:
-            logger.error(f"Error parsing delivery param: {e}")
-            flash('Ошибка при чтении данных о доставке. Пожалуйста, рассчитайте доставку заново.', 'warning')
-            return redirect(url_for('main.cart'))
-    else:
-        # Нет параметров доставки - редирект на корзину
-        logger.warning("No delivery params, redirecting to cart")
-        flash('Пожалуйста, рассчитайте стоимость доставки в корзине перед оформлением.', 'warning')
-        return redirect(url_for('main.cart'))
-
-    # Создаём черновики заказов (status='pending') для каждого продавца
-    # Группируем товары по продавцам
-    from collections import defaultdict
-    seller_items = defaultdict(list)
-    for item in cart_items:
-        seller_items[item.product.seller_id].append(item)
-    
-    minimum_error = minimum_order_error(cart_items)
-    if minimum_error:
-        flash(minimum_error, 'warning')
-        return redirect(url_for('main.cart'))
-
-    # Удаляем старые черновики (pending) для этого покупателя
-    Order.query.filter_by(buyer_id=current_user.id, status='pending').delete()
-    
-    # Создаём новые черновики
-    for seller_id, items in seller_items.items():
-        seller = items[0].product.seller
-        if not seller:
-            continue
-
-        # Сумма заказа с учётом правила "max discount, не суммируется".
-        # Считаем per-item лучшую скидку (current_discount / классические
-        # discount-акции / second_with_discount) и суммируем.
-        from app.utils.helpers import compute_best_discount_for_item
-        subtotal_price = sum(float(item.product.price) * item.quantity for item in items)
-        seller_discount = sum(
-            compute_best_discount_for_item(it, items) for it in items
-        )
-        total_price = round(subtotal_price - seller_discount, 2)
-
-        # Получаем стоимость доставки для этого продавца
-        delivery_price = next((d['cost'] for d in delivery_info if d['seller_id'] == seller_id), 0)
-        
-        # Генерируем временный номер заказа
-        from datetime import datetime
-        order_number_prefix = f"P{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        
-        # Получаем данные о ПВЗ
-        pvz_info = next((d for d in delivery_info if d['seller_id'] == seller_id), {})
-        pvz_code = pvz_info.get('pvz_code')
-        seller_delivery_id = pvz_info.get('delivery_id')
-        
-        # Получаем профиль доставки продавца
-        delivery_service_id = 1  # По умолчанию
-        if seller_delivery_id:
-            seller_delivery = db.session.get(SellerDelivery, seller_delivery_id)
-            if seller_delivery:
-                delivery_service_id = seller_delivery.delivery_service_id
-        
-        # Создаём черновик заказа со статусом pending
-        order = Order(
-            order_number=order_number_prefix,
-            buyer_id=current_user.id,
-            seller_id=seller_id,
-            total_price=total_price,
-            delivery_price=delivery_price,
-            delivery_service_id=delivery_service_id,
-            pvz_code=pvz_code,
-            delivery_address=pvz_code if pvz_code else None,
-            status='pending'  # Ожидает оформления
-        )
-        db.session.add(order)
-        db.session.flush()
-        
-        # Обновляем номер заказа с ID
-        order.order_number = f"{order_number_prefix}{order.id}"
-        
-        # Создаём позиции заказа (пока не удаляем из корзины!)
-        # Применяем правило "max discount, не суммируется" для каждой позиции.
-        from app.utils.helpers import compute_item_discount_breakdown
-        for item in items:
-            product = item.product
-            original_price = round(float(product.price), 2)
-            breakdown = compute_item_discount_breakdown(item, items)
-            price_at_order = round(
-                original_price - breakdown['total_discount'] / max(1, item.quantity), 2
-            )
-
-            order_item = OrderItem(
-                order_id=order.id,
-                product_id=item.product_id,
-                quantity=item.quantity,
-                price_at_order=price_at_order,
-                original_price=original_price,
-                promo_discount=breakdown['promo_discount'] or 0,
-            )
-            db.session.add(order_item)
-    
-    db.session.commit()
-    logger.info(f"Created pending orders for buyer {current_user.id}")
-
-    return render_template('main/checkout.html',
-                         title='Оформление заказа',
-                         cart_items=cart_items,
-                         cart_total=cart_total,
-                         delivery_profiles=delivery_profiles,
-                         delivery_services=delivery_services,
-                         delivery_info=delivery_info,
-                         delivery_total=delivery_total)
+    return redirect(url_for('main.order_review'))
 
 
 @bp.route('/order/create', methods=['POST'])
 @login_required
 def order_create():
-    """
-    Оформление заказа.
-    Обновляет статус с pending на processing.
-    URL: /order/create
-    """
-    if not isinstance(current_user, Buyer):
-        return jsonify({'success': False, 'error': 'Доступ только для покупателей'}), 403
-
-    from app.blueprints.privacy import document_digest
-    offer_version = request.form.get('offer_version')
-    if offer_version and offer_version != document_digest('offer'):
-        return jsonify({'success': False, 'error': 'Оферта обновилась. Обновите страницу оформления.'}), 400
-
-    Buyer.query.filter_by(id=current_user.id).with_for_update().one()
-
-    import logging
-    logger = logging.getLogger(__name__)
-
-    # Защита: не даём провести заказ, если в нём есть товары заблокированных
-    # продавцов. Может случиться, если заказ был создан в pending до лока.
-    # Если _visible пустое (все seller'ы неактивны) — отменяем ВСЕ pending
-    # заказы покупателя.
-    _visible = _visible_seller_ids()
-    if _visible:
-        # Есть активные seller'ы — отменяем только те заказы, где есть
-        # товары от заблокированных.
-        _bad_orders = (
-            db.session.query(Order)
-            .join(OrderItem, OrderItem.order_id == Order.id)
-            .join(Product, Product.id == OrderItem.product_id)
-            .filter(
-                Order.buyer_id == current_user.id,
-                Order.status == 'pending',
-                Product.seller_id.notin_(_visible),
-            )
-            .distinct()
-            .all()
-        )
-    else:
-        # Нет активных seller'ов — все pending заказы невалидны.
-        _bad_orders = (
-            db.session.query(Order)
-            .filter(
-                Order.buyer_id == current_user.id,
-                Order.status == 'pending',
-            )
-            .all()
-        )
-    if _bad_orders:
-        for o in _bad_orders:
-            o.status = 'cancelled'
-        db.session.commit()
-        return jsonify({
-            'success': False,
-            'error': 'Некоторые из ваших черновиков заказов содержат товары от заблокированных продавцов. Откройте корзину заново.',
-        }), 400
-    
-    data = request.form
-    
-    delivery_profile_id = data.get('delivery_profile_id')
-    payment_method = data.get('payment_method', 'card_online')
-    
-    # Получаем информацию о стоимости доставки
-    delivery_info = {}
-    pvz_info = {}
-    delivery_data = data.get('delivery_info')
-    logger.debug("Order delivery details received")
-    if delivery_data:
-        import json
-        try:
-            delivery_list = json.loads(delivery_data)
-            logger.debug("Order delivery details parsed")
-            for d in delivery_list:
-                seller_id = int(d.get('seller_id', 0))
-                if seller_id:
-                    delivery_info[seller_id] = float(d.get('cost', 0))
-                    pvz_info[seller_id] = {
-                        'pvz_code': d.get('pvz_code'),
-                        'delivery_id': int(d.get('delivery_id', 0)) if d.get('delivery_id') else None
-                    }
-            logger.debug("Delivery operation completed; payload omitted")
-        except (json.JSONDecodeError, KeyError) as e:
-            logger.warning("Invalid delivery input: %s", type(e).__name__)
-    
-    # Проверяем есть ли информация о доставке
-    if not delivery_info:
-        if not delivery_profile_id:
-            return jsonify({'success': False, 'error': 'Выберите способ доставки'}), 400
-        
-        delivery_profile = BuyerDelivery.query.get(delivery_profile_id)
-        if not delivery_profile or delivery_profile.buyer_id != current_user.id:
-            return jsonify({'success': False, 'error': 'Профиль доставки не найден'}), 400
-    
-    # Получаем товары из корзины
-    cart_items = CartItem.query.filter_by(buyer_id=current_user.id).all()
-    if not cart_items:
-        return jsonify({'success': False, 'error': 'Корзина пуста'}), 400
-    
-    # Группируем товары по продавцам
-    from collections import defaultdict
-    seller_items = defaultdict(list)
-    for item in cart_items:
-        seller_items[item.product.seller_id].append(item)
-
-    minimum_error = minimum_order_error(cart_items)
-    if minimum_error:
-        return jsonify(success=False, error=minimum_error), 400
-
-    # Логика скидок теперь в compute_best_discount_for_item — она сама учитывает
-    # все источники (current_discount, классические discount-акции, second_with_discount)
-    # и применяет правило "max discount, не суммируется" per-item.
-
-    try:
-        # Ищем существующие черновики (pending) для этого покупателя
-        pending_orders = Order.query.filter_by(
-            buyer_id=current_user.id,
-            status='pending'
-        ).all()
-        
-        # Создаём маппинг seller_id -> pending order
-        pending_by_seller = {order.seller_id: order for order in pending_orders}
-        
-        from datetime import datetime
-        
-        for seller_id, items in seller_items.items():
-            seller = items[0].product.seller
-            if not seller:
-                continue
-            
-            # Проверяем есть ли черновик для этого продавца
-            if seller_id in pending_by_seller:
-                # Обновляем существующий черновик
-                order = pending_by_seller[seller_id]
-
-                delivery_price = delivery_info.get(seller_id, 0)
-
-                # Получаем данные о ПВЗ
-                seller_pvz = pvz_info.get(seller_id, {})
-                pvz_code = seller_pvz.get('pvz_code')
-                seller_delivery_id = seller_pvz.get('delivery_id')
-
-                order.pvz_code = pvz_code
-                order.delivery_address = pvz_code if pvz_code else None
-
-                if seller_delivery_id:
-                    seller_delivery = db.session.get(SellerDelivery, seller_delivery_id)
-                    if seller_delivery:
-                        order.delivery_service_id = seller_delivery.delivery_service_id
-
-                # Меняем статус на processing (в обработке)
-                order.status = 'processing'
-
-                # Генерируем правильный номер заказа
-                order_number_prefix = f"M{datetime.now().strftime('%Y%m%d%H%M%S')}"
-                order.order_number = f"{order_number_prefix}{order.id}"
-
-                # Удаляем старые позиции заказа и создаём новые.
-                # total_price пересчитываем после цикла из суммы по позициям,
-                # чтобы избежать рассинхрона из-за округлений.
-                OrderItem.query.filter_by(order_id=order.id).delete()
-
-                from app.utils.helpers import compute_item_discount_breakdown
-                items_subtotal_after_promos = 0.0
-                for item in items:
-                    product = item.product
-                    original_price = round(float(product.price), 2)
-                    breakdown = compute_item_discount_breakdown(item, items)
-                    price_at_order = round(
-                        original_price - breakdown['total_discount'] / max(1, item.quantity), 2
-                    )
-
-                    order_item = OrderItem(
-                        order_id=order.id,
-                        product_id=item.product_id,
-                        quantity=item.quantity,
-                        price_at_order=price_at_order,
-                        original_price=original_price,
-                        promo_discount=breakdown['promo_discount'] or 0,
-                    )
-                    db.session.add(order_item)
-                    items_subtotal_after_promos += price_at_order * item.quantity
-
-                    # Уменьшаем остаток товара
-                    item.product.stock_quantity -= item.quantity
-
-                # total_price = сумма по позициям после промо (без бонусов —
-                # бонусы списываются отдельной строкой).
-                order.total_price = round(items_subtotal_after_promos, 2)
-                from app.utils.review_rewards import apply_order_rewards
-                apply_order_rewards(order)
-                from app.blueprints.privacy import record_order_terms
-                record_order_terms(order)
-                order.delivery_price = delivery_price
-
-                # Удаляем товары из корзины
-                for item in items:
-                    db.session.delete(item)
-
-                logger.info(f"Updated order {order.id} from pending to processing")
-            else:
-                # Черновик не найден - создаём новый заказ напрямую (processing)
-                logger.warning(f"No pending order found for seller {seller_id}, creating new")
-
-                delivery_price = delivery_info.get(seller_id, 0)
-                order_number_prefix = f"M{datetime.now().strftime('%Y%m%d%H%M%S')}"
-
-                seller_pvz = pvz_info.get(seller_id, {})
-                pvz_code = seller_pvz.get('pvz_code')
-                seller_delivery_id = seller_pvz.get('delivery_id')
-
-                delivery_service_id = 1
-                if seller_delivery_id:
-                    seller_delivery = db.session.get(SellerDelivery, seller_delivery_id)
-                    if seller_delivery:
-                        delivery_service_id = seller_delivery.delivery_service_id
-
-                order = Order(
-                    order_number=order_number_prefix,
-                    buyer_id=current_user.id,
-                    seller_id=seller_id,
-                    # total_price пересчитаем ниже из позиций (после промо).
-                    total_price=0.0,
-                    delivery_price=delivery_price,
-                    delivery_service_id=delivery_service_id,
-                    pvz_code=pvz_code,
-                    delivery_address=pvz_code if pvz_code else None,
-                    status='processing'
-                )
-                db.session.add(order)
-                db.session.flush()
-
-                order.order_number = f"{order_number_prefix}{order.id}"
-
-                from app.utils.helpers import compute_item_discount_breakdown
-                items_subtotal_after_promos = 0.0
-                for item in items:
-                    product = item.product
-                    original_price = round(float(product.price), 2)
-                    breakdown = compute_item_discount_breakdown(item, items)
-                    price_at_order = round(
-                        original_price - breakdown['total_discount'] / max(1, item.quantity), 2
-                    )
-
-                    order_item = OrderItem(
-                        order_id=order.id,
-                        product_id=item.product_id,
-                        quantity=item.quantity,
-                        price_at_order=price_at_order,
-                        original_price=original_price,
-                        promo_discount=breakdown['promo_discount'] or 0,
-                    )
-                    db.session.add(order_item)
-                    items_subtotal_after_promos += price_at_order * item.quantity
-
-                    item.product.stock_quantity -= item.quantity
-
-                order.total_price = round(items_subtotal_after_promos, 2)
-                from app.utils.review_rewards import apply_order_rewards
-                apply_order_rewards(order)
-                from app.blueprints.privacy import record_order_terms
-                record_order_terms(order)
-
-                for item in items:
-                    db.session.delete(item)
-        
-        db.session.commit()
-        
-        # Отправляем уведомления продавцам о новых заказах
-        # и создаём диалоги для обсуждения деталей заказов
-        for seller_id, items in seller_items.items():
-            # Находим заказ для этого продавца
-            order = Order.query.filter_by(
-                buyer_id=current_user.id,
-                seller_id=seller_id,
-                status='processing'
-            ).first()
-            if order:
-                send_new_order_notification_to_seller(order.id)
-                # Создаём пустой диалог для заказа между покупателем и продавцом
-                create_order_conversation(order)
-        
-        flash('Заказ успешно оформлен! Перейдите к оплате.', 'success')
-        return jsonify({
-            'success': True,
-            'redirect': url_for('main.payment')
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+    # All checkout entry points must enforce payment before acceptance.
+    return checkout_submit()
 
 
 @bp.route('/payment')
@@ -2716,7 +2271,8 @@ def profile():
         from app.utils.loyalty import is_bonus_spending_enabled, is_promo_enabled
         # Получаем все заказы покупателя без фильтра по статусу
         status = request.args.get('status')
-        query = Order.query.filter_by(buyer_id=current_user.id)
+        query = Order.query.filter_by(buyer_id=current_user.id).filter(
+            Order.status.notin_(('awaiting_payment', 'payment_expired', 'payment_demo')))
         
         if status:
             # Маппинг статусов
@@ -2843,6 +2399,9 @@ def order_detail(order_id):
         flash('Заказ не найден', 'warning')
         return redirect(url_for('main.profile_orders'))
     
+    if order.status in ('awaiting_payment', 'payment_expired', 'payment_demo'):
+        return redirect(url_for('main.order_review'))
+
     # Загружаем items и delivery_service явно
     _ = order.items.all()
     _ = order.delivery_service
@@ -2894,7 +2453,8 @@ def profile_orders():
     
     status = request.args.get('status')
     
-    query = Order.query.filter_by(buyer_id=current_user.id)
+    query = Order.query.filter_by(buyer_id=current_user.id).filter(
+            Order.status.notin_(('awaiting_payment', 'payment_expired', 'payment_demo')))
     
     if status:
         # Маппинг старых статусов на новые для фильтрации
