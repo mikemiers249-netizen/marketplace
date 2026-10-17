@@ -868,7 +868,7 @@ def get_cart_total(buyer_id, use_promotion=True, promotion_id=None):
     if use_promotion:
         from app.utils.review_rewards import cart_discount
         from app.models.orders import CartItem
-        lines = cart_discount(buyer_id, CartItem.query.filter_by(buyer_id=buyer_id).all())
+        lines = cart_discount(buyer_id, [i for i in CartItem.query.filter_by(buyer_id=buyer_id).all() if i.product and (i.product.stock_quantity or 0) > 0])
         reward_discount = round(sum(line['discount'] for line in lines), 2)
         result['total'] = round(max(0, result['total'] - reward_discount), 2)
         result['discount'] = round(result['discount'] + reward_discount, 2)
@@ -916,7 +916,8 @@ def _get_cart_total_before_review_rewards(buyer_id, use_promotion=True, promotio
     from collections import defaultdict
     from datetime import datetime as _dt
 
-    cart_items = CartItem.query.filter_by(buyer_id=buyer_id).all()
+    cart_items = [i for i in CartItem.query.filter_by(buyer_id=buyer_id).all()
+                  if i.product and (i.product.stock_quantity or 0) > 0]
 
     subtotal = sum(round(float(item.product.price), 2) * item.quantity for item in cart_items)
 

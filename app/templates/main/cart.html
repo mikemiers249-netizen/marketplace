@@ -34,6 +34,17 @@
     }
     
     /* Cart Items */
+    .cart-item-unavailable .cart-item-name,
+    .cart-item-unavailable .cart-item-seller,
+    .cart-item-unavailable .cart-item-price,
+    .cart-item-unavailable .cart-item-price .current-price,
+    .cart-item-unavailable .total-price,
+    .cart-item-unavailable .quantity-info { color: #b9bec5; }
+    .cart-item-unavailable .cart-item-image { opacity: .4; }
+    .cart-item-unavailable .cart-item-name { pointer-events: none; }
+    .cart-item-unavailable .quantity-control { opacity: .4; }
+    .cart-item-unavailable .unavailable-message { color: #dc3545; margin-top: 8px; font-weight: 600; }
+    .checkout-btn[aria-disabled="true"] { pointer-events: none; opacity: .45; }
     .cart-items-list {
         display: flex;
         flex-direction: column;
@@ -609,10 +620,13 @@
             {% set total_items = namespace(value=0) %}
             
             {% for item in cart_items %}
+                {% set unavailable = (item.product.stock_quantity or 0) <= 0 %}
+                {% if not unavailable %}
                 {% set total_weight.value = total_weight.value + (item.product.weight or 0) * item.quantity %}
                 {% set total_items.value = total_items.value + item.quantity %}
+                {% endif %}
                 
-                <div class="cart-item-card" data-product-id="{{ item.product_id }}">
+                <div class="cart-item-card{% if unavailable %} cart-item-unavailable{% endif %}" data-product-id="{{ item.product_id }}">
                     <div class="cart-item-image">
                         {% if item.product.main_photo %}
                         <img src="{{ url_for('static', filename='uploads/products/' + item.product.main_photo.path) }}" 
@@ -643,25 +657,25 @@
                             <span class="current-price">{{ item.product.price }} ₽</span>
                             {% endif %}
                         </div>
+                        {% if unavailable %}<div class="unavailable-message">Товар не в наличии</div>{% endif %}
                     </div>
-                    
                     <div class="cart-item-quantity">
                         <div class="quantity-control">
                             <button type="button" class="quantity-btn minus" 
-                                    data-product-id="{{ item.product_id }}">−</button>
+                                    data-product-id="{{ item.product_id }}" {% if unavailable %}disabled{% endif %}>−</button>
                             <input type="number" class="quantity-input" 
-                                   value="{{ item.quantity }}" 
-                                   min="1" 
+                                   value="{{ 0 if unavailable else item.quantity }}" 
+                                   min="{{ 0 if unavailable else 1 }}" 
                                    max="{{ item.product.stock_quantity }}"
-                                   data-product-id="{{ item.product_id }}">
+                                   data-product-id="{{ item.product_id }}" {% if unavailable %}disabled{% endif %}>
                             <button type="button" class="quantity-btn plus" 
-                                    data-product-id="{{ item.product_id }}">+</button>
+                                    data-product-id="{{ item.product_id }}" {% if unavailable %}disabled{% endif %}>+</button>
                         </div>
-                        <div class="quantity-info">В наличии: {{ item.product.stock_quantity }}</div>
+                        <div class="quantity-info">В наличии: {{ [item.product.stock_quantity or 0, 0]|max }}</div>
                     </div>
                     
                     <div class="cart-item-total">
-                        <span class="total-price">{{ item.total_price }} ₽</span>
+                        <span class="total-price">{{ 0 if unavailable else item.total_price }} ₽</span>
                     </div>
                     
                     <button type="button" class="cart-item-remove" 
@@ -841,7 +855,7 @@
                 <span class="value" id="total-with-delivery">{{ cart_total.total if cart_total is mapping else cart_total }} ₽</span>
             </div>
             
-            <a href="{{ url_for('main.order_review') }}" class="btn btn-primary checkout-btn" id="checkout-btn">
+            <a href="{{ url_for('main.order_review') }}" class="btn btn-primary checkout-btn" id="checkout-btn" {% if total_items.value == 0 %}aria-disabled="true" tabindex="-1"{% endif %}>
                 Перейти к оформлению
             </a>
         </div>

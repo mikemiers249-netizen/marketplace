@@ -902,6 +902,8 @@ def cart():
             'info',
         )
 
+    available_items = [i for i in cart_items if i.product and (i.product.stock_quantity or 0) > 0]
+
     # Расчёт суммы
     cart_total = get_cart_total(current_user.id)
 
@@ -915,7 +917,7 @@ def cart():
 
     # Получаем доступные службы доставки продавцов
     seller_deliveries = {}
-    for item in cart_items:
+    for item in available_items:
         seller_id = item.product.seller_id
         if seller_id and seller_id not in seller_deliveries:
             # Получаем активные профили доставки продавца
@@ -935,14 +937,14 @@ def cart():
         parse_promo_per_seller,
     )
     bonus_snapshot = (
-        get_cart_bonus_snapshot(current_user.id, cart_items)
+        get_cart_bonus_snapshot(current_user.id, available_items)
         if is_bonus_spending_enabled() else []
     )
     loyalty_enabled_global = is_bonus_spending_enabled()
 
     # Снимок применимых промокодов (для UI выпадающего списка).
     promo_snapshot = (
-        get_cart_promo_snapshot(current_user.id, cart_items)
+        get_cart_promo_snapshot(current_user.id, available_items)
         if is_promo_enabled() else []
     )
     # Карта {seller_id: [promo,...]} для удобного lookup в шаблоне.
@@ -1252,6 +1254,8 @@ def order_review():
                 db.session.rollback()
             else:
                 cart_items = [ci for ci in cart_items if ci not in removable_or]
+
+    cart_items = [i for i in cart_items if i.product and (i.product.stock_quantity or 0) > 0]
 
     if not cart_items:
         flash('Корзина пуста.', 'info')
@@ -1568,6 +1572,7 @@ def checkout_submit():
     try:
         # Получаем товары из корзины
         cart_items = CartItem.query.filter_by(buyer_id=current_user.id).all()
+        cart_items = [i for i in cart_items if i.product and (i.product.stock_quantity or 0) > 0]
         if not cart_items:
             return jsonify({'success': False, 'error': 'Корзина пуста'}), 400
         

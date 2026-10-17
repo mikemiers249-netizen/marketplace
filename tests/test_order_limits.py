@@ -39,6 +39,27 @@ class OrderLimitsTests(unittest.TestCase):
         db.session.commit()
         self.client = self.app.test_client()
 
+    def test_out_of_stock_cart_line_is_disabled_and_excluded_from_total(self):
+        self.login(self.buyer)
+        self.product.stock_quantity = 0
+        db.session.commit()
+        with patch('app.blueprints.main._visible_seller_ids', return_value={self.seller.id}):
+            response = self.client.get('/cart')
+            review = self.client.get('/order-review')
+            submit = self.client.post('/order-review/submit')
+        html = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('cart-item-card cart-item-unavailable', html)
+        self.assertIn('Товар не в наличии', html)
+        self.assertIn('В наличии: 0', html)
+        self.assertIn('aria-disabled="true"', html)
+        from app.utils.helpers import get_cart_total
+        self.assertEqual(get_cart_total(self.buyer.id)['total'], 0)
+        self.assertEqual(CartItem.query.count(), 1)
+        self.assertTrue(review.location.endswith('/cart'))
+        self.assertEqual(submit.status_code, 400)
+        self.assertEqual(Order.query.count(), 0)
+
     def tearDown(self):
         db.session.remove()
         db.drop_all()
