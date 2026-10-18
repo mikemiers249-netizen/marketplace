@@ -67,6 +67,9 @@
                         </a>
                     </li>
                     <li>
+                        {% if digital_manager() %}
+                        <a href="{{ url_for('digital.manage') }}" class="nav-link"><span>Электронные товары</span></a>
+                        {% endif %}
                         <a href="{{ url_for('seller.products') }}" class="nav-link{% if 'products' in request.endpoint %} active{% endif %}">
                             <span class="nav-icon"><i class="bi bi-box-seam"></i></span>
                             <span>Товары</span>

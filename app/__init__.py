@@ -66,6 +66,8 @@ def create_app(config_class=None):
     
     # Регистрация blueprints
     register_blueprints(app)
+    from app.blueprints.digital import bp as digital_bp
+    app.register_blueprint(digital_bp)
     from app.blueprints.email_account import bp as email_bp
     from app.email_worker import mail_check, mail_deliver
     from app.utils import email_events  # noqa: F401

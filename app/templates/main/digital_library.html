@@ -1,0 +1,11 @@
+{% extends 'main/digital_layout.html' %}
+{% block digital_content %}
+<h1>Моя библиотека</h1><p class="muted">Книги появляются здесь после подтверждения оплаты.</p>
+<div class="book-grid shelf">
+{% for purchase in purchases %}<article class="book-card"><div class="book-cover">{{ purchase.title }}</div>
+<h2>{{ purchase.title }}</h2><p class="muted">{{ purchase.book.author }} · {{ purchase.format|upper }}</p>
+<p class="muted">Заказ {{ purchase.order.order_number }}</p>
+<a class="button" href="{{ url_for('digital.read',purchase_id=purchase.id) }}">{{ 'Продолжить чтение' if purchase.position or purchase.chapter else 'Читать' }}</a>
+</article>{% else %}<div class="empty"><h2>Ваша библиотека пока пуста</h2><p>После покупки книга будет доступна здесь.</p><a class="button" href="{{ url_for('digital.books') }}">Выбрать книгу</a></div>{% endfor %}
+</div>
+{% endblock %}

@@ -361,6 +361,10 @@
             </div>
             
             <nav class="profile-nav">
+                {% if digital_pilot_allowed() %}
+                <a href="{{ url_for('digital.library') }}" class="profile-nav-link">Моя библиотека</a>
+                <a href="{{ url_for('digital.books') }}" class="profile-nav-link">Электронные книги</a>
+                {% endif %}
                 <a href="{{ url_for('main.profile', section='orders') }}"
                    class="profile-nav-link {% if section == 'orders' %}active{% endif %}">
                     <i class="bi bi-box-seam"></i>

@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }} — Wimli{% endblock %}
+{% block extra_css %}
+<style>
+.digital{max-width:1120px;margin:24px auto 64px;padding:0 22px;color:#26354b}.digital nav{display:flex;gap:20px;flex-wrap:wrap;margin:20px 0 32px}.digital a{color:#365eb5}.digital h1{font-size:32px;letter-spacing:-.7px}.digital .muted{color:#738094}.book-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:24px}.book-card,.book-panel{padding:24px;border:1px solid #e3e8ef;border-radius:18px;background:#fff}.book-cover{height:180px;border-radius:12px;background:linear-gradient(135deg,#223751,#607a99);color:#fff;padding:24px;display:flex;align-items:flex-end;font-size:23px;font-family:Georgia,serif;overflow:hidden;margin-bottom:20px}.digital .button{display:inline-block;border:0;border-radius:9px;padding:11px 18px;background:#365eb5;color:#fff;text-decoration:none;cursor:pointer}.digital .secondary{background:#edf1f7;color:#365074}.digital label{display:block;margin:16px 0 6px}.digital input,.digital textarea,.digital select{max-width:100%;padding:10px;border:1px solid #cfd8e5;border-radius:7px}.digital textarea{width:100%}.digital .actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:20px}.digital .empty{padding:60px 24px;text-align:center;background:#f4f7fb;border-radius:18px}.digital form{margin:0}.digital .price{font-size:22px;font-weight:600;margin:16px 0}.digital .description{white-space:pre-line}.digital .badge{color:#687a94;font-size:13px}.digital .upload{max-width:660px;margin:36px 0}.digital .shelf{margin-top:36px}
+</style>
+{% block digital_css %}{% endblock %}
+{% endblock %}
+{% block content %}
+<section class="digital">
+<nav aria-label="Электронные книги">
+<a href="{{ url_for('digital.books') }}">Электронные книги</a>
+{% if digital_buyer() %}<a href="{{ url_for('digital.library') }}">Моя библиотека</a><a href="{{ url_for('main.profile') }}">Личный кабинет</a>{% endif %}
+{% if digital_manager() %}<a href="{{ url_for('digital.manage') }}">Управление книгами</a>{% endif %}
+</nav>
+{% block digital_content %}{% endblock %}
+</section>
+{% endblock %}

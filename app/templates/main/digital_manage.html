@@ -1,0 +1,25 @@
+{% extends 'main/digital_layout.html' %}
+{% block digital_content %}
+<h1>Электронные товары</h1><p class="muted">Загрузите книгу, проверьте предпросмотр и опубликуйте её.</p>
+<form class="book-panel upload" method="post" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<h2>Добавить книгу</h2>
+<label for="book-title">Название</label><input id="book-title" name="title" maxlength="200" required>
+<label for="book-author">Автор</label><input id="book-author" name="author" maxlength="200">
+<label for="book-description">Описание</label><textarea id="book-description" name="description" maxlength="10000" rows="4"></textarea>
+<label for="book-price">Цена, ₽</label><input id="book-price" name="price" type="number" min="0.01" max="1000000" step="0.01" required>
+<label for="book-file">Файл EPUB или PDF, до 15 МБ</label><input id="book-file" name="book" type="file" accept=".epub,.pdf" required>
+<p class="muted">Загружайте только книги, на продажу которых у вас есть права.</p>
+<button class="button" type="submit">Сохранить черновик</button>
+</form>
+<h2>Мои книги</h2><div class="book-grid">
+{% for book in books %}<article class="book-card"><div class="book-cover">{{ book.title }}</div>
+<h3>{{ book.title }}</h3><p class="muted">{{ book.author }} · {{ book.format|upper }}</p>
+<p>{{ '%.2f'|format(book.price) }} ₽ · {{ 'Опубликована' if book.published else 'Черновик' }}</p>
+<div class="actions"><a href="{{ url_for('digital.preview', book_id=book.id) }}">Предпросмотр</a>
+<form action="{{ url_for('digital.publish', book_id=book.id) }}" method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<button type="submit" class="button secondary">{{ 'Снять с продажи' if book.published else 'Опубликовать' }}</button>
+</form></div></article>
+{% else %}<p class="muted">Загруженных книг пока нет.</p>{% endfor %}</div>
+{% endblock %}

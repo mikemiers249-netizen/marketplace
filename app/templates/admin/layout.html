@@ -42,6 +42,7 @@
             </div>
             
             <nav class="sidebar-nav">
+                {% if digital_manager() %}<a href="{{ url_for('digital.manage') }}" class="nav-link">Электронные товары</a>{% endif %}
                 <ul>
                     <li>
                         <a href="{{ url_for('admin.dashboard') }}" class="nav-link{% if request.endpoint == 'admin.dashboard' %} active{% endif %}">

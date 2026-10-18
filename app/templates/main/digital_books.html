@@ -1,0 +1,22 @@
+{% extends 'main/digital_layout.html' %}
+{% block digital_content %}
+<h1>Электронные книги</h1>
+<p class="muted">Читайте покупки в своей библиотеке. Доставка не требуется.</p>
+<div class="book-grid shelf">
+{% for book in books %}
+<article class="book-card">
+<div class="book-cover">{{ book.title }}</div>
+<span class="badge">{{ book.format|upper }}</span>
+<h2>{{ book.title }}</h2><p class="muted">{{ book.author }}</p>
+<p class="description">{{ book.description }}</p>
+<p class="price">{{ '%.2f'|format(book.price) }} ₽</p>
+{% if digital_buyer() %}
+<form method="post" action="{{ url_for('digital.buy', book_id=book.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<button class="button" type="submit">Купить и читать</button>
+</form>
+{% else %}<a href="{{ url_for('digital.preview',book_id=book.id) }}">Предпросмотр</a>{% endif %}
+</article>
+{% else %}<div class="empty"><h2>Книги скоро появятся</h2><p class="muted">Здесь будут опубликованные электронные книги.</p></div>{% endfor %}
+</div>
+{% endblock %}

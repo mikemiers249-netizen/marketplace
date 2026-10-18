@@ -343,6 +343,13 @@
 {% endblock %}
 
 {% block content %}
+{% if digital_pilot_allowed() and order.digital_purchase %}
+<div style="max-width:1000px;margin:20px auto;padding:20px;background:#f0f4ff;border-radius:12px">
+    <strong>{{ order.digital_purchase.title }}</strong> · Электронная книга
+    {% if order.payment_confirmed %}<a href="{{ url_for('digital.library') }}">Открыть мою библиотеку</a>{% endif %}
+</div>
+{% endif %}
+
 <div class="order-detail-page">
     <div class="page-header">
         <a href="{{ url_for('main.profile_orders') }}" class="back-link">

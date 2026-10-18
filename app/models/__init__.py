@@ -68,3 +68,5 @@ __all__ = [
     # Подвал
     'FooterLink',
 ]
+
+from app.models.digital import DigitalBook, DigitalPurchase
