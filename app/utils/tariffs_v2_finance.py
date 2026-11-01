@@ -13,6 +13,7 @@ from app.models.users import Seller
 from app.models.tariffs_v2 import TariffV2Audit, TariffV2Invoice
 from app.models.tariffs_v2_commerce import TariffV2CheckoutLine, TariffV2SandboxOrder, TariffV2Reservation
 from app.models.tariffs_v2_finance import TariffV2Cancellation, TariffV2CheckoutRefund, TariffV2Claim
+from app.models.tariffs_v2_lifecycle import TariffV2OrderCompletion
 from app.utils.tariffs_v2 import TariffError, ZERO, money, integer, utc, stored_utc
 
 
@@ -71,6 +72,8 @@ def cancel_line(line_id, seller_id, cumulative_quantity, at=None):
     if not line or line.order.seller_id != seller_id:
         raise TariffError('Позиция недоступна продавцу.')
     order = lock_order(line.order_id)
+    if db.session.get(TariffV2OrderCompletion, order.id):
+        raise TariffError('Заказ уже завершен покупателем.')
     if order.status not in ('ready', 'cancelled'):
         raise TariffError('Отменить позицию можно до отправки.')
     db.session.refresh(line, with_for_update=True)
@@ -102,6 +105,72 @@ def cancel_line(line_id, seller_id, cumulative_quantity, at=None):
         order.status = 'cancelled'
     audit('seller_line_cancelled', line.id, {'quantity': quantity}, f'seller:{seller_id}')
     return result
+
+
+def buyer_cancel_order(order_id, buyer_id, at=None):
+    order = lock_order(order_id)
+    if order.checkout.buyer_id != buyer_id:
+        raise TariffError('Заказ недоступен покупателю.')
+    completion = db.session.get(TariffV2OrderCompletion, order.id)
+    if completion:
+        if completion.kind == 'buyer_cancelled':
+            return order
+        raise TariffError('Полученный заказ нельзя отменить до отправки.')
+    if order.status != 'ready' or not order.has_physical:
+        raise TariffError('Покупатель может отменить физический заказ до отправки.')
+    if TariffV2Claim.query.filter_by(active_order_id=order.id).first():
+        raise TariffError('Сначала необходимо завершить открытую претензию.')
+    if order.shipping_deadline and utc(at) >= utc(order.shipping_deadline):
+        raise TariffError('Срок отгрузки истек; отмена не должна заменять возврат по просрочке.')
+    # Seller cancellation refunds/debts already requested remain intact. Buyer
+    # cancellation refunds only the still-unrefunded goods principal paid online.
+    for line in order.lines:
+        online = Decimal(line.snapshot['online_amount'])
+        principal = online - line.fee
+        reserved = TariffV2CheckoutRefund.query.filter_by(line_id=line.id).filter(
+            TariffV2CheckoutRefund.status.in_(('pending', 'succeeded'))).all()
+        refunded_principal = sum((row.amount - row.seller_charge for row in reserved), ZERO)
+        cancelled = db.session.get(TariffV2Cancellation, line.id)
+        seller_cancelled = cancelled.quantity if cancelled else 0
+        principal_target = money(principal * (line.quantity - seller_cancelled) / line.quantity)
+        # Account separately for a seller-cancelled portion, including a failed
+        # refund which must be retried using the original seller reason.
+        seller_principal = money(principal * seller_cancelled / line.quantity)
+        amount = max(ZERO, principal_target - max(ZERO, refunded_principal - seller_principal))
+        if amount > ZERO:
+            db.session.add(TariffV2CheckoutRefund(line_id=line.id, request_key=f'buyer-cancel:{line.id}',
+                amount=amount, seller_charge=ZERO, reason='buyer_cancelled', status='pending',
+                created_at=stored_utc(at), is_test=True))
+        reservation = TariffV2Reservation.query.filter_by(line_id=line.id).first()
+        if reservation:
+            reservation.status = 'released'
+    order.status = 'cancelled'
+    order.cod_amount = ZERO
+    order.checkout.cod_amount = sum((item.cod_amount for item in order.checkout.orders), ZERO)
+    db.session.add(TariffV2OrderCompletion(order_id=order.id, kind='buyer_cancelled',
+        buyer_id=buyer_id, created_at=stored_utc(at)))
+    audit('buyer_order_cancelled', order.id, {'fee_retained': True}, f'buyer:{buyer_id}')
+    return order
+
+
+def receive_order(order_id, buyer_id, at=None):
+    order = lock_order(order_id)
+    if order.checkout.buyer_id != buyer_id:
+        raise TariffError('Заказ недоступен покупателю.')
+    completion = db.session.get(TariffV2OrderCompletion, order.id)
+    if completion:
+        if completion.kind == 'received':
+            return order
+        raise TariffError('Отмененный заказ нельзя подтвердить как полученный.')
+    if order.status != 'shipped' or not order.has_physical:
+        raise TariffError('Подтвердить получение можно после отправки физического заказа.')
+    if TariffV2Claim.query.filter_by(active_order_id=order.id).first():
+        raise TariffError('Сначала необходимо завершить открытую претензию.')
+    order.status = 'received'
+    db.session.add(TariffV2OrderCompletion(order_id=order.id, kind='received',
+        buyer_id=buyer_id, created_at=stored_utc(at)))
+    audit('buyer_order_received', order.id, {}, f'buyer:{buyer_id}')
+    return order
 
 
 def refund_order(order, reason, prefix, at=None):

@@ -18,6 +18,7 @@ def install(app):
     from app.blueprints.tariffs_v2 import bp
     from app.models import tariffs_v2_commerce  # noqa: F401
     from app.models import tariffs_v2_finance  # noqa: F401
+    from app.models import tariffs_v2_lifecycle  # noqa: F401
     from app.blueprints.tariffs_v2_payments import bp as payments_bp
     from app.blueprints.tariffs_v2_commerce import bp as commerce_bp
     from app.blueprints.tariffs_v2_finance import bp as finance_bp
@@ -32,8 +33,13 @@ def install(app):
     def last_benefit_day(value):
         return (utc(value).astimezone(MSK).date() - timedelta(days=1)).isoformat()
 
+    @app.template_filter('v2_moscow_time')
+    def moscow_time(value):
+        return utc(value).astimezone(MSK).strftime('%d.%m.%Y %H:%M') if value else ''
+
     app.cli.add_command(initialize)
     app.cli.add_command(finance_tick)
+    app.cli.add_command(storage_tick)
 
 
 @click.command('tariffs-v2-init-sandbox')
@@ -46,6 +52,7 @@ def initialize():
     from app.models import tariffs_v2  # noqa: F401
     from app.models import tariffs_v2_commerce  # noqa: F401
     from app.models import tariffs_v2_finance  # noqa: F401
+    from app.models import tariffs_v2_lifecycle  # noqa: F401
     tables = [table for table in db.metadata.sorted_tables if table.name.startswith('tariff_v2_')]
     db.metadata.create_all(bind=db.engine, tables=tables)
     # Additive upgrade for a local sandbox created during phase one.
@@ -83,3 +90,18 @@ def finance_tick():
         db.session.rollback()
         raise click.ClickException(str(error)) from error
     click.echo(f'Sandbox finance checked: {counts}. No external payments or refunds executed.')
+
+
+@click.command('tariffs-v2-storage-check')
+@with_appcontext
+def storage_tick():
+    """Record expiry plans; NEVER delete cards or files."""
+    from app.utils.tariffs_v2_storage_lifecycle import check_storage_expiry
+    from app.utils.tariffs_v2 import TariffError
+    try:
+        counts = check_storage_expiry()
+        db.session.commit()
+    except TariffError as error:
+        db.session.rollback()
+        raise click.ClickException(str(error)) from error
+    click.echo(f'Sandbox storage dry run: {counts}. No cards or files deleted.')

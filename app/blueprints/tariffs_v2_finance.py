@@ -8,9 +8,10 @@ from app.models.users import Buyer, Seller
 from app.models.tariffs_v2 import TariffV2Invoice
 from app.models.tariffs_v2_commerce import TariffV2SandboxOrder, TariffV2Checkout
 from app.models.tariffs_v2_finance import TariffV2Claim, TariffV2CheckoutRefund
+from app.models.tariffs_v2_lifecycle import TariffV2StorageExpiry
 from app.utils.tariffs_v2 import TariffError, utc
 from app.utils.tariffs_v2_finance import (
-    cancel_line, open_claim, respond_claim, decide_claim,
+    buyer_cancel_order, receive_order, cancel_line, open_claim, respond_claim, decide_claim,
     retry_refund, run_finance_tick, simulate_refund, simulate_invoice_payment,
 )
 
@@ -99,6 +100,26 @@ def cancel(order_id, line_id):
     return redirect(url_for('tariffs_v2_commerce.seller_orders'))
 
 
+@bp.post('/tariffs-v2/orders/<int:order_id>/buyer-cancel')
+def buyer_cancel(order_id):
+    if not isinstance(current_user, Buyer):
+        abort(403)
+    order = owned_order(order_id)
+    buyer_cancel_order(order.id, current_user.id)
+    db.session.commit()
+    return redirect(url_for('tariffs_v2_commerce.checkout_view', checkout_id=order.checkout_id))
+
+
+@bp.post('/tariffs-v2/orders/<int:order_id>/received')
+def received(order_id):
+    if not isinstance(current_user, Buyer):
+        abort(403)
+    order = owned_order(order_id)
+    receive_order(order.id, current_user.id)
+    db.session.commit()
+    return redirect(url_for('tariffs_v2_commerce.checkout_view', checkout_id=order.checkout_id))
+
+
 @bp.get('/tariffs-v2/seller/bills')
 def bills():
     if not isinstance(current_user, Seller):
@@ -162,3 +183,18 @@ def retry(refund_id):
     retry_refund(refund_id, admin_actor())
     db.session.commit()
     return redirect(url_for('tariffs_v2_finance.admin_finance'))
+
+
+@bp.get('/main_admin/tariffs-v2/storage-expiry')
+def storage_expiry():
+    rows = TariffV2StorageExpiry.query.order_by(TariffV2StorageExpiry.expires_at, TariffV2StorageExpiry.product_id).limit(200).all()
+    return render_template('admin/tariffs_v2_storage_expiry.html', rows=rows)
+
+
+@bp.post('/main_admin/tariffs-v2/storage-expiry/check')
+def check_storage():
+    from app.utils.tariffs_v2_storage_lifecycle import check_storage_expiry
+    result = check_storage_expiry()
+    db.session.commit()
+    flash(f'Проверены сроки хранения: {result}. Карточки и файлы не удалялись.', 'info')
+    return redirect(url_for('tariffs_v2_finance.storage_expiry'))

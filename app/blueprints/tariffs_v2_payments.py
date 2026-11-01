@@ -11,6 +11,7 @@ from app.models.tariffs_v2_commerce import TariffV2Listing
 from app.utils.tariffs_v2 import TariffError, integer, storage_quote, utc
 from app.utils.tariffs_v2_payments import accept_storage_result, configured, gateway_params, issue_storage_invoice
 from app.utils.tariffs_v2_commerce import is_visible, publication_error, set_publication
+from app.utils.tariffs_v2_storage_lifecycle import storage_expiry_plan
 
 bp = Blueprint('tariffs_v2_payments', __name__, url_prefix='/tariffs-v2')
 
@@ -42,6 +43,7 @@ def storage():
                    published=bool(listing and listing.published), reason=publication_error(product))
         try:
             row['quote'] = storage_quote(product)
+            row['expiry'] = storage_expiry_plan(product)
         except TariffError as error:
             row['error'] = str(error)
         rows.append(row)

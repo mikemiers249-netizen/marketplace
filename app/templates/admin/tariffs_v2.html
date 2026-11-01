@@ -99,6 +99,7 @@
     </tr>{% else %}<tr><td colspan="4">Нет платежей, требующих проверки.</td></tr>{% endfor %}</tbody>
   </table></div>
   <p><a href="{{ url_for('tariffs_v2_finance.admin_finance') }}">Возвраты, споры и месячные счета в песочнице</a></p>
+  <p><a href="{{ url_for('tariffs_v2_finance.storage_expiry') }}">Сроки хранения неоплаченных карточек</a></p>
   <h2>История настроек</h2>
   <ul>{% for item in history %}<li>{{ item.created_at }} — {{ item.actor }} — {{ item.action }}: {{ item.subject }}</li>{% endfor %}</ul>
 </div>

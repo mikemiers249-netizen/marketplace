@@ -22,6 +22,11 @@
     {% if row.error %}<p>{{ row.error }}</p>{% else %}
     <p>За полный месяц: {{ row.quote.monthly_rate }} ₽. Остаток предоплаты: {{ row.quote.credit }} ₽.</p>
     <p>К предоплате до конца месяца: <strong>{{ row.quote.due }} ₽</strong>.</p>
+    {% if row.expiry and row.expiry.status in ('grace', 'expired') %}
+    <p>Срок хранения без оплаты: до {{ row.expiry.expires_at|v2_moscow_time }} (Москва).
+      {% if row.expiry.status == 'expired' %}Срок истек.{% endif %}
+      В песочнице удаление карточек и файлов отключено.</p>
+    {% endif %}
     {% if row.quote.due > 0 and payment_ready %}
     <form method="post" action="{{ url_for('tariffs_v2_payments.invoice', product_id=row.product.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

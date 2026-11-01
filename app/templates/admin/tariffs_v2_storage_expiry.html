@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Сроки хранения — песочница{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Сроки хранения неоплаченных карточек</h1>
+  <p>Три календарных дня по Москве. Это очередь проверки: карточки, фотографии и файлы не удаляются. Скрытые карточки тоже учитываются.</p>
+  <form method="post" action="{{ url_for('tariffs_v2_finance.check_storage') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button>Проверить сроки без удаления</button>
+  </form>
+  <div class="table-responsive"><table class="table">
+    <thead><tr><th>Карточка, ID</th><th>Магазин, ID</th><th>Не оплачено с</th><th>Граница хранения (Москва)</th><th>Состояние</th></tr></thead>
+    <tbody>{% for row in rows %}<tr>
+      <td>{{ row.product_id }}</td><td>{{ row.seller_id }}</td><td>{{ row.unpaid_since }}</td>
+      <td>{{ row.expires_at|v2_moscow_time }}</td>
+      <td>{{ {'grace':'Льготное хранение', 'expired':'Срок истек — удаление отключено', 'resolved':'Оплата или бесплатное хранение'}.get(row.status, row.status) }}</td>
+    </tr>{% else %}<tr><td colspan="5">Очередь пуста. Запустите проверку сроков.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}
