@@ -81,6 +81,10 @@ def create_app(config_class=None):
     
     # Настройка логирования
     setup_logging(app)
+
+    # Opt-in isolated tariff preview; disabled path registers no v2 routes/jobs.
+    from app.tariffs_v2_setup import install as install_tariffs_v2
+    install_tariffs_v2(app)
     
     # Создание директорий для загрузок
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)

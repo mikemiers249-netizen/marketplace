@@ -208,7 +208,7 @@ class RobokassaTests(unittest.TestCase):
     def cart_product(self, other_seller=False):
         from app.models.products import Category, Product
         from app.models.orders import CartItem
-        from app.models.users import DeliveryService
+        from app.models.users import BuyerDelivery, DeliveryService, SellerDelivery
         category = Category(name='Goods', slug='goods')
         product = Product(name='Goods', slug='goods', article='goods',
                           seller=self.other_seller if other_seller else self.seller,
@@ -216,12 +216,16 @@ class RobokassaTests(unittest.TestCase):
                           status='approved', current_discount=0)
         db.session.add_all([category, product, DeliveryService(id=1, name='Delivery', code='test')])
         db.session.add(CartItem(buyer=self.buyer, product=product, quantity=1))
+        db.session.add(BuyerDelivery(buyer=self.buyer, delivery_service_id=1, pvz_address='Test pickup point'))
+        db.session.add(SellerDelivery(seller=product.seller, delivery_service_id=1, is_active=True))
         db.session.commit()
         return product
 
     def pay_from_review(self, product, route='/order-review/submit'):
+        from app.models.users import BuyerDelivery
+        delivery = BuyerDelivery.query.filter_by(buyer_id=self.buyer.id, delivery_service_id=1).one()
         with patch('app.blueprints.main._visible_seller_ids', return_value={product.seller_id}):
-            response = self.client.post(route)
+            response = self.client.post(route, data={f'delivery[{product.seller_id}]': delivery.id})
         self.assertEqual(response.status_code, 200, response.data)
         self.assertTrue(response.json['redirect'].startswith('https://auth.robokassa.ru/Merchant/Index.aspx?'))
         return response
@@ -311,9 +315,11 @@ class RobokassaTests(unittest.TestCase):
         self.assertEqual(product.stock_quantity, 19)
 
     def test_checkout_blocks_unconfigured_sellers_without_an_order(self):
+        from app.models.users import BuyerDelivery
         product = self.cart_product(other_seller=True)
+        delivery = BuyerDelivery.query.filter_by(buyer_id=self.buyer.id, delivery_service_id=1).one()
         with patch('app.blueprints.main._visible_seller_ids', return_value={product.seller_id}):
-            response = self.client.post('/order-review/submit')
+            response = self.client.post('/order-review/submit', data={f'delivery[{product.seller_id}]': delivery.id})
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Order.query.count(), 1)
         self.assertEqual(RobokassaPayment.query.count(), 0)

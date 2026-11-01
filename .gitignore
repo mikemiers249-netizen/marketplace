@@ -109,3 +109,6 @@ ozon_parser/
 
 # ===== Миграции: alembic-кеш и пр. =====
 migrations/__pycache__/
+
+# Isolated tariffs v2 local files; never publish sandbox uploads.
+.sandbox/

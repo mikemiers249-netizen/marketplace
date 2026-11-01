@@ -1,0 +1,113 @@
+{% extends 'admin/layout.html' %}
+{% block title %}Новые тарифы — тестовый режим{% endblock %}
+{% block extra_css %}
+<style>
+  .tariffs-v2-create { display:grid; grid-template-columns:1fr 1.6fr 1fr auto; gap:12px; align-items:end; }
+  .tariffs-v2-create label { min-width:0; }
+  .tariffs-v2-create select { width:100%; }
+  @media(max-width:1000px) { .tariffs-v2-create { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+  <h1>Новые тарифы — тестовый режим</h1>
+  <p class="alert alert-info">Настройки действуют только в предварительном расчёте.
+    Оплата заказов, списания, возвраты, блокировки и удаление карточек не включены.</p>
+
+  <h2>Создать тариф</h2>
+  <form method="post" action="{{ url_for('tariffs_v2.create_rule') }}" class="mb-4 tariffs-v2-create">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Название <input class="form-control" name="name" maxlength="200" required></label>
+    <label>Расчёт <select class="form-control" name="kind" required>
+      <option value="fixed">Рублей за карточку в календарный месяц</option>
+      <option value="percent">Процент от цены продавца</option>
+    </select></label>
+    <label>Сумма или процент <input class="form-control" name="amount" type="number" min="0" step="0.01" required></label>
+    <button class="btn btn-primary" type="submit">Создать</button>
+  </form>
+
+  <h2>Категории</h2>
+  <p>Тариф родительской категории не наследуется. Новое назначение заменяет предыдущее.</p>
+  {% for category in categories %}
+  <form method="post" action="{{ url_for('tariffs_v2.assign_category', category_id=category.id) }}" class="mb-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>{{ category.name }}
+      <select name="rule_id" class="form-control" required>
+        <option value="">Тариф не назначен</option>
+        {% for rule in rules if rule.active %}
+        <option value="{{ rule.id }}" {% if assignments.get(category.id) == rule.id %}selected{% endif %}>{{ rule.name }} — {{ rule.amount }} {{ '₽/мес.' if rule.kind == 'fixed' else '%' }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="btn btn-secondary" type="submit">Назначить</button>
+  </form>
+  {% endfor %}
+
+  <h2>Индивидуальные условия продавцов</h2>
+  {% for seller in sellers %}
+  {% set policy = policies.get(seller.id) %}
+  {% set is_owner = seller.email|trim|lower == owner_email %}
+  <form method="post" action="{{ url_for('tariffs_v2.seller_policy', seller_id=seller.id) }}" class="card p-3 mb-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h3>{{ seller.store_name }}</h3>
+    {% if is_owner %}
+    <p>Собственный магазин: бесплатное размещение, без сбора с покупателя. Стоимость товаров оплачивается полностью онлайн.</p>
+    <input type="hidden" name="free_storage" value="on">
+    <input type="hidden" name="free_buyer_fee" value="on">
+    {% endif %}
+    <label>Индивидуальный тариф
+      <select name="override_rule_id" class="form-control">
+        <option value="">По категории карточки</option>
+        {% for rule in rules if rule.active %}
+        <option value="{{ rule.id }}" {% if policy and policy.override_rule_id == rule.id %}selected{% endif %}>{{ rule.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><input name="free_storage" type="checkbox" {% if is_owner or (policy and policy.free_storage) %}checked{% endif %} {% if is_owner %}disabled{% endif %}> Бесплатное хранение и размещение карточек</label>
+    <label><input name="free_buyer_fee" type="checkbox" {% if is_owner or (policy and policy.free_buyer_fee) %}checked{% endif %} {% if is_owner %}disabled{% endif %}> Без сбора с покупателей</label>
+    <label>Последний день льгот по Москве, включительно (пусто — бессрочно)
+      <input class="form-control" type="date" name="benefits_last_day" value="{{ policy.benefits_until|v2_last_benefit_day if policy and policy.benefits_until else '' }}" {% if is_owner %}disabled{% endif %}>
+    </label>
+    <label>Срок отгрузки, календарных дней
+      <input class="form-control" type="number" min="1" max="5" name="shipping_days" value="{{ policy.shipping_days if policy else 5 }}" required>
+    </label>
+    <button class="btn btn-primary" type="submit">Сохранить условия</button>
+  </form>
+  {% endfor %}
+
+  <h2>Предварительный расчёт карточки</h2>
+  <form id="quote-form" class="mb-3">
+    <label>ID карточки <input class="form-control" id="quote-product-id" type="number" min="1" required></label>
+    <label>Количество <input class="form-control" id="quote-quantity" type="number" min="1" value="1" required></label>
+    <button type="submit" class="btn btn-secondary">Рассчитать</button>
+  </form>
+  <div id="quote-result" aria-live="polite" style="white-space:pre-line"></div>
+  <h2>История настроек</h2>
+  <ul>{% for item in history %}<li>{{ item.created_at }} — {{ item.actor }} — {{ item.action }}: {{ item.subject }}</li>{% endfor %}</ul>
+</div>
+<script>
+document.getElementById('quote-form').addEventListener('submit', async function(event) {
+  event.preventDefault();
+  const result = document.getElementById('quote-result');
+  result.textContent = 'Расчёт…';
+  try {
+    const base = {{ url_for('tariffs_v2.index')|tojson }};
+    const response = await fetch(base + 'preview/' + encodeURIComponent(document.getElementById('quote-product-id').value) +
+      '?quantity=' + encodeURIComponent(document.getElementById('quote-quantity').value));
+    const data = await response.json();
+    if (data.error) { result.textContent = data.error; return; }
+    const rubles = value => Number(value).toLocaleString('ru-RU', {style:'currency', currency:'RUB'});
+    result.textContent = [
+      'Стоимость товаров: ' + rubles(data.order.goods_amount),
+      'Сбор площадки: ' + rubles(data.order.fee),
+      'Оплатить онлайн: ' + rubles(data.order.online_amount),
+      'Оплатить при получении: ' + rubles(data.order.cod_amount),
+      'Хранение карточки за полный месяц: ' + rubles(data.storage.monthly_rate),
+      'Остаток предоплаты: ' + rubles(data.storage.credit),
+      'Доплата за хранение до конца месяца: ' + rubles(data.storage.due),
+      'Предоплата позволяет публикацию: ' + (data.storage.may_publish ? 'да' : 'нет')
+    ].join('\n');
+  } catch (error) { result.textContent = 'Не удалось выполнить предварительный расчёт.'; }
+});
+</script>
+{% endblock %}

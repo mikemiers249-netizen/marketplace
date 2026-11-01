@@ -33,6 +33,11 @@ def _env_int(key: str, default: int) -> int:
 class Config:
     """Базовый класс конфигурации."""
 
+    # First-phase preview only; legacy checkout remains the active implementation.
+    TARIFFS_V2_ENABLED = _env_bool("TARIFFS_V2_ENABLED", False)
+    TARIFFS_V2_SANDBOX = _env_bool("TARIFFS_V2_SANDBOX", False)
+    TARIFFS_V2_OWNER_EMAIL = "ronnie83@mail.ru"
+
     SECRET_KEY = _env("SECRET_KEY") or "dev-secret-key-change-in-prod"
 
     # ===== База данных =====
