@@ -112,6 +112,10 @@ def ensure_system_sku_command():
     """
     from sqlalchemy import text
     click.echo("Ensuring products.system_sku column...")
+    for column, size in [('recipient_name', 100), ('recipient_phone', 30)]:
+        db.session.execute(text(
+            f"ALTER TABLE buyer_deliveries ADD COLUMN IF NOT EXISTS {column} VARCHAR({size})"
+        ))
     db.session.execute(text(
         "ALTER TABLE sellers ADD COLUMN IF NOT EXISTS minimum_order_amount NUMERIC(12, 2)"
     ))

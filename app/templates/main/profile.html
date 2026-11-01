@@ -504,8 +504,24 @@
                             <div class="service-info">
                                 <div class="service-name">{{ service.name }}</div>
                                 <input type="hidden" name="service_id" value="{{ service.id }}">
+                                {% set saved_delivery = delivery_by_service.get(service.code) %}
+                                {% if service.code|lower in ['cdek', 'ozon'] %}
+                                <label for="delivery-city-{{ service.id }}">Город <span aria-hidden="true">*</span></label>
+                                <input type="text" id="delivery-city-{{ service.id }}" name="city_{{ service.id }}" class="form-control" maxlength="100" required
+                                       value="{{ saved_delivery.pvz_city or '' if saved_delivery else '' }}">
+                                {% endif %}
+                                {% if service.code|lower == 'cdek' %}
+                                {% set profile_name = user.name or [user.last_name or '', user.first_name or '', user.middle_name or '']|join(' ')|trim %}
+                                <label for="recipient-name-{{ service.id }}">ФИО получателя <span aria-hidden="true">*</span></label>
+                                <input type="text" id="recipient-name-{{ service.id }}" name="recipient_name_{{ service.id }}" class="form-control" maxlength="100" autocomplete="name" required
+                                       value="{{ saved_delivery.recipient_name if saved_delivery and saved_delivery.recipient_name is not none else profile_name }}">
+                                <label for="recipient-phone-{{ service.id }}">Телефон получателя <span aria-hidden="true">*</span></label>
+                                <input type="tel" id="recipient-phone-{{ service.id }}" name="recipient_phone_{{ service.id }}" class="form-control" maxlength="30" autocomplete="tel" required
+                                       value="{{ saved_delivery.recipient_phone if saved_delivery and saved_delivery.recipient_phone is not none else user.phone or '' }}">
+                                {% endif %}
+                                <label for="delivery-address-{{ service.id }}">Адрес пункта выдачи{% if service.code|lower in ['cdek', 'ozon'] %} <span aria-hidden="true">*</span>{% endif %}</label>
                                 <input type="text" 
-                                       name="address_{{ service.id }}" 
+                                       id="delivery-address-{{ service.id }}" name="address_{{ service.id }}" {% if service.code|lower in ['cdek', 'ozon'] %}required{% endif %}
                                        class="form-control pvz-input" 
                                        placeholder="Укажите адрес удобного для вас пункта выдачи"
                                        value="{% if delivery_by_service.get(service.code) %}{{ delivery_by_service.get(service.code).pvz_address or '' }}{% endif %}">
@@ -521,4 +537,20 @@
         </main>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.delivery-service-card').forEach(function(card) {
+    const fields = card.querySelectorAll('input[required]');
+    const address = card.querySelector('input[name^="address_"]');
+    const city = card.querySelector('input[name^="city_"]');
+    function updateRequired() {
+        const used = Boolean((address && address.value.trim()) || (city && city.value.trim()));
+        fields.forEach(function(field) { field.required = used; });
+    }
+    card.addEventListener('input', updateRequired);
+    updateRequired();
+});
+</script>
 {% endblock %}

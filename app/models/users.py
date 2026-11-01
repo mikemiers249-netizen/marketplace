@@ -305,6 +305,8 @@ class BuyerDelivery(db.Model):
     pvz_address = db.Column(db.String(255), nullable=True)
     pvz_city = db.Column(db.String(100), nullable=True)  # Город ПВЗ
     pvz_city_code = db.Column(db.Integer, nullable=True)  # Код города для расчёта доставки
+    recipient_name = db.Column(db.String(100), nullable=True)
+    recipient_phone = db.Column(db.String(30), nullable=True)
     is_default = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -312,6 +314,23 @@ class BuyerDelivery(db.Model):
     buyer = db.relationship('Buyer', back_populates='delivery_profiles')
     delivery_service = db.relationship('DeliveryService', back_populates='buyer_deliveries')
     
+    @property
+    def missing_required_fields(self):
+        missing = []
+        code = (self.delivery_service.code or '').lower() if self.delivery_service else ''
+        if code not in ('cdek', 'ozon'):
+            return missing
+        if not (self.pvz_address or self.address or '').strip():
+            missing.append('Адрес пункта выдачи')
+        if not (self.pvz_city or '').strip():
+            missing.append('Город')
+        if code == 'cdek':
+            if not (self.recipient_name or '').strip():
+                missing.append('ФИО получателя')
+            if not (self.recipient_phone or '').strip():
+                missing.append('Телефон получателя')
+        return missing
+
     def __repr__(self):
         return f'<BuyerDelivery buyer={self.buyer_id} service={self.delivery_service_id}>'
 

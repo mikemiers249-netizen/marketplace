@@ -1610,6 +1610,26 @@ def checkout_submit():
         if minimum_error:
             return jsonify(success=False, error=minimum_error), 400
 
+        # Validate the selected address before reusing an invoice or reserving stock.
+        validated_deliveries = {}
+        for seller_id, items in seller_items.items():
+            if all(item.product.digital_book_id for item in items):
+                continue
+            selected_id = request.form.get(f'delivery[{seller_id}]', type=int)
+            delivery = BuyerDelivery.query.filter_by(
+                id=selected_id, buyer_id=current_user.id).first() if selected_id else None
+            supported = delivery and delivery.delivery_service and delivery.delivery_service.is_active and SellerDelivery.query.filter_by(
+                seller_id=seller_id, delivery_service_id=delivery.delivery_service_id,
+                is_active=True).first()
+            if not supported or delivery.missing_required_fields:
+                message = 'Заполните обязательные данные выбранного способа доставки в разделе «Мои адреса».'
+                if supported:
+                    message = f'{delivery.delivery_service.name}: заполните поля — ' + ', '.join(delivery.missing_required_fields) + '.'
+                flash(message, 'warning')
+                return jsonify(success=False, error=message,
+                               redirect=url_for('main.profile', section='addresses')), 400
+            validated_deliveries[seller_id] = delivery
+
         from app.blueprints.payments import configured, prepare_invoice, release_reservation, gateway_url
         from app.models.payments import RobokassaCheckout
         if not configured():
@@ -1621,6 +1641,9 @@ def checkout_submit():
         import hashlib
         fingerprint = hashlib.sha256(json.dumps({
             'items': sorted((item.product_id, item.quantity) for item in cart_items),
+            'delivery': sorted((sid, bd.id, bd.pvz_city, bd.pvz_address, bd.address,
+                                bd.pvz_code, bd.recipient_name, bd.recipient_phone)
+                               for sid, bd in validated_deliveries.items()),
             'form': sorted((key, value) for key, value in request.form.items(multi=True)
                            if key != 'csrf_token'),
         }, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
@@ -1650,13 +1673,6 @@ def checkout_submit():
         
         from datetime import datetime
         created_orders = []
-
-        # Получаем выбранные способы доставки из формы
-        delivery_selections = {}
-        for key, value in request.form.items():
-            if key.startswith('delivery[') and key.endswith(']'):
-                seller_id = key.replace('delivery[', '').replace(']', '')
-                delivery_selections[int(seller_id)] = value
 
         # Получаем выбранные к списанию бонусы (per-seller).
         # Формат скрытого поля: "sellerId:amount;sellerId:amount".
@@ -1739,50 +1755,16 @@ def checkout_submit():
             pvz_code = None
             pvz_address = None
 
-            selected_delivery_id = delivery_selections.get(seller_id)
-            buyer_delivery = None
-            if selected_delivery_id:
-                try:
-                    buyer_delivery = BuyerDelivery.query.get(int(selected_delivery_id))
-                except (TypeError, ValueError):
-                    buyer_delivery = None
+            buyer_delivery = validated_deliveries.get(seller_id)
+            if buyer_delivery:
+                delivery_service_id = buyer_delivery.delivery_service_id
+                pvz_code = buyer_delivery.pvz_code
+                address_parts = [buyer_delivery.pvz_city,
+                                 buyer_delivery.pvz_address or buyer_delivery.address]
+                if buyer_delivery.delivery_service.code.lower() == 'cdek':
+                    address_parts.extend([buyer_delivery.recipient_name, buyer_delivery.recipient_phone])
+                pvz_address = ', '.join(part.strip() for part in address_parts if part and part.strip())
 
-                if buyer_delivery and (buyer_delivery.pvz_code or
-                                       buyer_delivery.pvz_address or
-                                       buyer_delivery.address):
-                    delivery_service_id = buyer_delivery.delivery_service_id
-                    pvz_code = buyer_delivery.pvz_code
-                    pvz_address = buyer_delivery.pvz_address or buyer_delivery.address
-
-            # Если для этого продавца ПВЗ не выбран / не подходит —
-            # берём любой заполненный BuyerDelivery покупателя как фолбэк,
-            # чтобы оформление не зависало.
-            if not delivery_service_id:
-                fallback = BuyerDelivery.query.filter(
-                    BuyerDelivery.buyer_id == current_user.id,
-                    db.or_(
-                        BuyerDelivery.pvz_code.isnot(None),
-                        BuyerDelivery.pvz_address.isnot(None),
-                        BuyerDelivery.address.isnot(None),
-                    )
-                ).order_by(BuyerDelivery.id.asc()).first()
-                if fallback:
-                    delivery_service_id = fallback.delivery_service_id
-                    pvz_code = fallback.pvz_code
-                    pvz_address = fallback.pvz_address or fallback.address
-                    logger.info(
-                        f"Fallback delivery used for seller {seller_id}: "
-                        f"buyer_delivery_id={fallback.id}, service_id={delivery_service_id}"
-                    )
-
-            if not delivery_service_id:
-                # Совсем нет ни одного сохранённого адреса/ПВЗ у покупателя —
-                # оформляем без конкретного ПВЗ (продавец свяжется).
-                logger.warning(
-                    f"No BuyerDelivery for buyer {current_user.id} when checking out "
-                    f"seller {seller_id}; creating order without PVZ"
-                )
-            
             # Private reservation only: no accepted order until signed payment confirmation.
             digital_only = all(item.product.digital_book_id for item in items)
             if digital_only:
@@ -2412,6 +2394,12 @@ def profile_addresses_save():
         # Обновляем адрес ПВЗ
         delivery.pvz_address = address_value if address_value else None
         
+        if service.code.lower() in ('cdek', 'ozon'):
+            delivery.pvz_city = request.form.get(f'city_{service.id}', '').strip()[:100] or None
+        if service.code.lower() == 'cdek':
+            delivery.recipient_name = request.form.get(f'recipient_name_{service.id}', '').strip()[:100] or None
+            delivery.recipient_phone = request.form.get(f'recipient_phone_{service.id}', '').strip()[:30] or None
+
         # Если адрес пустой, также очищаем код ПВЗ
         if not address_value:
             delivery.pvz_code = None

@@ -559,12 +559,13 @@
                     </label>
                     
                     {% if seller_data.delivery_options %}
-                    <select name="delivery[{{ seller_id }}]" id="delivery-select-{{ seller_id }}" class="delivery-select" required>
+                    <select name="delivery[{{ seller_id }}]" id="delivery-select-{{ seller_id }}" class="delivery-select" form="checkout-form" required>
                         <option value="">-- Выберите пункт выдачи --</option>
                         {% for service_code, service_data in seller_data.delivery_options.items() %}
                             <optgroup label="{{ service_data.service.name }}">
                                 {% for option in service_data.options %}
                                 <option value="{{ option.id }}" 
+                                        data-incomplete="{{ 1 if option.missing_required_fields else 0 }}"
                                         data-service-id="{{ option.delivery_service_id }}"
                                         data-service-code="{{ service_code }}"
                                         data-pvz-code="{{ option.pvz_code or '' }}"
@@ -574,6 +575,9 @@
                                 </option>
                                 {% endfor %}
                             </optgroup>
+                        {% endfor %}
+                        {% for service in seller_data.missing_pvz_services %}
+                        <option value="missing-{{ service.id }}" data-incomplete="1">{{ service.name }} — заполните данные доставки</option>
                         {% endfor %}
                     </select>
 
@@ -756,7 +760,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
+                if (data.redirect) {
                     window.location.href = data.redirect;
                 } else {
                     alert(data.error || 'Произошла ошибка при оформлении заказа');
@@ -775,6 +779,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Убираем класс invalid при изменении select
         document.querySelectorAll('.delivery-select').forEach(function(select) {
             select.addEventListener('change', function() {
+                if (this.selectedOptions[0] && this.selectedOptions[0].dataset.incomplete === '1') {
+                    window.location.href = {{ url_for('main.profile', section='addresses')|tojson }};
+                    return;
+                }
                 if (this.value) {
                     this.classList.remove('is-invalid');
                 }
