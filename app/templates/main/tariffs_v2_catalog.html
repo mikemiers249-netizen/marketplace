@@ -3,7 +3,8 @@
 {% block content %}
 <div class="container py-4">
   <h1>Тестовый каталог тарифов</h1>
-  <p class="alert alert-info">Предварительный просмотр новой системы. Оформление заказа здесь пока недоступно.</p>
+  <p class="alert alert-info">Тестовая система. Заказы и оплата не затрагивают работающий магазин.</p>
+  <p><a href="{{ url_for('tariffs_v2_commerce.cart') }}">Тестовая корзина</a></p>
   {% for row in rows %}
   <section class="card p-3 mb-3">
     <h2>{{ row.product.name }}</h2>
@@ -11,6 +12,13 @@
     <p>Цена с учетом сбора: <strong>{{ row.quote.goods_amount + row.quote.fee }} ₽</strong></p>
     <p>Онлайн: {{ row.quote.online_amount }} ₽. При получении: {{ row.quote.cod_amount }} ₽.</p>
     <p>Доставка оплачивается отдельно.</p>
+    {% if buyer_mode %}
+    <form method="post" action="{{ url_for('tariffs_v2_commerce.cart_update', product_id=row.product.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="quantity" value="1">
+      <button type="submit">Добавить в тестовую корзину</button>
+    </form>
+    {% endif %}
   </section>
   {% else %}<p>На этой странице нет доступных товаров.</p>{% endfor %}
   {% if pagination.has_prev %}<a href="{{ url_for('tariffs_v2_commerce.catalog', page=pagination.prev_num) }}">Назад</a>{% endif %}

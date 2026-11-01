@@ -1,10 +1,19 @@
-"""Read-only isolated catalog; no production checkout links or cart writes."""
-from flask import Blueprint, abort, current_app, render_template, request
+"""Sandbox checkout routes, isolated from production orders and cart."""
+import secrets
+from flask import Blueprint, abort, current_app, flash, render_template, request, redirect, url_for, jsonify
+from flask_login import current_user
+from sqlalchemy.exc import IntegrityError
+
+from app import csrf, db
+from app.models.users import Buyer, Seller, BuyerDelivery
 
 from app.models.products import Product
-from app.models.tariffs_v2_commerce import TariffV2Listing
-from app.utils.tariffs_v2 import quote_line, utc
-from app.utils.tariffs_v2_commerce import is_visible
+from app.models.tariffs_v2_commerce import TariffV2Listing, TariffV2Cart, TariffV2Checkout, TariffV2SandboxOrder
+from app.utils.tariffs_v2 import TariffError, quote_line, utc
+from app.utils.tariffs_v2_commerce import (
+    CHECKOUT_FLOW, IncompleteDelivery, accept_checkout_result, create_checkout, is_visible, set_cart_quantity, ship_order,
+)
+from app.utils.tariffs_v2_payments import configured, payment_params
 
 bp = Blueprint('tariffs_v2_commerce', __name__, url_prefix='/tariffs-v2')
 
@@ -26,4 +35,107 @@ def catalog():
     instant = utc()
     rows = [dict(product=product, quote=quote_line(product, 1, instant))
             for product in products.items if is_visible(product, instant)]
-    return render_template('main/tariffs_v2_catalog.html', rows=rows, pagination=products)
+    return render_template('main/tariffs_v2_catalog.html', rows=rows, pagination=products,
+                           buyer_mode=current_user.is_authenticated and isinstance(current_user, Buyer))
+
+
+def require_role(role):
+    if not current_user.is_authenticated or not isinstance(current_user, role):
+        abort(403)
+
+
+@bp.errorhandler(TariffError)
+def invalid(error):
+    db.session.rollback()
+    return jsonify(error=str(error)), 400
+
+
+@bp.errorhandler(IncompleteDelivery)
+def incomplete_delivery(error):
+    db.session.rollback()
+    flash(str(error), 'warning')
+    return redirect('/profile?section=addresses')
+
+
+@bp.errorhandler(IntegrityError)
+def conflict(error):
+    db.session.rollback()
+    return jsonify(error='Данные изменяются другим запросом. Обновите страницу.'), 409
+
+
+@bp.post('/cart/<int:product_id>')
+def cart_update(product_id):
+    require_role(Buyer)
+    set_cart_quantity(current_user.id, product_id, request.form.get('quantity'))
+    db.session.commit()
+    return redirect(url_for('tariffs_v2_commerce.cart'))
+
+
+@bp.get('/cart')
+def cart():
+    require_role(Buyer)
+    items = TariffV2Cart.query.filter_by(buyer_id=current_user.id).order_by(TariffV2Cart.product_id).all()
+    rows = []
+    sellers = {}
+    for item in items:
+        try:
+            quote = quote_line(item.product, item.quantity)
+            error = None if is_visible(item.product) else 'Товар больше недоступен.'
+        except TariffError as exc:
+            quote, error = None, str(exc)
+        rows.append(dict(item=item, quote=quote, error=error))
+        if not item.product.digital_book_id:
+            sellers[item.product.seller_id] = item.product.seller
+    addresses = BuyerDelivery.query.filter_by(buyer_id=current_user.id).order_by(BuyerDelivery.id).all()
+    return render_template('main/tariffs_v2_cart.html', rows=rows, sellers=sellers, addresses=addresses,
+                           request_key=secrets.token_hex(24))
+
+
+@bp.post('/checkout')
+def checkout():
+    require_role(Buyer)
+    deliveries = {}
+    for key in request.form:
+        if key.startswith('delivery_'):
+            try:
+                deliveries[int(key[9:])] = int(request.form[key])
+            except ValueError:
+                raise TariffError('Выберите адрес доставки.') from None
+    row = create_checkout(current_user.id, request.form.get('request_key'), deliveries)
+    db.session.commit()
+    return redirect(url_for('tariffs_v2_commerce.checkout_view', checkout_id=row.id))
+
+
+@bp.get('/checkouts/<int:checkout_id>')
+def checkout_view(checkout_id):
+    require_role(Buyer)
+    row = TariffV2Checkout.query.filter_by(id=checkout_id, buyer_id=current_user.id).first_or_404()
+    params = None
+    if row.online_amount > 0 and row.status == 'pending' and utc() < utc(row.expires_at) and configured():
+        params = payment_params(row, CHECKOUT_FLOW, f'Тестовый заказ площадки #{row.id}')
+    return render_template('main/tariffs_v2_checkout.html', checkout=row, params=params)
+
+
+@bp.post('/checkout/robokassa/result')
+@csrf.exempt
+def result():
+    row = accept_checkout_result(request.form)
+    db.session.commit()
+    return f'OK{row.gateway_id}', 200, {'Content-Type': 'text/plain; charset=utf-8'}
+
+
+@bp.get('/seller/orders')
+def seller_orders():
+    require_role(Seller)
+    orders = TariffV2SandboxOrder.query.filter_by(seller_id=current_user.id).filter(
+        TariffV2SandboxOrder.status.in_(('ready', 'shipped', 'received'))).order_by(
+            TariffV2SandboxOrder.id.desc()).limit(100).all()
+    return render_template('main/tariffs_v2_orders.html', orders=orders)
+
+
+@bp.post('/seller/orders/<int:order_id>/shipped')
+def shipped(order_id):
+    require_role(Seller)
+    ship_order(order_id, current_user.id, request.form.get('tracking'))
+    db.session.commit()
+    return redirect(url_for('tariffs_v2_commerce.seller_orders'))

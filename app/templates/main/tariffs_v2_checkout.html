@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Тестовый заказ #{{ checkout.id }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Тестовый заказ #{{ checkout.id }}</h1>
+  <p>Только песочница: реальные товары не отправляются.</p>
+  <p>Состояние: {{ {'pending':'Ожидает оплаты', 'complete':'Оформлен', 'expired':'Срок истек', 'needs_review':'Платеж требует проверки'}.get(checkout.status, checkout.status) }}. Онлайн: {{ checkout.online_amount }} ₽. При получении: {{ checkout.cod_amount }} ₽.</p>
+  {% if checkout.review_reason %}<p>Платеж сохранен для проверки администратором. Заказы пока не переданы магазинам.</p>{% endif %}
+  {% for order in checkout.orders %}
+  <section class="card p-3 mb-3">
+    <h2>Заказ магазина #{{ order.seller_id }}</h2>
+    {% for line in order.lines %}<p>{{ line.snapshot.product_name }} × {{ line.quantity }}</p>{% endfor %}
+    <p>Онлайн: {{ order.online_amount }} ₽. Продавцу при получении: {{ order.cod_amount }} ₽.</p>
+    {% if order.has_physical %}<p>Доставка: {{ order.delivery.service_name }} — {{ order.delivery.city or '' }} {{ order.delivery.pvz_address or order.delivery.address or '' }}. Оплачивается отдельно.</p>{% endif %}
+  </section>
+  {% endfor %}
+  {% if params %}
+  <form action="https://auth.robokassa.ru/Merchant/Index.aspx" method="post">
+    {% for key, value in params.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+    <button type="submit">Оплатить в тестовом режиме</button>
+  </form>
+  {% elif checkout.status == 'complete' %}<p>Тестовые заказы переданы магазинам.</p>{% endif %}
+  <p><a href="{{ url_for('tariffs_v2_commerce.cart') }}">Вернуться в тестовую корзину</a></p>
+</div>
+{% endblock %}

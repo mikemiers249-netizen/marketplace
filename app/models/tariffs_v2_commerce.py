@@ -43,6 +43,10 @@ class TariffV2Checkout(db.Model):
     is_test = db.Column(db.Boolean, nullable=False, default=True)
     orders = db.relationship('TariffV2SandboxOrder', back_populates='checkout', order_by='TariffV2SandboxOrder.id')
 
+    @property
+    def amount(self):
+        return self.online_amount
+
 
 class TariffV2CheckoutRequest(db.Model):
     __tablename__ = 'tariff_v2_checkout_requests'

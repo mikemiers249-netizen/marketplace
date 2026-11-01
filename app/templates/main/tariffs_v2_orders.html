@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Тестовые заказы магазина{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Тестовые заказы магазина</h1>
+  <p>Песочница: реальные товары по этим заказам отправлять не нужно.</p>
+  {% for order in orders %}
+  <section class="card p-3 mb-3">
+    <h2>Заказ #{{ order.id }}</h2>
+    {% for line in order.lines %}<p>{{ line.snapshot.product_name }} × {{ line.quantity }}</p>{% endfor %}
+    <p>Состояние: {{ {'ready':'К отправке', 'shipped':'Отправлен', 'received':'Получен'}.get(order.status, order.status) }}. Получить от покупателя: {{ order.cod_amount }} ₽.</p>
+    {% if order.has_physical %}
+    <p>{{ order.delivery.service_name }} — {{ order.delivery.city or '' }} {{ order.delivery.pvz_address or order.delivery.address or '' }}</p>
+    <p>{{ order.delivery.recipient_name or '' }} {{ order.delivery.recipient_phone or '' }}</p>
+    <p>Срок отгрузки: {{ order.shipping_days }} календарных дней. Доставка оплачивается отдельно.</p>
+    {% if order.status == 'ready' %}
+    <form method="post" action="{{ url_for('tariffs_v2_commerce.shipped', order_id=order.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Трек-номер (необязательно) <input name="tracking" maxlength="100"></label>
+      <button type="submit">Отправлено (тест)</button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </section>
+  {% else %}<p>Подтвержденных заказов нет.</p>{% endfor %}
+</div>
+{% endblock %}

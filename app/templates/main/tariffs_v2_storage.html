@@ -4,6 +4,14 @@
 <div class="container py-4">
   <h1>Предоплата карточек</h1>
   <p><a href="{{ url_for('tariffs_v2_commerce.catalog') }}">Открыть тестовый каталог</a></p>
+  <p><a href="{{ url_for('tariffs_v2_commerce.seller_orders') }}">Тестовые заказы магазина</a></p>
+  <form method="post" action="{{ url_for('tariffs_v2_payments.shipping_days') }}" class="mb-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Время отгрузки (календарных дней)
+      <input type="number" name="shipping_days" min="1" max="5" value="{{ shipping_days }}" required>
+    </label>
+    <button type="submit">Сохранить срок для новых тестовых заказов</button>
+  </form>
   <p class="alert alert-info">Тестовая система. Эта страница не меняет публикацию карточек на работающем сайте.
     Платёжные формы используют только тестовый режим Robokassa.</p>
   {% if not payment_ready %}<p>Тестовая оплата пока не настроена. Предварительные суммы доступны ниже.</p>{% endif %}

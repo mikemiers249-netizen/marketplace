@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Тестовая корзина{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Тестовая корзина</h1>
+  <p>Заказы этой системы не отправляются и не оплачиваются настоящими деньгами. Доставка оплачивается отдельно.</p>
+  <a href="{{ url_for('tariffs_v2_commerce.catalog') }}">Каталог</a>
+  {% for row in rows %}
+  <section class="card p-3 mb-3">
+    <h2>{{ row.item.product.name }}</h2>
+    {% if row.error %}<p>{{ row.error }}</p>{% endif %}
+    {% if row.quote %}<p>Онлайн: {{ row.quote.online_amount }} ₽. При получении: {{ row.quote.cod_amount }} ₽.</p>{% endif %}
+    <form method="post" action="{{ url_for('tariffs_v2_commerce.cart_update', product_id=row.item.product_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Количество (0 — удалить) <input name="quantity" type="number" min="0" max="1000000" value="{{ row.item.quantity }}" required></label>
+      <button type="submit">Сохранить</button>
+    </form>
+  </section>
+  {% else %}<p>Корзина пуста.</p>{% endfor %}
+  {% if rows %}
+  <form method="post" action="{{ url_for('tariffs_v2_commerce.checkout') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="request_key" value="{{ request_key }}">
+    {% for seller_id, seller in sellers.items() %}
+    <p><label>Доставка для магазина «{{ seller.store_name }}»
+      <select name="delivery_{{ seller_id }}" required>
+        <option value="">Выберите адрес</option>
+        {% for address in addresses %}<option value="{{ address.id }}">{{ address.delivery_service.name }} — {{ address.pvz_city or '' }} {{ address.pvz_address or address.address or '' }}</option>{% endfor %}
+      </select>
+    </label></p>
+    {% endfor %}
+    <p><a href="/profile?section=addresses">Заполнить адреса доставки</a></p>
+    <button type="submit">Оформить тестовый заказ</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
