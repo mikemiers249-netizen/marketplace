@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Претензии по тестовому заказу{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Претензии по тестовому заказу #{{ order.id }}</h1>
+  <p>Песочница. Настоящие возвраты не выполняются. Возражение передает спор администратору; молчание три дня позволяет ему принять решение.</p>
+  {% for claim in claims %}
+  <section class="card p-3 mb-3">
+    <p>Автор: {{ 'покупатель' if claim.opened_by == 'buyer' else 'продавец' }}. {{ claim.explanation }}</p>
+    <p>Состояние: {{ {'waiting':'Ожидает ответа', 'disputed':'Спор у администратора', 'approved':'Возврат одобрен', 'rejected':'Отказано'}.get(claim.status, claim.status) }}</p>
+    {% if claim.response %}<p>Ответ: {{ claim.response }}</p>{% endif %}
+    {% if claim.admin_explanation %}<p>Решение администратора: {{ claim.admin_explanation }}</p>{% endif %}
+    {% if claim.status == 'waiting' and claim.opened_by != role %}
+    <form method="post" action="{{ url_for('tariffs_v2_finance.respond', claim_id=claim.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Объяснение <textarea name="explanation" maxlength="5000" required></textarea></label>
+      <button name="agrees" value="yes">Подтвердить претензию</button>
+      <button name="agrees" value="no">Возразить и передать администратору</button>
+    </form>
+    {% endif %}
+  </section>
+  {% endfor %}
+  {% if order.has_physical and order.status in ('ready', 'shipped') %}
+  <form method="post" action="{{ url_for('tariffs_v2_finance.create_claim', order_id=order.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>Отмена покупателем, неполучение посылки в пункте выдачи и возврат после получения не предусматривают возврат сбора площадкой.</p>
+    <label>Недоставка или неверная отметка об отправке: <textarea name="explanation" maxlength="5000" required></textarea></label>
+    <button>Открыть тестовую претензию</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

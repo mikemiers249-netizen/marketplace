@@ -352,15 +352,26 @@ def issue_monthly_invoice(seller_id, at=None):
         TariffV2Refund.invoice_id.is_(None),
         TariffV2Refund.confirmed_at < stored_utc(midnight_utc(period)),
     ).with_for_update(of=TariffV2Refund).all()
-    if not refunds:
+    from app.models.tariffs_v2_finance import TariffV2CheckoutRefund
+    from app.models.tariffs_v2_commerce import TariffV2CheckoutLine, TariffV2SandboxOrder
+    checkout_refunds = TariffV2CheckoutRefund.query.join(TariffV2CheckoutLine).join(TariffV2SandboxOrder).filter(
+        TariffV2SandboxOrder.seller_id == seller_id,
+        TariffV2CheckoutRefund.status == 'succeeded',
+        TariffV2CheckoutRefund.seller_charge > 0,
+        TariffV2CheckoutRefund.invoice_id.is_(None),
+        TariffV2CheckoutRefund.confirmed_at < stored_utc(midnight_utc(period)),
+    ).with_for_update(of=TariffV2CheckoutRefund).all()
+    if not refunds and not checkout_refunds:
         return None
     invoice = TariffV2Invoice(seller_id=seller_id, period=period,
         issued_at=stored_utc(instant), due_at=stored_utc(midnight_utc(period.replace(day=6))),
-        amount=sum((row.amount for row in refunds), ZERO))
+        amount=sum((row.amount for row in refunds), ZERO) + sum((row.seller_charge for row in checkout_refunds), ZERO))
     db.session.add(invoice)
     db.session.flush()
     for row in refunds:
         row.invoice = invoice
+    for row in checkout_refunds:
+        row.invoice_id = invoice.id
     return invoice
 
 

@@ -9,11 +9,13 @@
   {% for order in checkout.orders %}
   <section class="card p-3 mb-3">
     <h2>Заказ магазина #{{ order.seller_id }}</h2>
-    {% for line in order.lines %}<p>{{ line.snapshot.product_name }} × {{ line.quantity }}</p>{% endfor %}
+    {% if checkout.status == 'complete' %}<p><a href="{{ url_for('tariffs_v2_finance.claims', order_id=order.id) }}">Претензии по заказу</a></p>{% endif %}
+    {% for line in order.lines %}<p>{{ line.snapshot.product_name }} × {{ line.quantity }}{% if cancelled.get(line.id) %} (отменено {{ cancelled[line.id] }}){% endif %}</p>{% endfor %}
     <p>Онлайн: {{ order.online_amount }} ₽. Продавцу при получении: {{ order.cod_amount }} ₽.</p>
     {% if order.has_physical %}<p>Доставка: {{ order.delivery.service_name }} — {{ order.delivery.city or '' }} {{ order.delivery.pvz_address or order.delivery.address or '' }}. Оплачивается отдельно.</p>{% endif %}
   </section>
   {% endfor %}
+  {% for refund in refunds %}<p>Возврат #{{ refund.id }}: {{ refund.amount }} ₽ — {{ {'pending':'Ожидает подтверждения', 'succeeded':'Успешен', 'failed':'Не выполнен'}.get(refund.status, refund.status) }}.</p>{% endfor %}
   {% if params %}
   <form action="https://auth.robokassa.ru/Merchant/Index.aspx" method="post">
     {% for key, value in params.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}

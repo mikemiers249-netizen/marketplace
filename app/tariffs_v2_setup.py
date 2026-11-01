@@ -17,19 +17,23 @@ def install(app):
             raise RuntimeError('Tariffs v2 first-stage sandbox supports local SQLite only.')
     from app.blueprints.tariffs_v2 import bp
     from app.models import tariffs_v2_commerce  # noqa: F401
+    from app.models import tariffs_v2_finance  # noqa: F401
     from app.blueprints.tariffs_v2_payments import bp as payments_bp
     from app.blueprints.tariffs_v2_commerce import bp as commerce_bp
+    from app.blueprints.tariffs_v2_finance import bp as finance_bp
     from app.utils.tariffs_v2 import MSK, utc
     from datetime import timedelta
     app.register_blueprint(bp)
     app.register_blueprint(payments_bp)
     app.register_blueprint(commerce_bp)
+    app.register_blueprint(finance_bp)
 
     @app.template_filter('v2_last_benefit_day')
     def last_benefit_day(value):
         return (utc(value).astimezone(MSK).date() - timedelta(days=1)).isoformat()
 
     app.cli.add_command(initialize)
+    app.cli.add_command(finance_tick)
 
 
 @click.command('tariffs-v2-init-sandbox')
@@ -41,6 +45,7 @@ def initialize():
         raise click.ClickException('Only an isolated v2 SQLite sandbox may be initialized.')
     from app.models import tariffs_v2  # noqa: F401
     from app.models import tariffs_v2_commerce  # noqa: F401
+    from app.models import tariffs_v2_finance  # noqa: F401
     tables = [table for table in db.metadata.sorted_tables if table.name.startswith('tariff_v2_')]
     db.metadata.create_all(bind=db.engine, tables=tables)
     # Additive upgrade for a local sandbox created during phase one.
@@ -63,3 +68,18 @@ def initialize():
     db.session.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS v2_storage_gateway_unique ON tariff_v2_storage_invoices(gateway_id)'))
     db.session.commit()
     click.echo('Tariffs v2 sandbox tables ready. No provider calls, workers or cleanup started.')
+
+
+@click.command('tariffs-v2-finance-tick')
+@with_appcontext
+def finance_tick():
+    """Explicit isolated job: create refund intents and monthly bills, no provider calls."""
+    from app.utils.tariffs_v2_finance import run_finance_tick
+    from app.utils.tariffs_v2 import TariffError
+    try:
+        counts = run_finance_tick()
+        db.session.commit()
+    except TariffError as error:
+        db.session.rollback()
+        raise click.ClickException(str(error)) from error
+    click.echo(f'Sandbox finance checked: {counts}. No external payments or refunds executed.')

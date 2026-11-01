@@ -98,6 +98,7 @@
       <td>{{ {'expired':'Срок оплаты истек или корзина изменена', 'product_unavailable':'Товар недоступен', 'reservation_unavailable':'Недостаточно товара', 'daily_limit_reached':'Дневной лимит магазина исчерпан'}.get(checkout.review_reason, checkout.review_reason) }}</td>
     </tr>{% else %}<tr><td colspan="4">Нет платежей, требующих проверки.</td></tr>{% endfor %}</tbody>
   </table></div>
+  <p><a href="{{ url_for('tariffs_v2_finance.admin_finance') }}">Возвраты, споры и месячные счета в песочнице</a></p>
   <h2>История настроек</h2>
   <ul>{% for item in history %}<li>{{ item.created_at }} — {{ item.actor }} — {{ item.action }}: {{ item.subject }}</li>{% endfor %}</ul>
 </div>

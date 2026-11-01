@@ -7,8 +7,16 @@
   {% for order in orders %}
   <section class="card p-3 mb-3">
     <h2>Заказ #{{ order.id }}</h2>
-    {% for line in order.lines %}<p>{{ line.snapshot.product_name }} × {{ line.quantity }}</p>{% endfor %}
-    <p>Состояние: {{ {'ready':'К отправке', 'shipped':'Отправлен', 'received':'Получен'}.get(order.status, order.status) }}. Получить от покупателя: {{ order.cod_amount }} ₽.</p>
+    <p><a href="{{ url_for('tariffs_v2_finance.claims', order_id=order.id) }}">Претензии по заказу</a></p>
+    {% for line in order.lines %}<p>{{ line.snapshot.product_name }} × {{ line.quantity }}{% if cancelled.get(line.id) %} (отменено {{ cancelled[line.id] }}){% endif %}</p>{% endfor %}
+    {% if order.status == 'ready' %}{% for line in order.lines %}
+    <form method="post" action="{{ url_for('tariffs_v2_finance.cancel', order_id=order.id, line_id=line.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Всего отменить по позиции «{{ line.snapshot.product_name }}» <input type="number" name="quantity" min="1" max="{{ line.quantity }}" required></label>
+      <button>Отменить указанное количество</button>
+    </form>
+    {% endfor %}{% endif %}
+    <p>Состояние: {{ {'ready':'К отправке', 'shipped':'Отправлен', 'received':'Получен', 'cancelled':'Отменен'}.get(order.status, order.status) }}. Получить от покупателя: {{ order.cod_amount }} ₽.</p>
     {% if order.has_physical %}
     <p>{{ order.delivery.service_name }} — {{ order.delivery.city or '' }} {{ order.delivery.pvz_address or order.delivery.address or '' }}</p>
     <p>{{ order.delivery.recipient_name or '' }} {{ order.delivery.recipient_phone or '' }}</p>

@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Финансы — тестовая система{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Финансы и споры — песочница</h1>
+  <p>Настоящие платежи и возвраты не выполняются. Симуляции записываются в аудит. Фоновые задания пока не запускаются автоматически.</p>
+  <form method="post" action="{{ url_for('tariffs_v2_finance.run') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button>Проверить просрочки отгрузки и сформировать месячные счета</button>
+  </form>
+  <h2>Претензии</h2>
+  {% for claim in claims %}
+  <section class="card p-3 mb-3">
+    <h3>Претензия #{{ claim.id }}, заказ #{{ claim.order_id }}</h3>
+    <p>Инициатор: {{ 'покупатель' if claim.opened_by == 'buyer' else 'продавец' }}. {{ claim.explanation }}</p>
+    <p>Ответ: {{ claim.response or 'Пока нет' }}.</p>
+    <p>Состояние: {{ {'waiting':'Ожидает ответа', 'disputed':'Оспорена', 'approved':'Одобрена', 'rejected':'Отказано'}.get(claim.status, claim.status) }}.</p>
+    {% if claim.admin_explanation %}<p>{{ claim.admin_explanation }}</p>{% endif %}
+    {% if claim.status in ('waiting', 'disputed') %}
+    <form method="post" action="{{ url_for('tariffs_v2_finance.decide', claim_id=claim.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Обоснование решения <textarea name="explanation" maxlength="5000" required></textarea></label>
+      <button name="approved" value="yes">Одобрить возврат</button>
+      <button name="approved" value="no">Отказать</button>
+    </form>
+    {% endif %}
+  </section>
+  {% else %}<p>Претензий нет.</p>{% endfor %}
+  <h2>Возвраты</h2>
+  {% for refund in refunds %}
+  <section class="card p-3 mb-3">
+    <h3>Возврат #{{ refund.id }}, позиция #{{ refund.line_id }}</h3>
+    <p>Покупателю: {{ refund.amount }} ₽. В счет продавцу после успеха: {{ refund.seller_charge }} ₽.</p>
+    <p>{{ {'pending':'Ожидает подтверждения', 'succeeded':'Успешен', 'failed':'Не выполнен'}.get(refund.status, refund.status) }}. Счет: {{ refund.invoice_id or 'Не выставлен' }}.</p>
+    {% if refund.status == 'pending' %}
+    <form method="post" action="{{ url_for('tariffs_v2_finance.refund_simulation', refund_id=refund.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button name="succeeded" value="yes">Смоделировать успешный возврат</button>
+      <button name="succeeded" value="no">Смоделировать неудачу возврата</button>
+    </form>
+    {% elif refund.status == 'failed' %}
+    <form method="post" action="{{ url_for('tariffs_v2_finance.retry', refund_id=refund.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button>Создать повторную заявку возврата</button>
+    </form>
+    {% endif %}
+  </section>
+  {% else %}<p>Возвратов нет.</p>{% endfor %}
+  <h2>Месячные счета</h2>
+  <ul>{% for invoice in invoices %}<li>#{{ invoice.id }}, магазин #{{ invoice.seller_id }}, {{ invoice.period }}: {{ invoice.amount }} ₽ — {{ 'Оплачен' if invoice.paid_at else 'Не оплачен' }}.</li>{% else %}<li>Счетов нет.</li>{% endfor %}</ul>
+</div>
+{% endblock %}

@@ -5,6 +5,7 @@
   <h1>Предоплата карточек</h1>
   <p><a href="{{ url_for('tariffs_v2_commerce.catalog') }}">Открыть тестовый каталог</a></p>
   <p><a href="{{ url_for('tariffs_v2_commerce.seller_orders') }}">Тестовые заказы магазина</a></p>
+  <p><a href="{{ url_for('tariffs_v2_finance.bills') }}">Тестовые месячные счета</a></p>
   <form method="post" action="{{ url_for('tariffs_v2_payments.shipping_days') }}" class="mb-3">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Время отгрузки (календарных дней)

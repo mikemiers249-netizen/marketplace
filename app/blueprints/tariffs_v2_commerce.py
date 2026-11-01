@@ -9,6 +9,7 @@ from app.models.users import Buyer, Seller, BuyerDelivery
 
 from app.models.products import Product
 from app.models.tariffs_v2_commerce import TariffV2Listing, TariffV2Cart, TariffV2Checkout, TariffV2SandboxOrder
+from app.models.tariffs_v2_finance import TariffV2Cancellation, TariffV2CheckoutRefund
 from app.utils.tariffs_v2 import TariffError, quote_line, utc
 from app.utils.tariffs_v2_commerce import (
     CHECKOUT_FLOW, IncompleteDelivery, accept_checkout_result, create_checkout, is_visible, set_cart_quantity, ship_order,
@@ -113,7 +114,10 @@ def checkout_view(checkout_id):
     params = None
     if row.online_amount > 0 and row.status == 'pending' and utc() < utc(row.expires_at) and configured():
         params = payment_params(row, CHECKOUT_FLOW, f'Тестовый заказ площадки #{row.id}')
-    return render_template('main/tariffs_v2_checkout.html', checkout=row, params=params)
+    line_ids = [line.id for order in row.orders for line in order.lines]
+    cancelled = {item.line_id: item.quantity for item in TariffV2Cancellation.query.filter(TariffV2Cancellation.line_id.in_(line_ids))}
+    refunds = TariffV2CheckoutRefund.query.filter(TariffV2CheckoutRefund.line_id.in_(line_ids)).order_by(TariffV2CheckoutRefund.id).all()
+    return render_template('main/tariffs_v2_checkout.html', checkout=row, params=params, cancelled=cancelled, refunds=refunds)
 
 
 @bp.post('/checkout/robokassa/result')
@@ -128,9 +132,11 @@ def result():
 def seller_orders():
     require_role(Seller)
     orders = TariffV2SandboxOrder.query.filter_by(seller_id=current_user.id).filter(
-        TariffV2SandboxOrder.status.in_(('ready', 'shipped', 'received'))).order_by(
+        TariffV2SandboxOrder.status.in_(('ready', 'shipped', 'received', 'cancelled'))).order_by(
             TariffV2SandboxOrder.id.desc()).limit(100).all()
-    return render_template('main/tariffs_v2_orders.html', orders=orders)
+    line_ids = [line.id for order in orders for line in order.lines]
+    cancelled = {item.line_id: item.quantity for item in TariffV2Cancellation.query.filter(TariffV2Cancellation.line_id.in_(line_ids))}
+    return render_template('main/tariffs_v2_orders.html', orders=orders, cancelled=cancelled)
 
 
 @bp.post('/seller/orders/<int:order_id>/shipped')

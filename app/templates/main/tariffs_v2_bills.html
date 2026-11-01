@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Тестовые счета магазина{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Тестовые месячные счета</h1>
+  <p>Сюда входят только успешно возвращенные сборы. Срок оплаты — до пятого числа включительно по Москве. Оплата ниже только моделируется в локальной песочнице.</p>
+  {% for invoice in invoices %}
+  <section class="card p-3 mb-3">
+    <h2>Счет #{{ invoice.id }} от {{ invoice.period }}</h2>
+    <p>{{ invoice.amount }} ₽. {{ 'Оплачен' if invoice.paid_at else 'Ожидает оплаты' }}.</p>
+    <ul>{% for refund in details.get(invoice.id, []) %}<li>Заказ #{{ refund.line.order_id }}: {{ refund.line.snapshot.product_name }} — возвращенный сбор {{ refund.seller_charge }} ₽.</li>{% endfor %}</ul>
+    {% if not invoice.paid_at %}
+    <form method="post" action="{{ url_for('tariffs_v2_finance.pay_bill', invoice_id=invoice.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button>Смоделировать оплату (без списания денег)</button>
+    </form>
+    {% endif %}
+  </section>
+  {% else %}<p>Счетов пока нет.</p>{% endfor %}
+</div>
+{% endblock %}
