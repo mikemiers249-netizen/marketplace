@@ -192,7 +192,8 @@ def storage_quote(product, at=None):
     today = moscow_date(at)
     end = next_month(today)
     tariff = resolve_tariff(product.seller, product.category_id, at)
-    deleted = product.status == 'deleted'
+    from app.utils.tariffs_v2_replicas import replica_is_purged
+    deleted = product.status == 'deleted' or replica_is_purged(product.id)
     rate = ZERO if deleted or tariff.free_storage or tariff.kind != 'fixed' else tariff.amount
     required = prorated_storage(rate, today, end)
     coverage_query = TariffV2Coverage.query.filter(

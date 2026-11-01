@@ -8,7 +8,7 @@ from app.models.users import Buyer, Seller
 from app.models.tariffs_v2 import TariffV2Invoice
 from app.models.tariffs_v2_commerce import TariffV2SandboxOrder, TariffV2Checkout
 from app.models.tariffs_v2_finance import TariffV2Claim, TariffV2CheckoutRefund
-from app.models.tariffs_v2_lifecycle import TariffV2StorageExpiry
+from app.models.tariffs_v2_lifecycle import TariffV2StorageExpiry, TariffV2Replica
 from app.utils.tariffs_v2 import TariffError, utc
 from app.utils.tariffs_v2_finance import (
     buyer_cancel_order, receive_order, cancel_line, open_claim, respond_claim, decide_claim,
@@ -188,7 +188,8 @@ def retry(refund_id):
 @bp.get('/main_admin/tariffs-v2/storage-expiry')
 def storage_expiry():
     rows = TariffV2StorageExpiry.query.order_by(TariffV2StorageExpiry.expires_at, TariffV2StorageExpiry.product_id).limit(200).all()
-    return render_template('admin/tariffs_v2_storage_expiry.html', rows=rows)
+    replicas = TariffV2Replica.query.order_by(TariffV2Replica.id.desc()).limit(100).all()
+    return render_template('admin/tariffs_v2_storage_expiry.html', rows=rows, replicas=replicas)
 
 
 @bp.post('/main_admin/tariffs-v2/storage-expiry/check')

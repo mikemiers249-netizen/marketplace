@@ -20,3 +20,25 @@ class TariffV2StorageExpiry(db.Model):
     expires_at = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(16), nullable=False)
     checked_at = db.Column(db.DateTime, nullable=False)
+
+
+class TariffV2ReplicaStore(db.Model):
+    __tablename__ = 'tariff_v2_replica_store'
+    id = db.Column(db.Integer, primary_key=True)
+    root = db.Column(db.Text, nullable=False)
+    token = db.Column(db.String(48), nullable=False)
+
+
+class TariffV2Replica(db.Model):
+    __tablename__ = 'tariff_v2_replicas'
+    __table_args__ = (db.CheckConstraint("status IN ('active','purging','purged')", name='v2_replica_status'),)
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, nullable=False)
+    active_product_id = db.Column(db.Integer, unique=True)
+    seller_id = db.Column(db.Integer, nullable=False)
+    directory = db.Column(db.String(48), nullable=False, unique=True)
+    files = db.Column(db.JSON, nullable=False)
+    status = db.Column(db.String(16), nullable=False, default='active')
+    created_at = db.Column(db.DateTime, nullable=False)
+    purge_started_at = db.Column(db.DateTime)
+    purged_at = db.Column(db.DateTime)

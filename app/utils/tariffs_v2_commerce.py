@@ -36,6 +36,9 @@ def digital_available(product):
 
 
 def publication_error(product, at=None):
+    from app.utils.tariffs_v2_replicas import replica_is_purged
+    if replica_is_purged(product.id):
+        return 'Тестовая копия карточки удаляется или удалена. Для публикации нужна новая копия и проверка предоплаты.'
     if product.status != 'approved':
         return 'Карточка должна пройти модерацию.'
     if not product.seller or not product.seller.is_active:

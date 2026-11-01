@@ -16,5 +16,10 @@
       <td>{{ {'grace':'Льготное хранение', 'expired':'Срок истек — удаление отключено', 'resolved':'Оплата или бесплатное хранение'}.get(row.status, row.status) }}</td>
     </tr>{% else %}<tr><td colspan="5">Очередь пуста. Запустите проверку сроков.</td></tr>{% endfor %}</tbody>
   </table></div>
+  <h2>Изолированные копии для проверки удаления</h2>
+  <p>Удаление копий запускается отдельной командой. Рабочие вложения и карточки сохраняются.</p>
+  <ul>{% for replica in replicas %}<li>Копия #{{ replica.id }}, карточка #{{ replica.product_id }}:
+    {{ {'active':'Хранится', 'purging':'Удаление начато; можно продолжить после сбоя', 'purged':'Копия удалена'}.get(replica.status, replica.status) }}.</li>
+    {% else %}<li>Тестовые копии пока не созданы.</li>{% endfor %}</ul>
 </div>
 {% endblock %}

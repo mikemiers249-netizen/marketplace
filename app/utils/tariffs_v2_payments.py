@@ -73,6 +73,9 @@ def issue_storage_invoice(product_id, seller_id, at=None):
     product = Product.query.filter_by(id=product_id, seller_id=seller_id).with_for_update().first()
     if product is None or product.status == 'deleted':
         raise TariffError('Карточка недоступна продавцу для оплаты.')
+    from app.utils.tariffs_v2_replicas import replica_is_purged
+    if replica_is_purged(product.id):
+        raise TariffError('Тестовая копия карточки удаляется или удалена. Сначала создайте новую копию.')
     quote, fingerprint = quote_fingerprint(product, instant)
     previous = TariffV2StorageInvoice.query.filter_by(active_product_id=product.id).with_for_update().first()
     if previous is not None:

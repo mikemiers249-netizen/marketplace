@@ -1,5 +1,6 @@
 """Explicit local sandbox bootstrap; no production schema or workers."""
 import click
+from pathlib import Path
 from flask import current_app
 from flask.cli import with_appcontext
 
@@ -40,6 +41,9 @@ def install(app):
     app.cli.add_command(initialize)
     app.cli.add_command(finance_tick)
     app.cli.add_command(storage_tick)
+    app.cli.add_command(replica_init)
+    app.cli.add_command(replica_create)
+    app.cli.add_command(replica_purge)
 
 
 @click.command('tariffs-v2-init-sandbox')
@@ -105,3 +109,60 @@ def storage_tick():
         db.session.rollback()
         raise click.ClickException(str(error)) from error
     click.echo(f'Sandbox storage dry run: {counts}. No cards or files deleted.')
+
+
+@click.command('tariffs-v2-replica-init')
+@with_appcontext
+def replica_init():
+    """Register an empty dedicated replica directory, never a legacy upload root."""
+    from app.utils.tariffs_v2_replicas import initialize_store
+    from app.utils.tariffs_v2 import TariffError
+    try:
+        initialize_store()
+        db.session.commit()
+    except (TariffError, OSError) as error:
+        db.session.rollback()
+        raise click.ClickException(str(error)) from error
+    click.echo('Dedicated replica store initialized. No production files copied or changed.')
+
+
+@click.command('tariffs-v2-replica-create')
+@click.option('--product-id', type=int, required=True)
+@click.option('--source', type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
+@with_appcontext
+def replica_create(product_id, source):
+    """Copy one explicitly named file as independent bytes into the replica store."""
+    from app.utils.tariffs_v2_replicas import create_replica, store_root
+    from app.utils.tariffs_v2 import TariffError
+    try:
+        store_root()
+        if source.stat().st_size > 20 * 1024 * 1024:
+            raise TariffError('Файл для репетиции должен быть не больше 20 МБ.')
+        row = create_replica(product_id, [source.read_bytes()])
+        db.session.commit()
+    except (TariffError, OSError) as error:
+        db.session.rollback()
+        raise click.ClickException(str(error)) from error
+    click.echo(f'Independent replica #{row.id} created. Source file unchanged.')
+
+
+@click.command('tariffs-v2-replica-purge')
+@click.option('--replica-id', type=int, required=True)
+@click.option('--execute', is_flag=True, help='Remove registered replica files only after current eligibility checks.')
+@with_appcontext
+def replica_purge(replica_id, execute):
+    """Rehearse expiry cleanup, with an explicit execution flag and durable recovery."""
+    from app.utils.tariffs_v2_replicas import purge_replica, store_root
+    from app.models.tariffs_v2_lifecycle import TariffV2Replica
+    from app.utils.tariffs_v2 import TariffError
+    try:
+        store_root()
+        row = db.session.get(TariffV2Replica, replica_id)
+        if not row:
+            raise TariffError('Тестовая копия не найдена.')
+        if execute:
+            row = purge_replica(replica_id)
+        click.echo(f'Replica #{row.id}: {row.status}. ' + ('Replica execution finished.' if execute else 'Preview only; no files deleted.'))
+    except (TariffError, OSError) as error:
+        db.session.rollback()
+        raise click.ClickException(str(error)) from error
