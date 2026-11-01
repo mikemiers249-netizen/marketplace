@@ -1,0 +1,5 @@
+{% if item.product and item.product.digital_book and item.product.digital_book.cover_name %}
+<img src="{{ url_for('digital.cover', book_id=item.product.digital_book_id) }}" alt="Обложка: {{ item.product_name or item.product.name }}" loading="lazy" style="object-fit:contain">
+{% elif item.product and item.product.main_photo %}
+<img src="{{ url_for('static', filename='uploads/products/' + item.product.main_photo.path) }}" alt="{{ item.product.name }}">
+{% else %}<div class="no-image">Нет фото</div>{% endif %}

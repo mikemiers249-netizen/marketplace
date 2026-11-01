@@ -21,6 +21,7 @@ class Category(db.Model):
     description = db.Column(db.Text, nullable=True)
     image_path = db.Column(db.String(255), nullable=True)
     is_active = db.Column(db.Boolean, default=True)
+    is_digital_book = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     sort_order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -34,6 +35,11 @@ class Category(db.Model):
     parameters = db.relationship('CategoryParameter', back_populates='category',
                                  lazy='dynamic', cascade='all, delete-orphan')
     
+    @property
+    def digital_book_category(self):
+        """A book category passes its type down the category tree."""
+        return any(c.is_digital_book for c in self.all_parents + [self])
+
     @property
     def all_parents(self):
         """Получение всех родительских категорий."""
@@ -232,6 +238,9 @@ class Product(db.Model):
     """
     
     __tablename__ = 'products'
+
+    digital_book_id = db.Column(db.Integer, db.ForeignKey('digital_books.id'), unique=True, nullable=True)
+    digital_book = db.relationship('DigitalBook', backref=db.backref('commerce_product', uselist=False))
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
@@ -255,13 +264,13 @@ class Product(db.Model):
     @staticmethod
     def generate_system_sku(seller_id):
         """
-        Генерирует системный артикул в формате WML-{seller_id}-{timestamp}.
-        timestamp — миллисекунды с epoch, чтобы исключить коллизии
-        даже при двух товарах за одну секунду.
+        Общий формат WML-{seller_id}-{timestamp}{random} для всех товаров.
+        Наносекунды и случайный суффикс защищают от совпадений при пакетном
+        создании и параллельной работе нескольких процессов.
         """
         import time
-        ts = int(time.time() * 1000)
-        return f"WML-{seller_id}-{ts}"
+        import secrets
+        return f"WML-{seller_id}-{time.time_ns()}{secrets.randbelow(1000000):06d}"
     
     # Остатки
     stock_quantity = db.Column(db.Integer, default=0)

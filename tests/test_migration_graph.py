@@ -32,7 +32,7 @@ class MigrationGraphTests(unittest.TestCase):
                            if line.startswith('CMD '))
             target = re.search(r'flask db stamp ([a-zA-Z0-9_]+)', command).group(1)
             self.assertIn(target, scripts.get_heads())
-            self.assertEqual(scripts.get_revision(target).down_revision, 'c25d47e9f306')
+            self.assertEqual(scripts.get_revision(target).down_revision, 'f58a70b2c639')
 
 
 if __name__ == '__main__':

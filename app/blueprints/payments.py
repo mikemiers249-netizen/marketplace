@@ -157,7 +157,7 @@ def release_reservation(order, status='payment_expired'):
         Product.id.in_([i.product_id for i in items])).order_by(Product.id)
         .populate_existing().with_for_update().all()}
     for item in items:
-        if item.product_id in products:
+        if item.product_id in products and not products[item.product_id].digital_book_id:
             products[item.product_id].stock_quantity += item.quantity
     from app.utils.loyalty import _add_balance
     spent = Bonus.query.filter_by(order_id=order.id, type='spent', seller_id=order.seller_id).all()
@@ -269,6 +269,8 @@ def result():
                             db.session.delete(cart_item)
                 from app.utils.emails import create_order_conversation
                 create_order_conversation(order)
+                from app.utils.digital_commerce import complete_digital_delivery
+                complete_digital_delivery(order)
         active = RobokassaCheckout.query.filter_by(invoice_id=invoice.id).first()
         if active:
             db.session.delete(active)

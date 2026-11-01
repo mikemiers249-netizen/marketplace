@@ -13,6 +13,9 @@
                              определяет, на какие позиции уже оставлен отзыв
                              и плашку «Оставить отзыв» показывать не нужно
 #}
+{% if product.digital_book_id %}
+{% with book=product.digital_book %}{% include 'components/digital_product_card.html' %}{% endwith %}
+{% else %}
 {% set promo = promo_info(product) %}
 
 <div class="product-card" data-product-id="{{ product.id }}">
@@ -141,6 +144,7 @@
     .review-pill:hover { background: #146c43; }
     .review-pill i { font-size: 14px; }
 </style>
+{% endif %}
 {% endif %}
 
 <style>

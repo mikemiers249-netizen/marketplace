@@ -243,7 +243,8 @@
         <div class="info-card">
             <h3>Покупатель</h3>
             <div class="customer-details">
-                <p><strong>{{ order.buyer.name or order.buyer.login }}</strong></p>
+                <p><strong>Логин:</strong> {{ order.buyer.login }}</p>
+                <p><strong>ФИО:</strong> {{ [order.buyer.last_name, order.buyer.first_name or order.buyer.name, order.buyer.middle_name] | select | join(' ') or 'Не указано' }}</p>
                 <p>{{ order.buyer.email }}</p>
                 <p>{{ order.buyer.phone or 'Телефон не указан' }}</p>
             </div>

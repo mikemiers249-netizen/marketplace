@@ -1,0 +1,13 @@
+{% extends 'seller/layout.html' if current_user.store_name is defined else 'admin/layout.html' %}
+{% block header_title %}<h1>Добавить товар</h1>{% endblock %}
+{% block content %}
+<form method="get" action="{{ url_for('digital.new') if digital_only else url_for('seller.product_new') }}" class="form-section">
+  <h2>Выберите категорию</h2>
+  <label for="new-category">Категория товара</label>
+  <select id="new-category" name="category_id" class="form-select" required onchange="this.form.requestSubmit()">
+    <option value="">Выберите категорию или подкатегорию</option>
+    {% for category in categories %}<option value="{{ category.id }}">{{ category.full_path }}{% if category.digital_book_category %} — Электронная книга{% endif %}</option>{% endfor %}
+  </select>
+  <button type="submit" class="btn btn-primary mt-3">Продолжить</button>
+</form>
+{% endblock %}

@@ -628,7 +628,9 @@
                 
                 <div class="cart-item-card{% if unavailable %} cart-item-unavailable{% endif %}" data-product-id="{{ item.product_id }}">
                     <div class="cart-item-image">
-                        {% if item.product.main_photo %}
+                        {% if item.product.digital_book_id %}
+                        {% with book=item.product.digital_book %}{% include 'components/digital_cover.html' %}{% endwith %}
+                        {% elif item.product.main_photo %}
                         <img src="{{ url_for('static', filename='uploads/products/' + item.product.main_photo.path) }}" 
                              alt="{{ item.product.name }}">
                         {% else %}
@@ -643,8 +645,8 @@
                         
                         <div class="cart-item-seller">
                             Продавец: {{ item.product.seller.store_name if item.product.seller else 'Неизвестно' }}
-                            {% if item.product.seller and item.product.seller.minimum_order_amount %}
-                            <div>Минимальный заказ в этом магазине: {{ format_price(item.product.seller.minimum_order_amount) }} (без доставки)</div>
+                            {% if not item.product.digital_book_id and item.product.seller and item.product.seller.minimum_order_amount %}
+                            <div>Минимальный заказ физических товаров в этом магазине: {{ format_price(item.product.seller.minimum_order_amount) }} (без доставки)</div>
                             {% endif %}
                         </div>
                         
@@ -662,16 +664,16 @@
                     <div class="cart-item-quantity">
                         <div class="quantity-control">
                             <button type="button" class="quantity-btn minus" 
-                                    data-product-id="{{ item.product_id }}" {% if unavailable %}disabled{% endif %}>−</button>
+                                    data-product-id="{{ item.product_id }}" {% if unavailable or item.product.digital_book_id %}disabled{% endif %}>−</button>
                             <input type="number" class="quantity-input" 
                                    value="{{ 0 if unavailable else item.quantity }}" 
                                    min="{{ 0 if unavailable else 1 }}" 
                                    max="{{ item.product.stock_quantity }}"
-                                   data-product-id="{{ item.product_id }}" {% if unavailable %}disabled{% endif %}>
+                                   data-product-id="{{ item.product_id }}" {% if unavailable %}disabled{% elif item.product.digital_book_id %}readonly{% endif %}>
                             <button type="button" class="quantity-btn plus" 
-                                    data-product-id="{{ item.product_id }}" {% if unavailable %}disabled{% endif %}>+</button>
+                                    data-product-id="{{ item.product_id }}" {% if unavailable or item.product.digital_book_id %}disabled{% endif %}>+</button>
                         </div>
-                        <div class="quantity-info">В наличии: {{ [item.product.stock_quantity or 0, 0]|max }}</div>
+                        <div class="quantity-info">{% if item.product.digital_book_id %}Доступ в библиотеке{% else %}В наличии: {{ [item.product.stock_quantity or 0, 0]|max }}{% endif %}</div>
                     </div>
                     
                     <div class="cart-item-total">
@@ -1271,7 +1273,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const cartTotal = {{ cart_total.total if cart_total is mapping else cart_total }};
         const bonusTotal = getBonusTotal();
-        const newTotal = Math.max(0, cartTotal + totalDeliveryCost - bonusTotal);
+        const newTotal = Math.max(0, cartTotal + totalDeliveryCost - bonusTotal - getPromoTotal());
 
         if (totalDeliveryCost > 0) {
             document.getElementById('delivery-cost-row').style.display = 'flex';

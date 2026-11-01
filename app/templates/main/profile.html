@@ -3,6 +3,7 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block extra_css %}
+{% if section == 'library' %}{% include 'components/reading_appearance_assets.html' %}{% endif %}
 <style>
 /* Изолируем Bootstrap только для контента профиля */
 .profile-page *, .profile-page *::before, .profile-page *::after {
@@ -362,8 +363,7 @@
             
             <nav class="profile-nav">
                 {% if digital_pilot_allowed() %}
-                <a href="{{ url_for('digital.library') }}" class="profile-nav-link">Моя библиотека</a>
-                <a href="{{ url_for('digital.books') }}" class="profile-nav-link">Электронные книги</a>
+                <a href="{{ url_for('digital.library') }}" class="profile-nav-link {% if section == 'library' %}active{% endif %}"><i class="bi bi-book" aria-hidden="true"></i> Моя библиотека</a>
                 {% endif %}
                 <a href="{{ url_for('main.profile', section='orders') }}"
                    class="profile-nav-link {% if section == 'orders' %}active{% endif %}">
@@ -447,7 +447,9 @@
         
         {# Main Content #}
         <main class="profile-content">
-            {% if section == 'orders' %}
+            {% if section == 'library' %}
+                {% include "main/digital_library.html" %}
+            {% elif section == 'orders' %}
                 {% include "main/_orders_content.html" %}
             {% elif section == 'favorite' %}
                 {% include "main/profile_favorite.html" %}

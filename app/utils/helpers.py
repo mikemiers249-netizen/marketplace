@@ -113,6 +113,27 @@ def format_price(price, currency='₽'):
 
 
 def compute_product_promotion_info(product):
+    info = _compute_product_promotion_info(product)
+    if product is not None and product.digital_book_id:
+        # Use the same maximum-discount rule as checkout, including template overrides.
+        from types import SimpleNamespace
+        from app.models.orders import Promotion
+        item = SimpleNamespace(product=product, quantity=1)
+        breakdown = compute_item_discount_breakdown(item, [item])
+        discount = breakdown['total_discount']
+        if discount > 0:
+            promotion = db.session.get(Promotion, breakdown['promo_id']) if breakdown['promo_id'] else None
+            info.update(has_promotion=True, old_price=float(product.price),
+                final_price=round(float(product.price) - discount, 2),
+                percent=round(100 * discount / float(product.price)) if product.price else 0,
+                name=promotion.name if promotion else None,
+                scheme=promotion.scheme if promotion else 'product_discount', scheme_label='Скидка')
+        elif info['old_price']:
+            info.update(has_promotion=False, old_price=None, final_price=float(product.price), percent=None, name=None)
+    return info
+
+
+def _compute_product_promotion_info(product):
     """
     Единый источник правды по акциям для карточки/плитки товара.
 

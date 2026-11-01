@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}{{ book.title }} — Wimli{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/product.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/digital-products.css') }}">{% endblock %}
+{% block content %}
+{% set commerce = book.commerce_product %}{% set promo = promo_info(commerce) %}
+<div class="container">
+  <nav class="breadcrumbs"><a href="{{ url_for('digital.books') }}">Электронные книги</a>
+    {% if book.category %}{% for category in book.category.all_parents + [book.category] %}<span class="separator">/</span><a href="{{ url_for('digital.books', category_id=category.id) }}">{{ category.name }}</a>{% endfor %}{% endif %}
+    <span class="separator">/</span><span class="current">{{ book.title }}</span>
+  </nav>
+  <div class="product-detail">
+    <div class="product-gallery"><div class="main-photo">{% include 'components/digital_cover.html' %}
+      {% if commerce %}<div class="product-badges">{% if commerce.is_new %}<span class="badge badge-new">Новинка</span>{% endif %}{% if promo.has_promotion %}<span class="badge badge-sale">{% if promo.percent %}-{{ promo.percent }}%{% else %}{{ promo.scheme_label or 'Акция' }}{% endif %}</span>{% endif %}</div>{% endif %}
+    </div></div>
+    <div class="product-info-detail">
+      <h1 class="product-title">{{ book.title }}</h1>
+      {% if book.system_sku %}<p class="product-system-sku">{{ book.system_sku }}</p>{% endif %}
+      {% if book.article %}<div class="product-article">Артикул: <span>{{ book.article }}</span></div>{% endif %}
+      <p>{{ book.author }}</p>
+      <div class="product-price-detail"><span class="current-price">{{ format_price(promo.final_price if commerce else book.price) }}</span>{% if promo.old_price %}<span class="old-price">{{ format_price(promo.old_price) }}</span>{% endif %}</div>
+      {% if promo.name %}<p>{{ promo.name }}</p>{% endif %}
+      <p>Электронная книга · {{ book.format|upper }}. Доставка не требуется.</p>
+      {% if digital_buyer() and book.published %}
+      {% if digital_test_buyer() %}
+      <form method="post" action="{{ url_for('digital.test_access', book_id=book.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary" type="submit">Получить для теста</button>
+      </form>
+      <p>Тестовый доступ без оплаты для вашего аккаунта.</p>
+      {% endif %}
+      <form id="book-cart-form" method="post" action="{{ url_for('main.cart_remove') if in_cart else url_for('digital.add_to_cart', book_id=book.id) }}"
+            data-add-url="{{ url_for('digital.add_to_cart', book_id=book.id) }}" data-remove-url="{{ url_for('main.cart_remove') }}" data-in-cart="{{ 'true' if in_cart else 'false' }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product_id" value="{{ commerce.id if commerce else '' }}">
+        <button class="btn {{ 'btn-outline-danger' if in_cart else 'btn-primary' }}" type="submit">{{ 'Удалить из корзины' if in_cart else 'В корзину' }}</button>
+      </form><p id="book-cart-error" role="alert" hidden></p>
+      <p>Промокоды и списание бонусов доступны в корзине. После оплаты книга появится в библиотеке.</p>
+      {% elif digital_manager() %}<a class="btn btn-primary" href="{{ url_for('digital.preview', book_id=book.id) }}">Предпросмотр</a>
+      {% elif not current_user.is_authenticated %}<a class="btn btn-primary" href="{{ url_for('auth.login', next=url_for('digital.detail', book_id=book.id)) }}">Войти, чтобы купить</a>{% endif %}
+      {% if digital_buyer() %}<p><a href="{{ url_for('digital.library') }}">Моя библиотека</a></p>{% endif %}
+    </div>
+  </div>
+  <section class="product-tabs"><div class="tabs-content">
+    <h2>Описание</h2><div class="product-description" style="white-space:pre-line">{{ book.description or 'Описание отсутствует' }}</div>
+    <h2>Характеристики</h2><table class="params-table"><tbody>
+      <tr><td class="param-name">Формат</td><td class="param-value">{{ book.format|upper }}</td></tr>
+      {% if book.author %}<tr><td class="param-name">Автор</td><td class="param-value">{{ book.author }}</td></tr>{% endif %}
+      {% if book.category %}{% for parameter in book.category.get_all_parameters() %}{% set value = book.parameter_values.get(parameter.id|string) %}{% if value is not none %}<tr><td class="param-name">{{ parameter.name }}</td><td class="param-value">{{ parameter.format_value_display(value) }}</td></tr>{% endif %}{% endfor %}{% endif %}
+    </tbody></table>
+  </div></section>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const form = document.getElementById('book-cart-form');
+  if (!form) return;
+  const button = form.querySelector('button');
+  const error = document.getElementById('book-cart-error');
+  let inCart = form.dataset.inCart === 'true';
+  let busy = false;
+  function updateButton() {
+    button.textContent = inCart ? 'Удалить из корзины' : 'В корзину';
+    button.classList.toggle('btn-primary', !inCart);
+    button.classList.toggle('btn-outline-danger', inCart);
+    form.action = inCart ? form.dataset.removeUrl : form.dataset.addUrl;
+  }
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    if (busy) return;
+    busy = true;
+    button.disabled = true;
+    error.hidden = true;
+    try {
+      const response = await fetch(form.action, {method: 'POST', body: new FormData(form),
+        headers: {'X-Requested-With': 'XMLHttpRequest'}});
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        error.textContent = data.error || 'Не удалось изменить корзину. Попробуйте ещё раз.';
+        error.hidden = false;
+        return;
+      }
+      inCart = !inCart;
+      if (typeof updateCartCount === 'function') updateCartCount(data.cart_count);
+      updateButton();
+    } catch (failure) {
+      error.textContent = 'Не удалось изменить корзину. Попробуйте ещё раз.';
+      error.hidden = false;
+    } finally {
+      busy = false;
+      button.disabled = false;
+    }
+  });
+});
+</script>
+{% endblock %}

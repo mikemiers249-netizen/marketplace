@@ -8,31 +8,16 @@
 
 {% block content %}
 <div class="products-page">
+    {% include "seller/_product_tabs.html" %}
     {# Filters #}
-    <div class="products-filters">
-        <div class="filter-tabs">
-            <a href="{{ url_for('seller.products') }}" class="filter-tab{% if not current_status %} active{% endif %}">
-                Все
-            </a>
-            <a href="{{ url_for('seller.products', status='active') }}" class="filter-tab{% if current_status == 'active' %} active{% endif %}">
-                Активные
-            </a>
-            <a href="{{ url_for('seller.products', status='on_moderation') }}" class="filter-tab{% if current_status == 'on_moderation' %} active{% endif %}">
-                На модерации
-            </a>
-            <a href="{{ url_for('seller.products', status='inactive') }}" class="filter-tab{% if current_status == 'inactive' %} active{% endif %}">
-                Неактивные
-            </a>
-            <a href="{{ url_for('seller.products', status='rejected') }}" class="filter-tab{% if current_status == 'rejected' %} active{% endif %}">
-                Отклонённые
-            </a>
-        </div>
-        <div class="products-actions">
-            <a href="{{ url_for('seller.product_new') }}" class="btn btn-primary">
-                <i class="bi bi-plus-lg"></i> Добавить товар
-            </a>
-        </div>
-    </div>
+    {% from 'seller/_products_toolbar.html' import products_toolbar %}
+    {{ products_toolbar([
+        {'label': 'Все', 'url': url_for('seller.products'), 'active': not current_status},
+        {'label': 'Активные', 'url': url_for('seller.products', status='active'), 'active': current_status == 'active'},
+        {'label': 'На модерации', 'url': url_for('seller.products', status='on_moderation'), 'active': current_status == 'on_moderation'},
+        {'label': 'Неактивные', 'url': url_for('seller.products', status='inactive'), 'active': current_status == 'inactive'},
+        {'label': 'Отклонённые', 'url': url_for('seller.products', status='rejected'), 'active': current_status == 'rejected'}
+    ], url_for('seller.product_new')) }}
 
     {# Products list #}
     <div class="products-list">

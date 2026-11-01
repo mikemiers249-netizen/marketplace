@@ -291,11 +291,7 @@
                 {% set item_paid = item.total_price - item_bonus_share %}
                 <div class="order-item">
                     <div class="item-image">
-                        {% if item.product and item.product.main_photo %}
-                        <img src="{{ url_for('static', filename='uploads/products/' + item.product.main_photo.path) }}" alt="{{ item.product.name }}">
-                        {% else %}
-                        <div class="no-image">Нет фото</div>
-                        {% endif %}
+                        {% include 'components/order_item_thumbnail.html' %}
                     </div>
                     <div class="item-details">
                         <span class="item-name">{{ item.product_name or item.product.name if item.product else 'Товар' }}</span>
@@ -304,6 +300,7 @@
                     </div>
                 </div>
                 {% endfor %}
+                {% include 'components/order_digital_fallback.html' %}
                 {% if order.items|list|length > 3 %}
                 <div class="more-items">+{{ order.items|list|length - 3 }} товар(ов)</div>
                 {% endif %}

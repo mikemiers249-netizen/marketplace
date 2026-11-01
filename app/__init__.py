@@ -72,6 +72,7 @@ def create_app(config_class=None):
     from app.email_worker import mail_check, mail_deliver
     from app.utils import email_events  # noqa: F401
     from app.utils import admin_notifications  # noqa: F401
+    from app.utils import digital_commerce  # noqa: F401
     app.register_blueprint(email_bp)
     from app.blueprints.privacy import init_privacy
     init_privacy(app)
@@ -114,6 +115,7 @@ def create_app(config_class=None):
         clean_missing_photos_command,
         seed_footer_links_command,
         ensure_system_sku_command,
+        ensure_digital_catalog_command,
         tariff_demo_near_expiry_command,
         tariff_collapse_history_command,
     )
@@ -126,6 +128,7 @@ def create_app(config_class=None):
     app.cli.add_command(clean_missing_photos_command)
     app.cli.add_command(seed_footer_links_command)
     app.cli.add_command(ensure_system_sku_command)
+    app.cli.add_command(ensure_digital_catalog_command)
     app.cli.add_command(tariff_demo_near_expiry_command)
     app.cli.add_command(tariff_collapse_history_command)
 

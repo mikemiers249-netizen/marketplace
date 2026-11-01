@@ -1,7 +1,7 @@
 {% set endpoint = request.endpoint or '' %}
-{% if endpoint.startswith('admin.product') or endpoint.startswith('admin.review') %}
+{% if endpoint.startswith('admin.product') or endpoint.startswith('admin.review') or endpoint == 'digital.moderate' %}
 <nav class="admin-section-tabs" aria-label="Модерация">
-    <a class="btn {{ 'btn-primary' if endpoint.startswith('admin.product') else 'btn-secondary' }}" href="{{ url_for('admin.products_moderation') }}">Модерация товаров</a>
+    <a class="btn {{ 'btn-primary' if endpoint.startswith('admin.product') or endpoint == 'digital.moderate' else 'btn-secondary' }}" href="{{ url_for('admin.products_moderation') }}">Модерация товаров</a>
     <a class="btn {{ 'btn-primary' if endpoint.startswith('admin.review') else 'btn-secondary' }}" href="{{ url_for('admin.reviews') }}">Модерация отзывов</a>
 </nav>
 {% elif endpoint in ('admin.messages', 'privacy.requests_admin') %}

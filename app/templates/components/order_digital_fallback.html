@@ -1,0 +1,8 @@
+{% if not order.items|list %}
+{% for purchase in order.digital_purchases %}
+<div class="order-item">
+  <div class="item-image">{% set book = purchase.book %}{% if book %}{% include 'components/digital_cover.html' %}{% endif %}</div>
+  <div class="item-details"><span class="item-name">{{ purchase.title }}</span></div>
+</div>
+{% endfor %}
+{% endif %}

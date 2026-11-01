@@ -7,7 +7,7 @@
     <title>{% block title %}Админ-панель{% endblock %}</title>
     <link href="/static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261004-nav') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261018-moderation') }}">
     {# Inline-страховка: подсветка пункта «Сообщения» при непрочитанных.
        Дублируем правила, чтобы они применялись, даже если основной admin.css
        не догрузился (например, при сбое CDN или прокси). #}
@@ -63,7 +63,7 @@
                         </a>
                     </li>
                     <li>
-                        <a href="{{ url_for('admin.products_moderation') }}" class="nav-link{% if 'products' in request.endpoint or 'review' in request.endpoint %} active{% endif %}">
+                        <a href="{{ url_for('admin.products_moderation') }}" class="nav-link{% if 'products' in request.endpoint or 'review' in request.endpoint or request.endpoint == 'digital.moderate' %} active{% endif %}">
                             <span class="nav-icon"><i class="bi bi-box-seam"></i></span>
                             <span>Модерация</span>
                         </a>

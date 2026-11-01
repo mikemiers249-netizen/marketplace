@@ -713,7 +713,8 @@ const allCategories = [
     {
         id: {{ category.id }},
         name: {{ category.name|tojson }},
-        parent_id: {{ category.parent_id if category.parent_id else 'null' }}
+        parent_id: {{ category.parent_id if category.parent_id else 'null' }},
+        digital: {{ category.digital_book_category|tojson }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}
 ];
@@ -722,7 +723,7 @@ const allCategories = [
 const categoryParams = {{ category_params|tojson }};
 
 // Текущая выбранная категория
-let currentCategoryId = {{ product.category_id if product else 'null' }};
+let currentCategoryId = {{ (product.category_id if product else (request.args.get('category_id', 0)|int or none))|tojson }};
 
 // Параметры товара при редактировании
 const productParams = {{ product_params|tojson }};
@@ -811,6 +812,10 @@ function buildCategoryPath(categoryId, callback) {
 
 // Обработка изменения категории
 function handleCategoryChange(level, categoryId, callback) {
+    if ({{ (not product)|tojson }} && allCategories.some(c => c.id === Number(categoryId) && c.digital)) {
+        window.location.href = {{ url_for('seller.product_new')|tojson }} + '?category_id=' + encodeURIComponent(categoryId);
+        return;
+    }
     const selector = document.getElementById('category-selector');
     
     // Удаляем все уровни после текущего

@@ -1,11 +1,40 @@
-{% extends 'main/digital_layout.html' %}
-{% block digital_content %}
-<h1>Моя библиотека</h1><p class="muted">Книги появляются здесь после подтверждения оплаты.</p>
-<div class="book-grid shelf">
-{% for purchase in purchases %}<article class="book-card"><div class="book-cover">{{ purchase.title }}</div>
-<h2>{{ purchase.title }}</h2><p class="muted">{{ purchase.book.author }} · {{ purchase.format|upper }}</p>
-<p class="muted">Заказ {{ purchase.order.order_number }}</p>
-<a class="button" href="{{ url_for('digital.read',purchase_id=purchase.id) }}">{{ 'Продолжить чтение' if purchase.position or purchase.chapter else 'Читать' }}</a>
-</article>{% else %}<div class="empty"><h2>Ваша библиотека пока пуста</h2><p>После покупки книга будет доступна здесь.</p><a class="button" href="{{ url_for('digital.books') }}">Выбрать книгу</a></div>{% endfor %}
+<div class="library-header">
+<h2>Моя библиотека</h2>
+{% with show_font_controls=false %}{% include 'components/reading_controls.html' %}{% endwith %}
+<nav class="library-filters" aria-label="Статус чтения">
+{% for value, label in [('unread', 'Еще не читал'), ('reading', 'Читаю'), ('finished', 'Прочитано')] %}
+<a class="library-filter {% if library_status == value %}active{% endif %}" href="{{ url_for('digital.library', status=value) if library_status != value else url_for('digital.library') }}" role="button" aria-pressed="{{ 'true' if library_status == value else 'false' }}">{{ label }}</a>
+{% endfor %}
+</nav>
 </div>
-{% endblock %}
+<div class="products-grid products-grid-4 library-grid">
+{% for item in library_items %}
+{% set purchase = item.purchase %}
+{% set book = purchase.book %}
+{% set read_url = url_for('digital.read', purchase_id=purchase.id) %}
+<article class="product-card"><div class="product-card-inner">
+<a class="product-photo" href="{{ read_url }}" aria-label="Читать: {{ purchase.title }}">{% include 'components/digital_cover.html' %}</a>
+<div class="product-info">
+<a class="product-name" href="{{ read_url }}">{{ purchase.title }}</a>
+{% if book.author %}<div class="library-author">{{ book.author }}</div>{% endif %}
+{% if item.started %}
+<div class="product-price"><div class="current-price">{{ item.percent }}%</div></div>
+<div class="product-rating library-pages">{{ item.pages }} страниц из {{ item.total }}</div>
+{% else %}<a class="library-start" href="{{ read_url }}">Начать читать</a>{% endif %}
+</div></div></article>
+{% else %}
+<div class="library-empty">{% if library_status %}В этом разделе пока нет книг.{% else %}Ваша библиотека пока пуста. После покупки книга будет доступна здесь.{% endif %}</div>
+{% endfor %}
+</div>
+<style>
+.library-header { margin-bottom: 24px; }
+.library-header h2 { margin: 0 0 16px; font-size: 24px; font-weight: 700; }
+.library-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.library-filter { padding: 8px 14px; border: 1px solid #e5e5e5; border-radius: 8px; color: #555; background: #fff; text-decoration: none; font-size: 14px; }
+.library-filter:hover, .library-filter.active { color: #fff; background: #667eea; border-color: #667eea; }
+.library-filter:focus-visible { outline: 2px solid #667eea; outline-offset: 3px; }
+.library-author { font-size: 13px; color: #738094; margin-top: 2px; }
+.library-start { display: flex; align-items: center; min-height: 60px; font-size: 13px; color: #666; text-decoration: none; }
+.library-pages { color: #888; font-size: 13px; }
+.library-empty { grid-column: 1 / -1; padding: 40px 16px; text-align: center; color: #888; }
+</style>

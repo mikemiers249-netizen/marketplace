@@ -3,6 +3,7 @@ import posixpath
 from pathlib import Path, PurePosixPath
 from zipfile import ZipFile, BadZipFile
 from xml.etree import ElementTree as ET
+from urllib.parse import unquote, urldefrag
 from flask import current_app
 
 MAX_FILE = 15 * 1024 * 1024
@@ -43,24 +44,84 @@ def epub_chapters(path):
             package = xml(opf_name)
             manifest = {e.attrib['id']: e.attrib.get('href', '') for e in package.iter()
                         if e.tag.split('}')[-1] == 'item'}
+            roots = {}
+            notes = {}
+            for href in manifest.values():
+                name = posixpath.normpath(posixpath.join(posixpath.dirname(opf_name), unquote(href)))
+                if name.lower().endswith(('.xhtml', '.html', '.htm')):
+                    root = xml(name)
+                    roots[name] = root
+                    for element in root.iter():
+                        kind = ' '.join(element.attrib.values()).lower().split()
+                        if any(k in kind for k in ('footnote', 'endnote', 'doc-footnote', 'doc-endnote')):
+                            note_id = element.attrib.get('id')
+                            if note_id:
+                                notes[(name, note_id)] = ' '.join(''.join(element.itertext()).split())
+            # Move linked notes into the running text; never pass publisher HTML through.
+            for name, root in roots.items():
+                for parent in root.iter():
+                    for child in list(parent):
+                        tag = child.tag.split('}')[-1]
+                        if (name, child.attrib.get('id')) in notes:
+                            parent.remove(child)
+                        elif tag == 'a':
+                            target, fragment = urldefrag(unquote(child.attrib.get('href', '')))
+                            target = posixpath.normpath(posixpath.join(posixpath.dirname(name), target)) if target else name
+                            note = notes.get((target, fragment))
+                            if note:
+                                tail = child.tail
+                                child.clear()
+                                child.text = f' (Сноска: {note}) '
+                                child.tail = tail
             chapters = []
             for ref in package.iter():
                 if ref.tag.split('}')[-1] != 'itemref':
                     continue
                 name = posixpath.normpath(posixpath.join(posixpath.dirname(opf_name),
                                                        manifest[ref.attrib['idref']]))
-                root = xml(name)
+                root = roots.get(name)
+                if root is None:
+                    root = xml(name)
                 for parent in root.iter():
                     for child in list(parent):
                         if child.tag.split('}')[-1] in ('script', 'style', 'iframe', 'object'):
                             parent.remove(child)
                 blocks = []
-                for e in root.iter():
-                    tag = e.tag.split('}')[-1]
-                    if tag in ('h1', 'h2', 'h3', 'p', 'li', 'blockquote', 'pre'):
-                        text = ' '.join(''.join(e.itertext()).split())
-                        if text:
-                            blocks.append((tag if tag in ('h1', 'h2', 'h3') else 'p', text))
+                def walk(element, heading='p'):
+                    tag = element.tag.split('}')[-1]
+                    if tag in ('head', 'header', 'footer', 'nav'):
+                        return
+                    if tag in ('img', 'image'):
+                        href = element.attrib.get('src') or element.attrib.get('{http://www.w3.org/1999/xlink}href', '')
+                        asset = posixpath.normpath(posixpath.join(posixpath.dirname(name), unquote(href)))
+                        if asset in archive.namelist() and not asset.startswith('/') and '..' not in PurePosixPath(asset).parts:
+                            blocks.append(('img', asset))
+                        return
+                    kind = tag if tag in ('h1', 'h2', 'h3') else heading
+                    text = []
+                    def flush():
+                        value = ' '.join(''.join(text).split())
+                        if value:
+                            blocks.append((kind, value))
+                        text.clear()
+                    if element.text:
+                        text.append(element.text)
+                    for child in element:
+                        child_tag = child.tag.split('}')[-1]
+                        if child_tag in ('head', 'header', 'footer', 'nav'):
+                            continue
+                        if child_tag in ('img', 'image', 'h1', 'h2', 'h3', 'p', 'li', 'blockquote', 'pre', 'html', 'body', 'main', 'article', 'aside', 'div', 'section', 'figure', 'svg'):
+                            flush()
+                            walk(child, kind)
+                        elif any(e.tag.split('}')[-1] in ('img', 'image') for e in child.iter()):
+                            flush()
+                            walk(child, kind)
+                        else:
+                            text.append(''.join(child.itertext()))
+                        if child.tail:
+                            text.append(child.tail)
+                    flush()
+                walk(root)
                 if not blocks:
                     text = ' '.join(''.join(root.itertext()).split())
                     if text:

@@ -82,6 +82,20 @@ def reset_public_schema_command(yes):
     click.echo("Schema public recreated. Now run: flask db-init && flask db stamp heads")
 
 
+@click.command("ensure-digital-catalog")
+@with_appcontext
+def ensure_digital_catalog_command():
+    from app.utils.digital_catalog import ensure_schema
+    with db.engine.begin() as connection:
+        ensure_schema(connection)
+    from app.models.digital import DigitalBook
+    from app.utils.digital_commerce import sync_book
+    for book in DigitalBook.query.all():
+        sync_book(book)
+    db.session.commit()
+    click.echo('Digital catalog schema ready.')
+
+
 @click.command("ensure-system-sku")
 @with_appcontext
 def ensure_system_sku_command():

@@ -475,8 +475,8 @@
                 </div>
                 <div class="seller-total">
                     Сумма: <strong>{{ seller_data.total | round(2) }} ₽</strong>
-                    {% if seller_data.seller and seller_data.seller.minimum_order_amount %}
-                    <div>Минимальный заказ: {{ format_price(seller_data.seller.minimum_order_amount) }} без доставки</div>
+                    {% if not seller_data.digital_only and seller_data.seller and seller_data.seller.minimum_order_amount %}
+                    <div>Минимальный заказ физических товаров: {{ format_price(seller_data.seller.minimum_order_amount) }} без доставки</div>
                     {% endif %}
                 </div>
             </div>
@@ -497,7 +497,9 @@
                         <tr class="order-item-row" data-item-id="{{ item.id }}">
                             <td>
                                 <div class="order-item-image">
-                                    {% if item.product.main_photo %}
+                                    {% if item.product.digital_book_id %}
+                                    {% with book=item.product.digital_book %}{% include 'components/digital_cover.html' %}{% endwith %}
+                                    {% elif item.product.main_photo %}
                                     <img src="{{ url_for('static', filename='uploads/products/' + item.product.main_photo.path) }}" 
                                          alt="{{ item.product.name }}">
                                     {% else %}
@@ -546,6 +548,9 @@
             </div>
             
             {# Выбор способа доставки #}
+            {% if seller_data.digital_only %}
+            <p>Электронные книги появятся в библиотеке после оплаты. Доставка не требуется.</p>
+            {% else %}
             <div class="delivery-selector-container">
                 <div class="delivery-selector">
                     <label for="delivery-select-{{ seller_id }}" class="delivery-label">
@@ -592,6 +597,7 @@
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
         </div>
         {% endfor %}
         
@@ -677,6 +683,7 @@
             <input type="hidden" name="bonus_per_seller" id="bonusPerSellerField" value="{{ bonus_per_seller_str or '' }}">
             <input type="hidden" name="promo_per_seller" id="promoPerSellerField" value="{{ promo_per_seller_str or '' }}">
             <p class="text-muted">Нажимая «Оплатить», вы принимаете <a href="/page/offer" target="_blank" rel="noopener">оферту</a>. Данные заказа обрабатываются для его исполнения согласно <a href="/page/privacy" target="_blank" rel="noopener">политике</a>.</p>
+            <p><strong>Нажимая кнопку "Оплатить", я подтверждаю, что способ доставки и адрес указаны мной верно. В случае отсутствия в указанных мной контактных данных (город, телефон, ФИО, иная информация необходимая для отправки заказа в мой адрес), я отказываюсь от претензий в адрес Продавца, если получение оплаченного товара станет невозможным в силу непредоставления данной информации.</strong></p>
             <input type="hidden" name="offer_version" value="{{ document_digest('offer') }}">
             <button type="submit" class="submit-btn">
                 Оплатить

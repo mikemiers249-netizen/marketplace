@@ -143,24 +143,25 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
 
             <div class="form-group">
-                <label for="minimum_order_amount">Минимальная сумма заказа, ₽</label>
+                <label for="minimum_order_amount">Минимальная сумма физического заказа, ₽</label>
                 <input type="number" min="0" max="9999999999.99" step="0.01"
                        id="minimum_order_amount" name="minimum_order_amount"
                        value="{{ seller.minimum_order_amount if seller.minimum_order_amount is not none else '' }}"
                        placeholder="Без ограничения" class="form-control">
-                <span class="form-hint">Сумма товаров вашего магазина со скидками, без доставки,
+                <span class="form-hint">Сумма физических товаров вашего магазина со скидками, без доставки,
                     до списания бонусов и промокодов. Пустое поле или 0 — без ограничения.</span>
             </div>
             <div class="form-group">
-                <label for="daily_orders_limit">Максимум заказов в сутки</label>
+                <label for="daily_orders_limit">Максимум физических заказов в сутки</label>
                 <input type="number" min="1" step="1"
                        id="daily_orders_limit" name="daily_orders_limit"
                        value="{{ seller.daily_orders_limit if seller.daily_orders_limit is not none else '' }}"
                        placeholder="Без лимита"
                        class="form-control">
                 <span class="form-hint">
-                    Когда покупатели оформят это количество заказов за текущие сутки,
-                    товары магазина перестанут показываться в каталоге.
+                    Когда покупатели оформят это количество заказов с физическими товарами за текущие сутки (UTC),
+                    физические товары магазина перестанут показываться в каталоге.
+                    Электронные товары не учитываются и остаются доступны.
                     Оставьте поле пустым, чтобы снимать ограничение.
                     Товары, уже добавленные в корзину покупателями, останутся доступны для оформления.
                 </span>

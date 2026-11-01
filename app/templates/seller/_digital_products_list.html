@@ -1,0 +1,75 @@
+{% from 'seller/_products_toolbar.html' import products_toolbar %}
+<div class="products-page">
+    {% if current_user.store_name is defined %}{% include 'seller/_product_tabs.html' %}{% endif %}
+    {{ products_toolbar([
+        {'label': 'Все', 'url': url_for('digital.manage'), 'active': not current_status},
+        {'label': 'Опубликованные', 'url': url_for('digital.manage', status='active'), 'active': current_status == 'active'},
+        {'label': 'На модерации', 'url': url_for('digital.manage', status='pending'), 'active': current_status == 'pending'},
+        {'label': 'Отклонённые', 'url': url_for('digital.manage', status='rejected'), 'active': current_status == 'rejected'},
+        {'label': 'Неактивные', 'url': url_for('digital.manage', status='inactive'), 'active': current_status == 'inactive'}
+    ], url_for('seller.product_new') if current_user.store_name is defined else url_for('digital.choose')) }}
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for kind, message in messages %}<div class="alert alert-{{ 'success' if kind == 'success' else 'warning' }}" role="alert">{{ message }}</div>{% endfor %}{% endwith %}
+    <div class="products-list" style="overflow:visible">
+    {% if books %}
+        <table class="products-table">
+            <thead><tr><th>Фото</th><th>Название</th><th>Цена</th><th>Формат</th><th>Статус</th><th>Дата</th><th>Действия</th></tr></thead>
+            <tbody>
+            {% for book in books %}
+                <tr class="product-row">
+                    <td class="product-image">{% if book.cover_name %}<img src="{{ url_for('digital.cover', book_id=book.id) }}" alt="{{ book.title }}">{% else %}<div class="no-image">Нет фото</div>{% endif %}</td>
+                    <td class="product-name">
+                        <a href="{{ url_for('digital.detail', book_id=book.id) }}">{{ book.title }}</a>
+                        {% if book.category %}<span class="product-category">{{ book.category.name }}</span>{% endif %}
+                        {% if book.article %}<span class="product-category">{{ book.article }}</span>{% endif %}
+                    </td>
+                    <td class="product-price"><button type="button" class="inline-price" data-url="{{ url_for('digital.price',book_id=book.id) }}" data-value="{{ book.price }}" title="Изменить цену" style="border:0;background:none;padding:0;color:inherit;font:inherit;cursor:pointer">{{ '%.2f'|format(book.price) }} ₽</button></td>
+                    <td>{{ book.format|upper }}</td>
+                    <td class="product-status"><span class="status-badge status-{{ 'active' if book.published else 'inactive' }}">{{ 'Опубликован' if book.published else {'pending':'На модерации','rejected':'Отклонён','approved':'Неактивен'}.get(book.moderation_status,'Черновик') }}</span>{% if book.moderation_comment %}<small>{{ book.moderation_comment }}</small>{% endif %}</td>
+                    <td class="product-date">{{ book.created_at.strftime('%d.%m.%Y') }}</td>
+                    <td class="product-actions">
+                        <a class="btn-action btn-edit" href="{{ url_for('digital.edit',book_id=book.id) }}" title="Редактировать" aria-label="Редактировать {{ book.title }}"><i class="bi bi-pencil"></i></a>
+                        <a href="{{ url_for('digital.preview', book_id=book.id) }}" class="btn-action btn-edit" title="Предпросмотр" aria-label="Предпросмотр {{ book.title }}"><i class="bi bi-eye"></i></a>
+                        <form action="{{ url_for('digital.delete', book_id=book.id) }}" method="post" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn-action btn-delete" title="Удалить товар" aria-label="Удалить {{ book.title }}"><i class="bi bi-trash"></i></button>
+                        </form>
+                        <form action="{{ url_for('digital.publish', book_id=book.id) }}" method="post" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn-action {{ 'btn-deactivate' if book.published else 'btn-activate' }}" title="{{ 'Снять с продажи' if book.published else ('Опубликовать' if book.moderation_status == 'approved' else 'Отправить на модерацию') }}" aria-label="{{ 'Снять с продажи' if book.published else ('Опубликовать' if book.moderation_status == 'approved' else 'Отправить на модерацию') }} {{ book.title }}"><i class="bi {{ 'bi-arrow-down-circle' if book.published else 'bi-arrow-up-circle' }}"></i></button>
+                        </form>
+                        <details style="position:relative">
+                            <summary class="btn-action btn-edit" title="Обложка" aria-label="Обложка {{ book.title }}"><i class="bi bi-image"></i></summary>
+                            <form method="post" action="{{ url_for('digital.cover', book_id=book.id) }}" enctype="multipart/form-data" style="position:absolute;right:0;z-index:10;width:280px;max-width:80vw;padding:16px;background:var(--bg-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm)">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <label for="cover-{{ book.id }}">{{ 'Заменить обложку' if book.cover_name else 'Добавить обложку' }}</label>
+                                <input class="form-input" id="cover-{{ book.id }}" name="cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/tiff" required>
+                                <button type="submit" class="btn btn-primary">Сохранить обложку</button>
+                            </form>
+                        </details>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state"><i class="bi bi-box-seam" style="font-size:56px;opacity:.3;margin-bottom:16px"></i><h3>Нет товаров</h3><p>{{ 'В этом статусе пока нет электронных товаров' if current_status else 'Добавьте свой первый электронный товар' }}</p><a class="btn btn-primary" href="{{ url_for('seller.product_new') if current_user.store_name is defined else url_for('digital.choose') }}"><i class="bi bi-plus-lg"></i> Добавить товар</a></div>
+    {% endif %}
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+        {% if pagination.has_prev %}<a class="pagination-link" href="{{ url_for('digital.manage', page=pagination.prev_num, status=current_status) }}">&laquo; Предыдущая</a>{% endif %}
+        {% for page_num in pagination.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}{% if page_num %}{% if page_num == pagination.page %}<span class="pagination-link active">{{ page_num }}</span>{% else %}<a class="pagination-link" href="{{ url_for('digital.manage', page=page_num, status=current_status) }}">{{ page_num }}</a>{% endif %}{% else %}<span class="pagination-ellipsis">...</span>{% endif %}{% endfor %}
+        {% if pagination.has_next %}<a class="pagination-link" href="{{ url_for('digital.manage', page=pagination.next_num, status=current_status) }}">Следующая &raquo;</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.querySelectorAll('.inline-price').forEach(button=>button.addEventListener('click',()=>{
+if(button.querySelector('input'))return;
+const original=button.textContent,input=document.createElement('input');input.type='number';input.min='0.01';input.max='1000000';input.step='0.01';input.value=button.dataset.value;input.style.width='110px';input.setAttribute('aria-label','Цена, рубли');button.textContent='';button.appendChild(input);input.focus();input.select();let busy=false;
+const cancel=()=>{button.textContent=original;};
+async function save(){if(busy)return;if(!input.checkValidity()){input.reportValidity();return;}busy=true;input.disabled=true;try{const body=new FormData();body.set('price',input.value);body.set('csrf_token',document.querySelector('meta[name="csrf-token"]').content);const response=await fetch(button.dataset.url,{method:'POST',body});const data=await response.json();if(!response.ok)throw Error(data.error||'Не удалось сохранить цену');location.reload();}catch(error){busy=false;input.disabled=false;alert(error.message);input.focus();}}
+input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();save();}if(event.key==='Escape'){event.preventDefault();cancel();}});input.addEventListener('blur',()=>{if(input.isConnected)save();});
+}));
+</script>

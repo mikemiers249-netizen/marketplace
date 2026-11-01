@@ -14,12 +14,12 @@ def parse_minimum_order_amount(raw):
 
 
 def minimum_order_error(cart_items):
-    """Check each store's discounted merchandise subtotal before order discounts."""
+    """Check each store's physical merchandise subtotal before order discounts."""
     from app.utils.helpers import compute_best_discount_for_item
     groups = {}
     sellers = {}
     for item in cart_items:
-        if not item.product or not item.product.seller:
+        if not item.product or not item.product.seller or item.product.digital_book_id:
             continue
         seller = item.product.seller
         sellers[seller.id] = seller
@@ -38,7 +38,7 @@ def minimum_order_error(cart_items):
         subtotal = subtotal.quantize(Decimal('0.01'))
         if subtotal < minimum:
             errors.append(
-                f'Минимальная сумма заказа в магазине «{seller.store_name}» — {minimum:.2f} ₽. '
-                f'Добавьте товаров ещё на {minimum - subtotal:.2f} ₽ (без доставки).'
+                f'Минимальная сумма физического заказа в магазине «{seller.store_name}» — {minimum:.2f} ₽. '
+                f'Добавьте физических товаров ещё на {minimum - subtotal:.2f} ₽ (без доставки).'
             )
     return ' '.join(errors) or None

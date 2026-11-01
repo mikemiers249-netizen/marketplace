@@ -274,12 +274,12 @@ def _start_of_today_utc() -> datetime:
 
 
 def _seller_blocked_by_daily_limit(seller) -> bool:
-    """Возвращает True, если продавец превысил дневной лимит заказов.
+    """Возвращает True, если продавец превысил дневной лимит физических заказов.
 
     Лимит хранится в `Seller.daily_orders_limit`:
       - None или 0 → безлимит (всегда False);
       - N > 0      → если за текущие сутки (UTC) у продавца уже
-                     оформлено >= N заказов со статусом != 'canceled',
+                     оформлено >= N заказов с физическими товарами и статусом != 'canceled',
                      возвращаем True.
 
     Кэшируем результат на уровне seller_id в `g`, чтобы не считать
@@ -297,11 +297,14 @@ def _seller_blocked_by_daily_limit(seller) -> bool:
     if hasattr(g, cache_attr):
         return getattr(g, cache_attr)
 
+    from app.models.orders import OrderItem
+
     start = _start_of_today_utc()
     count = Order.query.filter(
         Order.seller_id == seller.id,
         Order.created_at >= start,
         Order.status != 'canceled',
+        Order.items.any(OrderItem.product.has(Product.digital_book_id.is_(None))),
     ).count()
 
     blocked = count >= limit
@@ -311,7 +314,7 @@ def _seller_blocked_by_daily_limit(seller) -> bool:
 
 def _visible_seller_ids_with_limit() -> set:
     """Как _visible_seller_ids, но дополнительно исключает продавцов,
-    у которых превышен дневной лимит заказов. Используется в каталоге."""
+    у которых превышен дневной лимит физических заказов. Используется в каталоге."""
     sids = _visible_seller_ids()
     if not sids:
         return sids
@@ -450,7 +453,7 @@ def catalog(category_id=None):
     query = Product.query.filter(Product.status == 'approved')
 
     # Скрываем товары продавцов с заблокированным тарифом (state in
-    # 'locked', 'none') ИЛИ превысивших дневной лимит заказов.
+    # 'locked', 'none') ИЛИ превысивших дневной лимит физических заказов.
     # Делаем на уровне SQL до пагинации, чтобы не показывать пустые страницы.
     visible_sids = _visible_seller_ids_with_limit()
     if visible_sids:
@@ -558,10 +561,9 @@ def catalog(category_id=None):
             Product.id == reviews_subquery.c.product_id
         ).order_by(func.coalesce(reviews_subquery.c.review_count, 0).desc())
     
-    # Пагинация
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     products = pagination.items
-    
+
     # Категории для фильтров.
     # Логика:
     #   - если выбрана категория, ВСЕГДА показываем её в сайдбаре
@@ -616,6 +618,9 @@ def product(product_id):
     product = db.session.get(Product, product_id)
     if not product or product.status != 'approved':
         abort(404)
+
+    if product.digital_book_id:
+        return redirect(url_for('digital.detail', book_id=product.digital_book_id))
 
     # Скрываем карточку, если магазин селлера заблокирован по тарифу
     # (state in 'locked', 'none'). В грейсе — оставляем видимой, чтобы
@@ -1078,12 +1083,21 @@ def cart_add():
     if not product:
         return {'error': 'Товар не найден'}, 404
 
+    if product.digital_book_id:
+        from app.blueprints.digital import pilot_allowed, purchased
+        from app.models.digital import DigitalPurchase
+        if not pilot_allowed() or product.status != 'approved':
+            abort(404)
+        if any(purchased(p) for p in DigitalPurchase.query.filter_by(buyer_id=current_user.id, book_id=product.digital_book_id)):
+            return {'error': 'Книга уже доступна в вашей библиотеке.'}, 400
+        quantity = 1
+
     # Защита: не даём добавлять в корзину товар от заблокированного продавца.
     if product.seller is not None and _resolve_tariff_state(product.seller)['state'] in ('locked', 'none'):
         return {'error': 'Товар недоступен для покупки.'}, 404
     # Лимит заказов в сутки. Если у продавца лимит превышен, новый
     # покупатель не сможет положить товар в корзину.
-    if product.seller is not None and _seller_blocked_by_daily_limit(product.seller):
+    if not product.digital_book_id and product.seller is not None and _seller_blocked_by_daily_limit(product.seller):
         return {'error': 'Магазин временно не принимает новые заказы (превышен дневной лимит).'}, 404
 
     if product.stock_quantity < quantity:
@@ -1097,6 +1111,8 @@ def cart_add():
     
     if cart_item:
         new_quantity = min(cart_item.quantity + quantity, product.stock_quantity)
+        if product.digital_book_id:
+            new_quantity = 1
         cart_item.quantity = new_quantity
     else:
         cart_item = CartItem(
@@ -1156,6 +1172,9 @@ def cart_update():
         return {'error': 'Товар не найден в корзине'}, 404
     
     product = db.session.get(Product, product_id)
+
+    if product and product.digital_book_id and quantity > 0:
+        quantity = 1
     
     if quantity <= 0:
         db.session.delete(cart_item)
@@ -1463,6 +1482,7 @@ def order_review():
             }
 
         seller_delivery_data[seller_id] = {
+            'digital_only': all(i.product.digital_book_id for i in items_list),
             'seller': seller,
             'cart_items': items_list,
             'total': seller_total,
@@ -1615,6 +1635,15 @@ def checkout_submit():
 
         Product.query.filter(Product.id.in_([item.product_id for item in cart_items])).order_by(
             Product.id).populate_existing().with_for_update().all()
+        from app.models.digital import DigitalPurchase
+        from app.blueprints.digital import purchased, pilot_allowed
+        for item in cart_items:
+            if item.product.digital_book_id:
+                if not pilot_allowed() or item.product.status != 'approved' or item.quantity != 1:
+                    abort(404)
+                if any(purchased(p) for p in DigitalPurchase.query.filter_by(
+                        buyer_id=current_user.id, book_id=item.product.digital_book_id)):
+                    return jsonify(success=False, error='Книга уже есть в вашей библиотеке.'), 400
         if any(item.quantity <= 0 or item.quantity > item.product.stock_quantity for item in cart_items):
             db.session.rollback()
             return jsonify(success=False, error='Количество товара изменилось. Проверьте корзину.'), 400
@@ -1755,6 +1784,9 @@ def checkout_submit():
                 )
             
             # Private reservation only: no accepted order until signed payment confirmation.
+            digital_only = all(item.product.digital_book_id for item in items)
+            if digital_only:
+                delivery_service_id, pvz_code, pvz_address = None, None, 'Электронные книги — библиотека покупателя'
             order = Order(
                 order_number=order_number_prefix,
                 buyer_id=current_user.id,
@@ -1840,6 +1872,9 @@ def checkout_submit():
             # Переписываем total_price: sum(price_at_order * qty) с учётом промо.
             order.total_price = round(items_subtotal_after_promos, 2)
 
+            from app.utils.digital_commerce import reserve_books
+            reserve_books(order, items)
+
             from app.utils.review_rewards import apply_order_rewards
             apply_order_rewards(order)
             from app.blueprints.privacy import record_order_terms
@@ -1847,7 +1882,8 @@ def checkout_submit():
 
             # Уменьшаем остаток товара
             for item in items:
-                item.product.stock_quantity -= item.quantity
+                if not item.product.digital_book_id:
+                    item.product.stock_quantity -= item.quantity
 
             created_orders.append(order.id)
             logger.info(f"Created pending order {order.id} for seller {seller_id}, buyer {current_user.id}")
@@ -2677,7 +2713,7 @@ def add_review(product_id):
     # Не даём оставлять отзывы на товары заблокированных магазинов.
     if product.seller is not None and _resolve_tariff_state(product.seller)['state'] in ('locked', 'none'):
         abort(404)
-    if product.seller is not None and _seller_blocked_by_daily_limit(product.seller):
+    if not product.digital_book_id and product.seller is not None and _seller_blocked_by_daily_limit(product.seller):
         abort(404)
 
     # Проверка, покупал ли пользователь этот товар и получил ли его
@@ -2753,7 +2789,7 @@ def api_submit_review():
     # Не даём оставлять отзывы на товары заблокированных магазинов.
     if product.seller is not None and _resolve_tariff_state(product.seller)['state'] in ('locked', 'none'):
         return jsonify({'ok': False, 'error': 'Товар недоступен.'}), 404
-    if product.seller is not None and _seller_blocked_by_daily_limit(product.seller):
+    if not product.digital_book_id and product.seller is not None and _seller_blocked_by_daily_limit(product.seller):
         return jsonify({'ok': False, 'error': 'Товар недоступен.'}), 404
 
     # Покупал ли пользователь этот товар и получил ли его заказ.

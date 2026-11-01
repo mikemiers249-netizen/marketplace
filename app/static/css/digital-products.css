@@ -1,0 +1,6 @@
+.digital .product-name{color:var(--text-primary)}
+.digital .product-name:hover{color:var(--primary-color)}
+.product-system-sku{font-size:11px;color:#9ca3af;margin-top:2px;font-family:monospace}
+.digital-management .product-photo{position:relative;display:block;aspect-ratio:1 / 1.5;background:#fff;overflow:hidden}
+.digital-management .product-photo img{width:100%;height:100%;object-fit:contain;background:#fff}
+.digital-management .product-photo-placeholder{display:flex;align-items:center;justify-content:center;height:100%;color:#738094}

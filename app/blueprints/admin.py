@@ -11,6 +11,7 @@ from app import db, csrf
 from app.models.users import Buyer, Seller, Admin, DeliveryService
 from app.models.products import Category, Parameter, Product, CategoryParameter, ProductParameter, ProductCard
 from app.models.orders import Order, Promotion, Banner
+from app.models.digital import DigitalBook
 from app.models.communications import Message, Review, Settings, InfoPost, RoadmapEvent, EduMaterial, TariffBlock, TariffRow
 from app.models.tariffs import (
     SellerTariffSubscription, TariffTransaction
@@ -99,7 +100,7 @@ def dashboard():
     orders_count = Order.query.count()
     
     # Новые товары на модерации
-    pending_products = Product.query.filter_by(status='on_moderation').count()
+    pending_products = Product.query.filter_by(status='on_moderation').count() + DigitalBook.query.filter_by(moderation_status='pending').count()
     
     # Заказы сегодня
     today = datetime.utcnow().date()
@@ -1454,23 +1455,24 @@ def products_moderation():
     status = request.args.get('status', 'pending')
     
     # Подсчет товаров по статусам
-    pending_count = Product.query.filter_by(status='on_moderation').count()
-    approved_count = Product.query.filter_by(status='approved').count()
-    rejected_count = Product.query.filter_by(status='rejected').count()
+    pending_count = Product.query.filter(Product.digital_book_id.is_(None)).filter_by(status='on_moderation').count() + DigitalBook.query.filter_by(moderation_status='pending').count()
+    approved_count = Product.query.filter(Product.digital_book_id.is_(None)).filter_by(status='approved').count() + DigitalBook.query.filter_by(moderation_status='approved').count()
+    rejected_count = Product.query.filter(Product.digital_book_id.is_(None)).filter_by(status='rejected').count() + DigitalBook.query.filter_by(moderation_status='rejected').count()
     
     # Получение товаров по статусу
     if status == 'pending':
-        products = Product.query.filter_by(status='on_moderation').order_by(Product.created_at.desc()).all()
+        products = Product.query.filter(Product.digital_book_id.is_(None)).filter_by(status='on_moderation').order_by(Product.created_at.desc()).all()
     elif status == 'approved':
-        products = Product.query.filter_by(status='approved').order_by(Product.moderated_at.desc()).all()
+        products = Product.query.filter(Product.digital_book_id.is_(None)).filter_by(status='approved').order_by(Product.moderated_at.desc()).all()
     elif status == 'rejected':
-        products = Product.query.filter_by(status='rejected').order_by(Product.moderated_at.desc()).all()
+        products = Product.query.filter(Product.digital_book_id.is_(None)).filter_by(status='rejected').order_by(Product.moderated_at.desc()).all()
     else:
-        products = Product.query.filter_by(status='on_moderation').order_by(Product.created_at.desc()).all()
+        products = Product.query.filter(Product.digital_book_id.is_(None)).filter_by(status='on_moderation').order_by(Product.created_at.desc()).all()
     
     return render_template('admin/products_moderation.html',
                          title='Модерация товаров',
                          products=products,
+                         digital_books=DigitalBook.query.filter_by(moderation_status=status if status in ('approved', 'rejected') else 'pending').order_by(DigitalBook.created_at.desc()).all(),
                          status=status,
                          pending_count=pending_count,
                          approved_count=approved_count,
@@ -1640,7 +1642,8 @@ def category_create():
         name=name,
         slug=slug,
         description=description,
-        parent_id=parent_id
+        parent_id=parent_id,
+        is_digital_book=request.form.get('is_digital_book') == 'on'
     )
     
     db.session.add(category)
@@ -1714,6 +1717,7 @@ def category_update(category_id):
     
     category.name = request.form.get('name')
     category.description = request.form.get('description')
+    category.is_digital_book = request.form.get('is_digital_book') == 'on'
     
     # Получаем новые выбранные параметры
     selected_params_raw = request.form.getlist('parameters')
@@ -1780,6 +1784,10 @@ def category_delete(category_id):
         abort(404)
 
     # Считаем, что мешает удалению
+    from app.models.digital import DigitalBook
+    if DigitalBook.query.filter_by(category_id=category.id).first():
+        flash('Нельзя удалить категорию, к которой относятся электронные книги.', 'error')
+        return redirect(url_for('admin.categories'))
     products_count = Product.query.filter_by(category_id=category.id).count()
     cards_count = ProductCard.query.filter_by(category_id=category.id).count()
 

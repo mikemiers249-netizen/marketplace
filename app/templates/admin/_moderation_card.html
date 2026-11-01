@@ -1,0 +1,19 @@
+{% macro moderation_card(item, digital=false) %}
+{% set name = item.title if digital else item.name %}
+{% set state = ('on_moderation' if item.moderation_status == 'pending' else item.moderation_status) if digital else item.status %}
+<a href="{{ url_for('digital.moderate', book_id=item.id) if digital else url_for('admin.product_moderate', product_id=item.id) }}" class="moderation-card">
+  <div class="product-image product-photo">
+    {% if digital and item.cover_name %}<img src="{{ url_for('digital.cover',book_id=item.id) }}" alt="{{ name }}" loading="lazy">
+    {% elif not digital and item.main_photo %}<img src="{{ url_for('static',filename='uploads/products/' ~ item.main_photo.path) }}" alt="{{ name }}" loading="lazy">
+    {% else %}<div class="no-image">Нет фото</div>{% endif %}
+  </div>
+  <div class="product-info">
+    <h3 class="product-name">{{ name }}</h3>
+    {% if item.system_sku or item.article %}<div class="product-system-sku">{{ item.system_sku or item.article }}</div>{% endif %}
+    <p class="product-price">{{ format_price(item.price) }}</p>
+    {% if digital %}<p class="product-seller">{{ item.author }}{% if item.author %} · {% endif %}{{ item.format|upper }}</p>{% endif %}
+    <p class="product-seller">{{ item.seller.store_name }}</p>
+  </div>
+  <div class="product-status status-{{ state }}">{{ {'on_moderation':'На проверке','approved':'Одобрен','rejected':'Отклонён'}.get(state,'Черновик') }}</div>
+</a>
+{% endmacro %}

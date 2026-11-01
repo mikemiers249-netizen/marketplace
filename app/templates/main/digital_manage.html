@@ -1,25 +1,31 @@
-{% extends 'main/digital_layout.html' %}
-{% block digital_content %}
-<h1>Электронные товары</h1><p class="muted">Загрузите книгу, проверьте предпросмотр и опубликуйте её.</p>
-<form class="book-panel upload" method="post" enctype="multipart/form-data">
+{% extends 'seller/layout.html' if current_user.store_name is defined else 'main/digital_layout.html' %}
+{% block title %}Товары - Панель продавца{% endblock %}
+{% block header_title %}<h1>Товары</h1>{% endblock %}
+{% block extra_css %}{{ super() }}
+{% if current_user.store_name is not defined %}<link rel="stylesheet" href="{{ url_for('static', filename='css/seller.css') }}">{% endif %}
+{% if creating %}<link rel="stylesheet" href="{{ url_for('static', filename='css/digital-manage.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/digital-products.css') }}">{% endif %}
+{% endblock %}
+{% block content %}{% block digital_content %}
+{% if creating and category %}
+<section class="digital digital-management">
+{% if current_user.store_name is defined %}{% include 'seller/_product_tabs.html' %}{% endif %}
+{% with messages = get_flashed_messages(with_categories=true) %}{% for kind, message in messages %}<p role="alert">{{ message }}</p>{% endfor %}{% endwith %}
+<form class="book-panel upload" method="post" action="{{ url_for('digital.new', category_id=category.id) }}" enctype="multipart/form-data">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <h2>Добавить книгу</h2>
-<label for="book-title">Название</label><input id="book-title" name="title" maxlength="200" required>
-<label for="book-author">Автор</label><input id="book-author" name="author" maxlength="200">
-<label for="book-description">Описание</label><textarea id="book-description" name="description" maxlength="10000" rows="4"></textarea>
-<label for="book-price">Цена, ₽</label><input id="book-price" name="price" type="number" min="0.01" max="1000000" step="0.01" required>
+{% include 'main/_digital_fields.html' %}
+<label for="book-title">Название</label><input id="book-title" name="title" maxlength="200" value="{{ request.form.get('title', '') }}" required>
+<label for="book-author">Автор</label><input id="book-author" name="author" maxlength="200" value="{{ request.form.get('author', '') }}">
+<label for="book-description">Описание</label><textarea id="book-description" name="description" maxlength="10000" rows="4">{{ request.form.get('description', '') }}</textarea>
+<label for="book-price">Цена, ₽</label><input id="book-price" name="price" type="number" min="0.01" max="1000000" step="0.01" value="{{ request.form.get('price', '') }}" required>
 <label for="book-file">Файл EPUB или PDF, до 15 МБ</label><input id="book-file" name="book" type="file" accept=".epub,.pdf" required>
+<label for="book-cover">Обложка — одно изображение, до 10 МБ</label><input id="book-cover" name="cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/tiff">
+<p class="muted">Обложка сохраняется в JPEG, до 800×800 пикселей с сохранением пропорций.</p>
 <p class="muted">Загружайте только книги, на продажу которых у вас есть права.</p>
-<button class="button" type="submit">Сохранить черновик</button>
+<button class="button" type="submit">Отправить на модерацию</button>
 </form>
-<h2>Мои книги</h2><div class="book-grid">
-{% for book in books %}<article class="book-card"><div class="book-cover">{{ book.title }}</div>
-<h3>{{ book.title }}</h3><p class="muted">{{ book.author }} · {{ book.format|upper }}</p>
-<p>{{ '%.2f'|format(book.price) }} ₽ · {{ 'Опубликована' if book.published else 'Черновик' }}</p>
-<div class="actions"><a href="{{ url_for('digital.preview', book_id=book.id) }}">Предпросмотр</a>
-<form action="{{ url_for('digital.publish', book_id=book.id) }}" method="post">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<button type="submit" class="button secondary">{{ 'Снять с продажи' if book.published else 'Опубликовать' }}</button>
-</form></div></article>
-{% else %}<p class="muted">Загруженных книг пока нет.</p>{% endfor %}</div>
-{% endblock %}
+</section>
+{% else %}
+{% include 'seller/_digital_products_list.html' %}
+{% endif %}
+{% endblock %}{% endblock %}

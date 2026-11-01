@@ -1306,10 +1306,12 @@ def products():
     if not current_user.is_authenticated or not isinstance(current_user, Seller):
         return redirect(url_for('auth_seller.seller_login'))
     
+    if request.args.get('tab') == 'digital':
+        return redirect(url_for('digital.manage'))
     page = request.args.get('page', 1, type=int)
     status = request.args.get('status')
     
-    query = Product.query.filter_by(seller_id=current_user.id).filter(Product.status != 'reward_gift')
+    query = Product.query.filter_by(seller_id=current_user.id).filter(Product.status != 'reward_gift', Product.digital_book_id.is_(None))
     
     if status:
         query = query.filter_by(status=status)
@@ -1335,6 +1337,26 @@ def product_new():
     if not current_user.is_authenticated or not isinstance(current_user, Seller):
         return redirect(url_for('auth_seller.seller_login'))
     
+    selected_category_id = request.values.get('category_id', type=int)
+    selected_category = db.session.get(Category, selected_category_id) if selected_category_id else None
+    if selected_category and (not selected_category.is_active or any(not p.is_active for p in selected_category.all_parents)):
+        abort(404)
+    if selected_category and selected_category.digital_book_category:
+        from app.blueprints.digital import pilot_allowed
+        if not pilot_allowed():
+            abort(404)
+        if request.method == 'POST':
+            abort(400)
+        return redirect(url_for('digital.new', category_id=selected_category.id))
+    if request.method == 'GET' and not selected_category:
+        from app.blueprints.digital import pilot_allowed
+        categories = Category.query.filter_by(is_active=True).order_by(Category.name).all()
+        categories = [c for c in categories if all(p.is_active for p in c.all_parents)
+                      and (pilot_allowed() or not c.digital_book_category)]
+        return render_template('seller/product_category.html', categories=categories, title='Добавить товар')
+    if request.method == 'POST' and not selected_category:
+        abort(400)
+
     # Категории - получаем все для каскадного выбора
     categories = Category.query.filter(
         Category.is_active == True
@@ -1384,7 +1406,8 @@ def product_new():
                                  product_params={})
         
         # Проверка уникальности артикула
-        if Product.query.filter_by(article=article).first():
+        from app.models.digital import DigitalBook
+        if Product.query.filter_by(article=article).first() or DigitalBook.query.filter_by(article=article).first():
             flash('Артикул уже существует.', 'error')
             return render_template('seller/product_form.html',
                                  title='Новый товар',
@@ -1660,6 +1683,8 @@ def product_edit(product_id):
     product = db.session.get(Product, product_id)
     if not product or product.seller_id != current_user.id:
         abort(404)
+    if product.digital_book_id:
+        return redirect(url_for('digital.edit', book_id=product.digital_book_id))
     
     if request.method == 'POST':
         if request.form.get('action') == 'update_stock':
@@ -1682,8 +1707,10 @@ def product_edit(product_id):
         # Артикул — редактируемый. Уникальность проверяем только если меняется.
         new_article = request.form.get('article')
         if new_article and new_article != product.article:
-            if Product.query.filter(Product.id != product.id,
-                                    Product.article == new_article).first():
+            from app.models.digital import DigitalBook
+            if (Product.query.filter(Product.id != product.id,
+                                     Product.article == new_article).first()
+                    or DigitalBook.query.filter_by(article=new_article).first()):
                 flash('Артикул уже используется другим товаром.', 'error')
                 return render_template('seller/product_form.html',
                                      title='Редактирование товара',
@@ -1998,6 +2025,15 @@ def product_delete(product_id):
     if not product or product.seller_id != current_user.id:
         abort(404)
     
+    if product.digital_book_id:
+        from app.blueprints.digital import pilot_allowed
+        if not pilot_allowed():
+            abort(404)
+        product.digital_book.published = False
+        product.digital_book.moderation_status = 'deleted'
+        db.session.commit()
+        flash('Товар удалён. Купленные книги остаются доступны покупателям.', 'success')
+        return redirect(url_for('seller.products'))
     db.session.delete(product)
     db.session.commit()
 
@@ -2023,6 +2059,8 @@ def product_copy(product_id):
     src = db.session.get(Product, product_id)
     if not src or src.seller_id != current_user.id:
         abort(404)
+    if src.digital_book_id:
+        abort(409)
 
     import os
     import shutil

@@ -56,6 +56,17 @@
 {# Список заказов #}
 <div class="orders-list">
     {% for order in orders %}
+    <details class="order-row">
+        <summary class="order-summary">
+            <span class="order-row-id">Заказ #{{ order.id }}</span>
+            <span class="order-date">{{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+            <span class="order-row-buyer">{{ order.buyer.full_name }}</span>
+            <span class="status-badge status-{{ order.display_status }}">{{ order.status_display }}</span>
+            <span class="order-row-quantity">Товаров: {{ order.items | sum(attribute='quantity') }}</span>
+            <strong class="order-row-total">{{ '%.2f'|format(order.grand_total) }} ₽</strong>
+            <a href="{{ url_for('seller.order_detail', order_id=order.id) }}" class="btn btn-secondary">Подробнее<span class="visually-hidden"> о заказе #{{ order.id }}</span></a>
+            <span class="order-row-chevron" aria-hidden="true">⌄</span>
+        </summary>
     <div class="order-card">
         <div class="order-header">
             <div class="order-id">
@@ -115,6 +126,7 @@
             </div>
         </div>
     </div>
+    </details>
     {% else %}
     <div class="empty-state">
         <i class="bi bi-inbox" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i>
@@ -151,6 +163,40 @@
 
 {% block extra_css %}
 <style>
+.order-row {
+    border: 1px solid var(--border-color, #e5e5e5);
+    border-radius: var(--radius-md, 8px);
+    background: var(--bg-primary, #fff);
+    margin-bottom: 12px;
+    min-width: 0;
+}
+.order-summary {
+    display: grid;
+    grid-template-columns: minmax(105px, .8fr) minmax(120px, 1fr) minmax(100px, 1fr) minmax(120px, 1fr) auto auto auto 16px;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    cursor: pointer;
+    list-style: none;
+}
+.order-summary::-webkit-details-marker { display: none; }
+.order-summary:hover { background: var(--bg-secondary, #f8f9fa); }
+.order-summary:focus-visible { outline: 2px solid var(--primary-color, #2563eb); outline-offset: 2px; }
+.order-row-id { font-weight: 600; }
+.order-row-buyer { overflow-wrap: anywhere; min-width: 0; }
+.order-row-total, .order-row-quantity { white-space: nowrap; }
+.order-row-chevron { transition: transform .2s; }
+.order-row[open] > .order-summary .order-row-chevron { transform: rotate(180deg); }
+.order-row[open] > .order-summary { border-bottom: 1px solid var(--border-color, #e5e5e5); }
+.order-row > .order-card { margin: 0; border: 0; box-shadow: none; }
+@media (max-width: 1200px) {
+    .order-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+}
+@media (max-width: 600px) {
+    .order-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; }
+    .order-summary .btn { justify-self: start; }
+    .order-row-chevron { justify-self: end; }
+}
 .filter-form-orders {
     display: flex;
     flex-wrap: wrap;

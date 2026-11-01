@@ -2,21 +2,16 @@
 {% block digital_content %}
 <h1>Электронные книги</h1>
 <p class="muted">Читайте покупки в своей библиотеке. Доставка не требуется.</p>
-<div class="book-grid shelf">
-{% for book in books %}
-<article class="book-card">
-<div class="book-cover">{{ book.title }}</div>
-<span class="badge">{{ book.format|upper }}</span>
-<h2>{{ book.title }}</h2><p class="muted">{{ book.author }}</p>
-<p class="description">{{ book.description }}</p>
-<p class="price">{{ '%.2f'|format(book.price) }} ₽</p>
-{% if digital_buyer() %}
-<form method="post" action="{{ url_for('digital.buy', book_id=book.id) }}">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<button class="button" type="submit">Купить и читать</button>
+<form method="get">
+<label for="book-category">Категория</label>
+<select id="book-category" name="category_id" onchange="this.form.requestSubmit()">
+<option value="">Все категории</option>
+{% for category in categories %}<option value="{{ category.id }}" {% if selected_category_id == category.id %}selected{% endif %}>{{ category.full_path }}</option>{% endfor %}
+</select><button class="button" type="submit">Показать</button>
 </form>
-{% else %}<a href="{{ url_for('digital.preview',book_id=book.id) }}">Предпросмотр</a>{% endif %}
-</article>
+<div class="products-grid products-grid-4 shelf">
+{% for book in books %}
+{% include 'components/digital_product_card.html' %}
 {% else %}<div class="empty"><h2>Книги скоро появятся</h2><p class="muted">Здесь будут опубликованные электронные книги.</p></div>{% endfor %}
 </div>
 {% endblock %}

@@ -145,6 +145,11 @@ class Order(db.Model):
                    for invoice in self.robokassa_payments)
 
     @property
+    def digital_purchase(self):
+        """Compatibility for legacy single-book orders."""
+        return self.digital_purchases[0] if self.digital_purchases else None
+
+    @property
     def grand_total(self):
         """Общая сумма к оплате (товары + доставка − бонусы − промокод)."""
         return round(

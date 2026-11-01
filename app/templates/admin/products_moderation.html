@@ -2,6 +2,7 @@
 
 {% block title %}Модерация товаров - Админ-панель{% endblock %}
 
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static',filename='css/moderation-cards.css') }}">{% endblock %}
 {% block content %}
 <div class="admin-page-header">
     <h1>Модерация товаров</h1>
@@ -26,31 +27,11 @@
 </div>
 
 <div class="moderation-grid">
-    {% for product in products %}
-    <a href="{{ url_for('admin.product_moderate', product_id=product.id) }}" class="moderation-card">
-        <div class="product-image">
-            {% if product.main_photo %}
-            <img src="{{ url_for('static', filename='uploads/products/' + product.main_photo.path) }}" 
-                 alt="{{ product.name }}">
-            {% else %}
-            <div class="no-image">Нет фото</div>
-            {% endif %}
-        </div>
-        
-        <div class="product-info">
-            <h3 class="product-name">{{ product.name }}</h3>
-            <p class="product-price">{{ format_price(product.price) }}</p>
-            <p class="product-seller">{{ product.seller.store_name }}</p>
-        </div>
-        
-        <div class="product-status status-{{ product.status }}">
-            {% if product.status == 'on_moderation' %}На проверке
-            {% elif product.status == 'approved' %}Одобрен
-            {% elif product.status == 'rejected' %}Отклонён
-            {% endif %}
-        </div>
-    </a>
+    {% from 'admin/_moderation_card.html' import moderation_card with context %}
+    {% for book in digital_books %}{{ moderation_card(book, true) }}{% endfor %}
+    {% for product in products %}{{ moderation_card(product) }}
     {% else %}
+    {% if not digital_books %}
     <div class="empty-state-container">
         <div class="empty-state">
             <div class="empty-icon">📦</div>
@@ -68,6 +49,7 @@
             </p>
         </div>
     </div>
+    {% endif %}
     {% endfor %}
 </div>
 

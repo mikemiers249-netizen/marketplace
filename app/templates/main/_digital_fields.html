@@ -1,0 +1,35 @@
+<input type="hidden" name="category_id" value="{{ category.id }}">
+<p>Категория: <strong>{{ category.full_path }}</strong> · <a href="{{ url_for('seller.product_new') if current_user.store_name is defined else url_for('digital.choose') }}">Изменить категорию</a></p>
+<label for="book-article">Артикул</label>
+<input id="book-article" name="article" maxlength="50" value="{{ request.form.get('article', book.article if book is defined else '') }}" placeholder="Будет создан автоматически">
+<button type="button" class="button secondary" onclick="document.getElementById('book-article').value='{{ book.system_sku if book is defined else 'WML-' ~ seller_account.id ~ '-XXXXXX' }}'">Использовать системный артикул</button>
+<p class="muted">Системный артикул WML-{{ seller_account.id }} будет присвоен при сохранении.</p>
+{% if parameter_settings %}<h3>Параметры категории</h3>{% endif %}
+{% for setting in parameter_settings %}
+{% set p = setting.parameter %}{% set key = 'param_' ~ p.id %}
+{% set default = setting.default if setting.default is not none else '' %}
+<label for="{{ key }}">{{ p.name }}{% if setting.required %} *{% endif %}</label>
+{% if (not p.is_input or p.type == 'select') and p.predefined_values %}
+  {% set chosen = request.form.getlist(key) if request.method == 'POST' else (default if default is sequence and default is not string else [default]) %}
+  <select id="{{ key }}" name="{{ key }}" {% if p.is_multiple %}multiple{% endif %} {% if setting.required %}required{% endif %}>
+    {% if not p.is_multiple %}<option value="">Выберите значение</option>{% endif %}
+    {% for value in p.predefined_values %}<option value="{{ value }}" {% if value|string in chosen|map('string')|list %}selected{% endif %}>{{ value }}</option>{% endfor %}
+  </select>
+{% elif p.type == 'boolean' %}
+  {% set chosen = request.form.get(key, default|string|lower) %}
+  <select id="{{ key }}" name="{{ key }}" {% if setting.required %}required{% endif %}>
+    <option value="">Выберите значение</option><option value="true" {% if chosen == 'true' %}selected{% endif %}>Да</option><option value="false" {% if chosen == 'false' %}selected{% endif %}>Нет</option>
+  </select>
+{% elif p.is_composite or p.is_multiple %}
+  {% set values = request.form.getlist(key) if request.method == 'POST' else (default if default is sequence and default is not string else []) %}
+  <div id="{{ key }}" class="parameter-values">
+  {% set count = (p.composite_count or 2) if p.is_composite else ([values|length, 1]|max) %}
+  {% for i in range(count) %}<input name="{{ key }}" aria-label="{{ p.name }} {{ i + 1 }}" type="{{ 'number' if p.type in ('numeric', 'integer', 'float') else 'text' }}" {% if p.type in ('numeric', 'integer', 'float') %}step="any"{% endif %} value="{{ values[i] if i < values|length else '' }}" {% if setting.required or p.is_composite %}required{% endif %}>{% endfor %}
+  </div>
+  {% if not p.is_composite %}<button type="button" class="button secondary" onclick="const group=document.getElementById('{{ key }}');const field=group.firstElementChild.cloneNode();field.value='';field.required=false;group.appendChild(field)">Добавить значение</button>{% endif %}
+{% elif p.type == 'text' %}
+  <textarea id="{{ key }}" name="{{ key }}" {% if setting.required %}required{% endif %}>{{ request.form.get(key, default) }}</textarea>
+{% else %}
+  <input id="{{ key }}" name="{{ key }}" type="{{ 'number' if p.type in ('numeric', 'integer', 'float') else 'text' }}" {% if p.type in ('numeric', 'integer', 'float') %}step="any"{% endif %} value="{{ request.form.get(key, default) }}" {% if setting.required %}required{% endif %}>
+{% endif %}
+{% endfor %}

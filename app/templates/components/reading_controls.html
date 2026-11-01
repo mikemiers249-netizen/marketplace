@@ -1,0 +1,18 @@
+<div class="reading-controls" role="group" aria-label="Настройки чтения">
+  {% if show_font_controls %}
+  <div class="reading-control-group" role="group" aria-label="Размер шрифта">
+    <button type="button" data-reading-font="-1" aria-label="Уменьшить шрифт">Шрифт −</button>
+    <output class="reading-font-value" data-reading-font-value aria-live="polite"></output>
+    <button type="button" data-reading-font="1" aria-label="Увеличить шрифт">Шрифт +</button>
+  </div>
+  <div class="reading-control-group" role="group" aria-label="Автопрокрутка">
+    <button type="button" data-reading-auto="-1" aria-label="Уменьшить скорость автопрокрутки" disabled>Авто−</button>
+    <output class="reading-font-value" data-reading-auto-value aria-live="polite">0%</output>
+    <button type="button" data-reading-auto="1" aria-label="Увеличить скорость автопрокрутки">Авто+</button>
+  </div>
+  {% endif %}
+  <div class="reading-control-group" role="group" aria-label="Тема оформления">
+    <button type="button" data-reading-theme="day" aria-pressed="true">☀ День</button>
+    <button type="button" data-reading-theme="night" aria-pressed="false">☾ Ночь</button>
+  </div>
+</div>

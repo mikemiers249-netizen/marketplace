@@ -79,7 +79,7 @@ def order_notification_details(order):
         items = '\n'.join(
             f'  - {i.product.name if i.product else "Удалённый товар"}: {i.quantity} шт. × '
             f'{i.price_at_order:.2f} ₽ = {i.total_price:.2f} ₽' for i in positions) or '—'
-        if order.digital_purchase:
+        if order.digital_purchase and not positions:
             purchase = order.digital_purchase
             items = f'  - {purchase.title}: 1 электронная книга = {order.total_price:.2f} ₽'
         delivery = order.delivery_service.name if order.delivery_service else ('Электронная книга — библиотека покупателя' if order.digital_purchase else 'Не указан')

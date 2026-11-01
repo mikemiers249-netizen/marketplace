@@ -1,0 +1,24 @@
+{% set commerce = book.commerce_product %}
+{% set promo = promo_info(commerce) %}
+<article class="product-card"{% if commerce %} data-product-id="{{ commerce.id }}"{% endif %}>
+  <div class="product-card-inner">
+    <a href="{{ url_for('digital.detail', book_id=book.id) }}" class="product-photo" aria-label="{{ book.title }}">
+      {% include 'components/digital_cover.html' %}
+      {% if commerce %}<div class="product-badges">
+        {% if commerce.is_new %}<span class="badge badge-new">Новинка</span>{% endif %}
+        {% if promo.has_promotion %}<span class="badge badge-sale">{% if promo.percent %}-{{ promo.percent }}%{% else %}{{ promo.scheme_label or 'Акция' }}{% endif %}</span>{% endif %}
+      </div>{% if promo.has_promotion and promo.name %}<div class="product-promo-corner" title="{{ promo.name }}">{{ promo.name }}</div>{% endif %}{% endif %}
+    </a>
+    <div class="product-info">
+      <a href="{{ url_for('digital.detail', book_id=book.id) }}" class="product-name">{{ book.title }}</a>
+      {% if book.system_sku or book.article %}<div class="product-system-sku" style="font-size:11px; color:#9ca3af; margin-top:2px; font-family:monospace;">{{ book.system_sku or book.article }}</div>{% endif %}
+      <div class="product-price"><div class="current-price">{{ format_price(promo.final_price if commerce else book.price) }}</div>{% if promo.old_price %}<div class="old-price">{{ format_price(promo.old_price) }}</div>{% endif %}</div>
+      {% set review_count = commerce.reviews_count if commerce else 0 %}
+      <div class="product-rating">
+        <span class="rating-stars"><span class="star">★</span></span>
+        <span class="rating-value">{{ commerce.average_rating if commerce else 0.0 }}</span>
+        <span class="reviews-count">({{ review_count }} {{ 'отзывов' if review_count % 100 in [11,12,13,14] or review_count % 10 not in [1,2,3,4] else ('отзыв' if review_count % 10 == 1 else 'отзыва') }})</span>
+      </div>
+    </div>
+  </div>
+</article>

@@ -3,6 +3,10 @@
 {% block title %}Модерация товара - Админ-панель{% endblock %}
 
 {% block content %}
+{% set digital = is_digital|default(false) %}
+{% set item_name = product.title if digital else product.name %}
+{% set item_status = ('on_moderation' if product.moderation_status == 'pending' else product.moderation_status) if digital else product.status %}
+{% with messages = get_flashed_messages() %}{% for message in messages %}<div class="alert alert-warning" role="alert">{{ message }}</div>{% endfor %}{% endwith %}
 <div class="admin-page-header">
     <h1>Модерация товара</h1>
     <div class="header-actions">
@@ -17,14 +21,16 @@
     <div class="product-details-card">
         <div class="product-images">
             <div class="main-image" id="main-image-container">
-                {% if product.main_photo %}
-                <img src="{{ url_for('static', filename='uploads/products/' + product.main_photo.path) }}" 
-                     alt="{{ product.name }}" id="main-img">
+                {% if digital and product.cover_name %}
+                <img src="{{ url_for('digital.cover', book_id=product.id) }}" alt="{{ item_name }}" id="main-img">
+                {% elif not digital and product.main_photo %}
+                <img src="{{ url_for('static', filename='uploads/products/' + product.main_photo.path) }}"
+                     alt="{{ item_name }}" id="main-img">
                 {% else %}
                 <div class="no-image">Нет фото</div>
                 {% endif %}
             </div>
-            {% if product.photos.count() > 1 %}
+            {% if not digital and product.photos.count() > 1 %}
             <div class="additional-images">
                 {% for photo in product.photos.all() %}
                 {% if not photo.is_main %}
@@ -36,76 +42,79 @@
             </div>
             {% endif %}
         </div>
-        
+
         <div class="product-info">
-            <h2 class="product-name">{{ product.name }}</h2>
-            
+            <h2 class="product-name">{{ item_name }}</h2>
+
             <div class="info-row">
                 <span class="label">Артикул:</span>
                 <span class="value">{{ product.article }}</span>
             </div>
-            
+
             <div class="info-row">
                 <span class="label">Цена:</span>
                 <span class="value price">{{ format_price(product.price) }}</span>
             </div>
-            
+
             <div class="info-row">
                 <span class="label">Категория:</span>
                 <span class="value category-path">
-                    {% set parents = product.category.all_parents %}
+                    {% set parents = product.category.all_parents if product.category else [] %}
                     {% for parent in parents %}
                     {{ parent.name }} →
                     {% endfor %}
-                    {{ product.category.name }}
+                    {{ product.category.name if product.category else 'Не задана' }}
                 </span>
             </div>
-            
+
             <div class="info-row">
                 <span class="label">Продавец:</span>
                 <span class="value">{{ product.seller.store_name }}</span>
             </div>
-            
+
             <div class="info-row">
-                <span class="label">Остаток:</span>
-                <span class="value">{{ product.stock_quantity }} шт.</span>
+                <span class="label">{{ 'Формат:' if digital else 'Остаток:' }}</span>
+                <span class="value">{{ product.format|upper if digital else product.stock_quantity ~ ' шт.' }}</span>
             </div>
-            
+
             <div class="info-row">
                 <span class="label">Статус:</span>
-                <span class="status-badge status-{{ product.status }}">
-                    {% if product.status == 'on_moderation' %}На проверке
-                    {% elif product.status == 'approved' %}Одобрен
-                    {% elif product.status == 'rejected' %}Отклонён
+                <span class="status-badge status-{{ item_status }}">
+                    {% if item_status == 'on_moderation' %}На проверке
+                    {% elif item_status == 'approved' %}Одобрен
+                    {% elif item_status == 'rejected' %}Отклонён
                     {% endif %}
                 </span>
             </div>
-            
+
             <div class="info-row">
                 <span class="label">Создан:</span>
                 <span class="value">{{ product.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
             </div>
-            
+
+            {% if digital %}<div class="info-row"><span class="label">Автор:</span><span class="value">{{ product.author or 'Не указан' }}</span></div>{% endif %}
+            {% if digital and product.moderation_comment %}<div class="alert alert-warning">{{ product.moderation_comment }}</div>{% endif %}
             {% if product.description %}
             <div class="product-description">
                 <h3>Описание</h3>
                 <p>{{ product.description }}</p>
             </div>
             {% endif %}
-            
+
             {# Параметры товара - включая параметры всех родительских категорий #}
-            {% set all_params = product.category.get_all_parameters() %}
-            {% set product_param_ids = product.parameters.all()|map(attribute='parameter_id')|list %}
+            {% set all_params = product.category.get_all_parameters() if product.category else [] %}
+
             {% if all_params|length > 0 %}
             <div class="product-parameters">
                 <h3>Параметры</h3>
                 <table>
                     {% for param in all_params %}
-                    {% set param_value = product.parameters.filter_by(parameter_id=param.id).first() %}
+                    {% set param_value = product.parameters.filter_by(parameter_id=param.id).first() if not digital else none %}
                     <tr>
                         <td class="param-name">{{ param.name }}</td>
                         <td class="param-value">
-                            {% if param_value %}
+                            {% if digital and product.parameter_values.get(param.id|string) is not none %}{{ param.format_value_display(product.parameter_values.get(param.id|string)) }}
+                            {% elif param_value %}
                                 {% if param.type in ['boolean'] %}
                                     {% if param_value.value == 'true' or param_value.value == true %}Да
                                     {% else %}Нет{% endif %}
@@ -123,60 +132,61 @@
             {% endif %}
         </div>
     </div>
-    
+
     {# Действия #}
     <div class="moderation-actions-sidebar">
         <div class="action-card">
             <h3>Решение по модерации</h3>
-            
-            {% if product.status == 'on_moderation' %}
+
+            {% if item_status == 'on_moderation' %}
             <div class="action-item">
-                <form method="POST" action="{{ url_for('admin.product_approve', product_id=product.id) }}">
+                <form method="POST" action="{{ url_for('digital.moderate', book_id=product.id) if digital else url_for('admin.product_approve', product_id=product.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" class="btn btn-success btn-block">
+                    <button type="submit" name="action" value="approve" class="btn btn-success btn-block">
                         Одобрить
                     </button>
                 </form>
             </div>
-            
+
             <div class="action-item">
-                <form method="POST" action="{{ url_for('admin.product_reject', product_id=product.id) }}">
+                <form method="POST" action="{{ url_for('digital.moderate', book_id=product.id) if digital else url_for('admin.product_reject', product_id=product.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" class="btn btn-danger btn-block">
+                    <button type="submit" name="action" value="reject" class="btn btn-danger btn-block">
                         Отклонить
                     </button>
-                    <textarea name="remark" placeholder="Причина отклонения" rows="2" class="reject-reason"></textarea>
+                    <textarea name="{{ 'comment' if digital else 'remark' }}" placeholder="Причина отклонения" rows="2" class="reject-reason"></textarea>
                 </form>
             </div>
-            {% elif product.status == 'rejected' %}
+            {% elif item_status == 'rejected' %}
             <div class="action-item">
-                <form method="POST" action="{{ url_for('admin.product_approve', product_id=product.id) }}">
+                <form method="POST" action="{{ url_for('digital.moderate', book_id=product.id) if digital else url_for('admin.product_approve', product_id=product.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" class="btn btn-success btn-block">
+                    <button type="submit" name="action" value="approve" class="btn btn-success btn-block">
                         Одобрить
                     </button>
                 </form>
             </div>
-            {% elif product.status == 'approved' %}
+            {% elif item_status == 'approved' %}
             <div class="action-item">
-                <form method="POST" action="{{ url_for('admin.product_reject', product_id=product.id) }}">
+                <form method="POST" action="{{ url_for('digital.moderate', book_id=product.id) if digital else url_for('admin.product_reject', product_id=product.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" class="btn btn-danger btn-block">
+                    <button type="submit" name="action" value="reject" class="btn btn-danger btn-block">
                         Отклонить
                     </button>
-                    <textarea name="remark" placeholder="Причина отклонения" rows="2" class="reject-reason"></textarea>
+                    <textarea name="{{ 'comment' if digital else 'remark' }}" placeholder="Причина отклонения" rows="2" class="reject-reason"></textarea>
                 </form>
             </div>
             {% endif %}
-            
+
             <div class="action-item">
-                <a href="{{ url_for('seller.product_edit', product_id=product.id) }}" 
+                <a href="{{ url_for('digital.edit', book_id=product.id) if digital else url_for('seller.product_edit', product_id=product.id) }}"
                    class="btn btn-secondary btn-block" target="_blank">
                     Редактировать
                 </a>
             </div>
         </div>
-        
+
+        {% if digital %}<div class="action-card"><div class="action-item"><a class="btn btn-secondary btn-block" href="{{ url_for('digital.preview', book_id=product.id) }}" target="_blank" rel="noopener">Прочитать книгу</a></div></div>{% endif %}
         <div class="seller-info-card">
             <h3>Информация о продавце</h3>
             <div class="info-row">
@@ -491,12 +501,12 @@ function showImage(src) {
     .product-moderation-layout {
         grid-template-columns: 1fr;
     }
-    
+
     .moderation-actions-sidebar {
         position: static;
         order: -1;
     }
-    
+
     .main-image {
         height: 350px;
     }

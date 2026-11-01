@@ -4,7 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const grid = document.getElementById('home-products-grid');
     const button = loader.querySelector('button');
     const status = loader.querySelector('[role="status"]');
-    const seen = new Set(Array.from(grid.querySelectorAll('.product-card'), card => Number(card.dataset.productId)));
+    const validProductId = id => Number.isInteger(id) && id > 0 && id <= 2147483647;
+    const seen = new Set(Array.from(grid.querySelectorAll('.product-card'), card => Number(card.dataset.productId))
+        .filter(validProductId));
     let loading = false;
     let finished = false;
     let failed = false;
@@ -25,7 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error('Failed to load products');
             const data = await response.json();
             if (!Array.isArray(data.ids) || data.ids.length > 5
-                || new Set(data.ids).size !== data.ids.length || data.ids.some(id => seen.has(id))) {
+                || new Set(data.ids).size !== data.ids.length
+                || data.ids.some(id => !validProductId(id) || seen.has(id))) {
                 throw new Error('Invalid product batch');
             }
             const template = document.createElement('template');
