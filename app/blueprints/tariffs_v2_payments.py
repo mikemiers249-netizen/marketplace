@@ -7,8 +7,10 @@ from app import csrf, db
 from app.models.products import Product
 from app.models.users import Seller
 from app.models.tariffs_v2 import TariffV2StorageInvoice
+from app.models.tariffs_v2_commerce import TariffV2Listing
 from app.utils.tariffs_v2 import TariffError, storage_quote, utc
 from app.utils.tariffs_v2_payments import accept_storage_result, configured, gateway_params, issue_storage_invoice
+from app.utils.tariffs_v2_commerce import is_visible, publication_error, set_publication
 
 bp = Blueprint('tariffs_v2_payments', __name__, url_prefix='/tariffs-v2')
 
@@ -35,11 +37,25 @@ def storage():
         Product.status != 'deleted').order_by(Product.id).limit(100).all()
     rows = []
     for product in products:
+        listing = db.session.get(TariffV2Listing, product.id)
+        row = dict(product=product, quote=None, error=None, visible=is_visible(product),
+                   published=bool(listing and listing.published), reason=publication_error(product))
         try:
-            rows.append(dict(product=product, quote=storage_quote(product), error=None))
+            row['quote'] = storage_quote(product)
         except TariffError as error:
-            rows.append(dict(product=product, quote=None, error=str(error)))
+            row['error'] = str(error)
+        rows.append(row)
     return render_template('main/tariffs_v2_storage.html', rows=rows, payment_ready=configured())
+
+
+@bp.post('/seller/storage/<int:product_id>/publication')
+def publication(product_id):
+    state = request.form.get('published')
+    if state not in ('0', '1'):
+        raise TariffError('Укажите состояние публикации.')
+    set_publication(product_id, current_user.id, state == '1')
+    db.session.commit()
+    return redirect(url_for('tariffs_v2_payments.storage'))
 
 
 @bp.post('/seller/storage/<int:product_id>/invoice')
@@ -74,7 +90,7 @@ def payment(invoice_id):
 def result():
     row = accept_storage_result(request.form)
     db.session.commit()
-    return f'OK{row.id}', 200, {'Content-Type': 'text/plain; charset=utf-8'}
+    return f'OK{row.gateway_id}', 200, {'Content-Type': 'text/plain; charset=utf-8'}
 
 
 @bp.route('/robokassa/success', methods=['GET', 'POST'])

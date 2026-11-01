@@ -18,7 +18,7 @@ from flask import current_app
 from app import db
 from app.models.products import Product
 from app.models.users import Seller
-from app.models.tariffs_v2 import TariffV2Audit, TariffV2Coverage, TariffV2StorageInvoice
+from app.models.tariffs_v2 import TariffV2Audit, TariffV2Coverage, TariffV2GatewayNumber, TariffV2StorageInvoice
 from app.utils.tariffs_v2 import (
     TariffError, midnight_utc, moscow_date, resolve_tariff, storage_quote, stored_utc, utc,
 )
@@ -45,6 +45,13 @@ def signature(text):
     if algorithm not in ('md5', 'sha256', 'sha512'):
         raise TariffError('Неподдерживаемый алгоритм подписи.')
     return hashlib.new(algorithm, text.encode('utf-8')).hexdigest()
+
+
+def allocate_gateway_number(purpose, reference_id):
+    row = TariffV2GatewayNumber(purpose=purpose, reference_id=reference_id)
+    db.session.add(row)
+    db.session.flush()
+    return row.id
 
 
 def quote_fingerprint(product, at):
@@ -85,12 +92,18 @@ def issue_storage_invoice(product_id, seller_id, at=None):
         created_at=stored_utc(instant), expires_at=stored_utc(expires), status='pending', is_test=True)
     db.session.add(invoice)
     db.session.flush()
+    invoice.gateway_id = allocate_gateway_number('storage', invoice.id)
     db.session.add(TariffV2Audit(actor=f'seller:{seller_id}', action='storage_test_invoice_created',
         subject=str(invoice.id), details=dict(product_id=product.id, amount=str(invoice.amount))))
     return invoice
 
 
 def gateway_params(invoice, at=None):
+    return payment_params(invoice, FLOW,
+                          f'Тестовая предоплата хранения карточки #{invoice.product_id}', at)
+
+
+def payment_params(invoice, flow, description, at=None):
     require_test_adapter()
     if invoice.status != 'pending' or not invoice.is_test or utc(at) >= utc(invoice.expires_at):
         raise TariffError('Этот тестовый счет недоступен для оплаты.')
@@ -99,10 +112,12 @@ def gateway_params(invoice, at=None):
     if login != invoice.merchant_login:
         raise TariffError('Счет создан для другого тестового магазина Robokassa.')
     password = current_app.config['TARIFFS_V2_ROBOKASSA_TEST_PASSWORD1']
-    signed = f'{login}:{amount}:{invoice.id}:{password}:Shp_flow={FLOW}:Shp_token={invoice.token}'
-    return dict(MerchantLogin=login, OutSum=amount, InvId=str(invoice.id), IsTest='1',
-                Description=f'Тестовая предоплата хранения карточки #{invoice.product_id}',
-                Culture='ru', Encoding='utf-8', Shp_flow=FLOW, Shp_token=invoice.token,
+    if invoice.gateway_id is None:
+        raise TariffError('Для счета не назначен платежный номер. Обновите схему песочницы.')
+    signed = f'{login}:{amount}:{invoice.gateway_id}:{password}:Shp_flow={flow}:Shp_token={invoice.token}'
+    return dict(MerchantLogin=login, OutSum=amount, InvId=str(invoice.gateway_id), IsTest='1',
+                Description=description,
+                Culture='ru', Encoding='utf-8', Shp_flow=flow, Shp_token=invoice.token,
                 SignatureValue=signature(signed))
 
 
@@ -110,14 +125,14 @@ def gateway_url(invoice):
     return GATEWAY + '?' + urlencode(gateway_params(invoice))
 
 
-def accept_storage_result(data, at=None):
-    """Authenticate exact body values before any mutation; caller commits atomically."""
+def verify_result(data, flow):
+    """Authenticate original body values; return provider number, exact amount, token."""
     require_test_adapter()
     for key in ('InvId', 'OutSum', 'SignatureValue', 'Shp_flow', 'Shp_token'):
         if len(data.getlist(key)) != 1:
             raise TariffError('Неполное или повторяющееся уведомление об оплате.')
     if (set(key for key in data if key.lower().startswith('shp_')) != {'Shp_flow', 'Shp_token'} or
-            data['Shp_flow'] != FLOW or not re.fullmatch(r'[0-9a-f]{48}', data['Shp_token']) or
+            data['Shp_flow'] != flow or not re.fullmatch(r'[0-9a-f]{48}', data['Shp_token']) or
             (data.getlist('IsTest') and data.getlist('IsTest') != ['1'])):
         raise TariffError('Уведомление не относится к тестовой оплате v2.')
     if not re.fullmatch(r'[1-9][0-9]{0,9}', data['InvId']) or not re.fullmatch(r'[0-9]+(?:\.[0-9]{1,6})?', data['OutSum']) or len(data['OutSum']) > 32:
@@ -125,18 +140,25 @@ def accept_storage_result(data, at=None):
     if not re.fullmatch(r'[A-Fa-f0-9]{32,128}', data['SignatureValue']):
         raise TariffError('Некорректная подпись уведомления.')
     password = current_app.config['TARIFFS_V2_ROBOKASSA_TEST_PASSWORD2']
-    signed = f"{data['OutSum']}:{data['InvId']}:{password}:Shp_flow={FLOW}:Shp_token={data['Shp_token']}"
+    signed = f"{data['OutSum']}:{data['InvId']}:{password}:Shp_flow={flow}:Shp_token={data['Shp_token']}"
     if not hmac.compare_digest(signature(signed).upper(), data['SignatureValue'].upper()):
         raise TariffError('Подпись уведомления не подтверждена.')
-    invoice = db.session.get(TariffV2StorageInvoice, int(data['InvId']))
-    if (invoice is None or not invoice.is_test or
-            invoice.merchant_login != current_app.config['TARIFFS_V2_ROBOKASSA_TEST_LOGIN'] or
-            not hmac.compare_digest(invoice.token, data['Shp_token'])):
-        raise TariffError('Тестовый счет не найден.')
     try:
         received = Decimal(data['OutSum'])
     except InvalidOperation:
         raise TariffError('Некорректная сумма.') from None
+    return int(data['InvId']), received, data['Shp_token']
+
+
+def accept_storage_result(data, at=None):
+    """Authenticate exact body values before any mutation; caller commits atomically."""
+    number_id, received, token = verify_result(data, FLOW)
+    number = db.session.get(TariffV2GatewayNumber, number_id)
+    invoice = db.session.get(TariffV2StorageInvoice, number.reference_id) if number and number.purpose == 'storage' else None
+    if (invoice is None or invoice.gateway_id != number_id or not invoice.is_test or
+            invoice.merchant_login != current_app.config['TARIFFS_V2_ROBOKASSA_TEST_LOGIN'] or
+            not hmac.compare_digest(invoice.token, token)):
+        raise TariffError('Тестовый счет не найден.')
     if received != invoice.amount:
         raise TariffError('Сумма не совпадает с тестовым счетом.')
     db.session.query(Seller).filter_by(id=invoice.seller_id).with_for_update().one()

@@ -65,6 +65,19 @@ class TariffV2Coverage(db.Model):
     is_test = db.Column(db.Boolean, nullable=False, default=False)
 
 
+class TariffV2GatewayNumber(db.Model):
+    """One provider invoice namespace shared by every v2 payment purpose."""
+    __tablename__ = 'tariff_v2_gateway_numbers'
+    __table_args__ = (
+        db.UniqueConstraint('purpose', 'reference_id', name='v2_gateway_reference'),
+        db.CheckConstraint("purpose IN ('storage', 'checkout')", name='v2_gateway_purpose'),
+        {'sqlite_autoincrement': True},
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    purpose = db.Column(db.String(20), nullable=False)
+    reference_id = db.Column(db.Integer, nullable=False)
+
+
 class TariffV2StorageInvoice(db.Model):
     """Frozen sandbox invoice. It cannot represent a live provider payment."""
     __tablename__ = 'tariff_v2_storage_invoices'
@@ -74,6 +87,7 @@ class TariffV2StorageInvoice(db.Model):
         db.CheckConstraint('is_test = true', name='v2_storage_invoice_test_only'),
     )
     id = db.Column(db.Integer, primary_key=True)
+    gateway_id = db.Column(db.Integer, db.ForeignKey('tariff_v2_gateway_numbers.id'), unique=True)
     seller_id = db.Column(db.Integer, db.ForeignKey('sellers.id'), nullable=False, index=True)
     product_id = db.Column(db.Integer, nullable=False)
     active_product_id = db.Column(db.Integer, db.ForeignKey('products.id', ondelete='SET NULL'), unique=True)

@@ -49,9 +49,9 @@ class StoragePaymentTests(unittest.TestCase):
     def callback(self, invoice, amount=None, password=None):
         amount = amount or format(invoice.amount, '.2f')
         password = password or self.app.config['TARIFFS_V2_ROBOKASSA_TEST_PASSWORD2']
-        text = f'{amount}:{invoice.id}:{password}:Shp_flow={FLOW}:Shp_token={invoice.token}'
+        text = f'{amount}:{invoice.gateway_id}:{password}:Shp_flow={FLOW}:Shp_token={invoice.token}'
         signature = hashlib.new(self.app.config['TARIFFS_V2_ROBOKASSA_HASH'], text.encode()).hexdigest()
-        return MultiDict(dict(OutSum=amount, InvId=str(invoice.id), SignatureValue=signature,
+        return MultiDict(dict(OutSum=amount, InvId=str(invoice.gateway_id), SignatureValue=signature,
                               Shp_flow=FLOW, Shp_token=invoice.token))
 
     def test_invoice_is_frozen_and_double_click_reuses_it(self):
@@ -97,7 +97,7 @@ class StoragePaymentTests(unittest.TestCase):
         self.assertEqual(params['IsTest'], '1')
         self.assertEqual(params['Shp_flow'], FLOW)
         self.assertEqual(params['Shp_token'], invoice.token)
-        text = f"v2-test-shop:{params['OutSum']}:{invoice.id}:v2-test-one:Shp_flow={FLOW}:Shp_token={invoice.token}"
+        text = f"v2-test-shop:{params['OutSum']}:{invoice.gateway_id}:v2-test-one:Shp_flow={FLOW}:Shp_token={invoice.token}"
         self.assertEqual(params['SignatureValue'], hashlib.sha256(text.encode()).hexdigest())
         self.assertNotIn('v2-test-one', str(params))
         self.assertNotIn('v2-test-two', str(params))
@@ -108,7 +108,7 @@ class StoragePaymentTests(unittest.TestCase):
         for _ in range(2):
             response = self.client.post('/tariffs-v2/robokassa/result', data=data)
             self.assertEqual(response.status_code, 200, response.data)
-            self.assertEqual(response.get_data(as_text=True), f'OK{invoice.id}')
+            self.assertEqual(response.get_data(as_text=True), f'OK{invoice.gateway_id}')
         self.assertEqual(invoice.status, 'paid')
         self.assertIsNone(invoice.active_product_id)
         self.assertEqual(TariffV2Coverage.query.count(), 1)

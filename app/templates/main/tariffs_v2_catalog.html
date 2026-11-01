@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Тестовый каталог тарифов{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Тестовый каталог тарифов</h1>
+  <p class="alert alert-info">Предварительный просмотр новой системы. Оформление заказа здесь пока недоступно.</p>
+  {% for row in rows %}
+  <section class="card p-3 mb-3">
+    <h2>{{ row.product.name }}</h2>
+    <p>Магазин: {{ row.product.seller.store_name }}</p>
+    <p>Цена с учетом сбора: <strong>{{ row.quote.goods_amount + row.quote.fee }} ₽</strong></p>
+    <p>Онлайн: {{ row.quote.online_amount }} ₽. При получении: {{ row.quote.cod_amount }} ₽.</p>
+    <p>Доставка оплачивается отдельно.</p>
+  </section>
+  {% else %}<p>На этой странице нет доступных товаров.</p>{% endfor %}
+  {% if pagination.has_prev %}<a href="{{ url_for('tariffs_v2_commerce.catalog', page=pagination.prev_num) }}">Назад</a>{% endif %}
+  {% if pagination.has_next %}<a href="{{ url_for('tariffs_v2_commerce.catalog', page=pagination.next_num) }}">Далее</a>{% endif %}
+</div>
+{% endblock %}

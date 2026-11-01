@@ -3,6 +3,7 @@
 {% block content %}
 <div class="container py-4">
   <h1>Предоплата карточек</h1>
+  <p><a href="{{ url_for('tariffs_v2_commerce.catalog') }}">Открыть тестовый каталог</a></p>
   <p class="alert alert-info">Тестовая система. Эта страница не меняет публикацию карточек на работающем сайте.
     Платёжные формы используют только тестовый режим Robokassa.</p>
   {% if not payment_ready %}<p>Тестовая оплата пока не настроена. Предварительные суммы доступны ниже.</p>{% endif %}
@@ -19,6 +20,14 @@
     </form>
     {% elif row.quote.due == 0 %}<p>Доплата не требуется.</p>{% endif %}
     {% endif %}
+    <p>Публикация в тестовом каталоге: {{ 'доступна' if row.visible else 'скрыта' }}.</p>
+    {% if row.reason %}<p>{{ row.reason }}</p>{% endif %}
+    <form method="post" action="{{ url_for('tariffs_v2_payments.publication', product_id=row.product.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="published" value="{{ '0' if row.published else '1' }}">
+      <button class="btn btn-secondary" type="submit" {% if not row.published and row.reason %}disabled{% endif %}>{{ 'Скрыть в тестовом каталоге' if row.published else 'Опубликовать в тестовом каталоге' }}</button>
+    </form>
+    <p>Скрытие не прекращает оплату хранения карточки.</p>
   </section>
   {% else %}<p>В этом магазине нет карточек.</p>{% endfor %}
 </div>
