@@ -219,3 +219,25 @@ class PostgresConcurrencyTests(unittest.TestCase):
         self.assertTrue(any(item[0] == 'ok' for item in results), results)
         self.assertEqual(sum(item.amount for item in TariffV2CheckoutRefund.query.all()), 600)
         self.assertEqual(row.orders[0].cod_amount, 10000)
+
+    def test_additive_release_schema_preserves_invoice_numbers_and_advances_sequence(self):
+        from app.tariffs_v2_schema import prepare_schema
+        from app.models.tariffs_v2 import TariffV2GatewayNumber
+        from app.utils.tariffs_v2_payments import allocate_gateway_number
+        mapping = db.session.get(TariffV2Category, db.session.get(Product, self.product_id).category_id)
+        mapping.rule.kind, mapping.rule.amount = 'fixed', Decimal('310')
+        db.session.commit()
+        invoice = issue_storage_invoice(self.product_id, self.seller_id, self.now)
+        db.session.commit()
+        invoice_id = invoice.id
+        db.session.execute(text('UPDATE tariff_v2_storage_invoices SET gateway_id=NULL'))
+        db.session.execute(text('DELETE FROM tariff_v2_gateway_numbers'))
+        db.session.execute(text('ALTER TABLE tariff_v2_coverage DROP COLUMN is_test'))
+        db.session.commit()
+        for _ in range(2):
+            self.assertFalse(prepare_schema(self.engine)['activation_changed'])
+        db.session.expire_all()
+        self.assertEqual(invoice.gateway_id, invoice_id)
+        self.assertEqual(db.session.get(TariffV2GatewayNumber, invoice.gateway_id).purpose, 'storage')
+        self.assertGreater(allocate_gateway_number('checkout', 999), invoice.gateway_id)
+        db.session.commit()

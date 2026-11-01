@@ -8,6 +8,10 @@ from app import db
 
 
 def install(app):
+    # Release inspection is available with the feature disabled, without enabling
+    # routes, jobs or querying a v2 table during normal requests.
+    from app.tariffs_v2_release import release
+    app.cli.add_command(release)
     if not app.config.get('TARIFFS_V2_ENABLED', False):
         return
     # First-stage preview cannot accidentally be enabled against a production DB.
