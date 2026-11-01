@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Предоплата карточек — тестовая система{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Предоплата карточек</h1>
+  <p class="alert alert-info">Тестовая система. Эта страница не меняет публикацию карточек на работающем сайте.
+    Платёжные формы используют только тестовый режим Robokassa.</p>
+  {% if not payment_ready %}<p>Тестовая оплата пока не настроена. Предварительные суммы доступны ниже.</p>{% endif %}
+  {% for row in rows %}
+  <section class="card p-3 mb-3">
+    <h2>{{ row.product.name }}</h2>
+    {% if row.error %}<p>{{ row.error }}</p>{% else %}
+    <p>За полный месяц: {{ row.quote.monthly_rate }} ₽. Остаток предоплаты: {{ row.quote.credit }} ₽.</p>
+    <p>К предоплате до конца месяца: <strong>{{ row.quote.due }} ₽</strong>.</p>
+    {% if row.quote.due > 0 and payment_ready %}
+    <form method="post" action="{{ url_for('tariffs_v2_payments.invoice', product_id=row.product.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary" type="submit">Создать тестовый счёт</button>
+    </form>
+    {% elif row.quote.due == 0 %}<p>Доплата не требуется.</p>{% endif %}
+    {% endif %}
+  </section>
+  {% else %}<p>В этом магазине нет карточек.</p>{% endfor %}
+</div>
+{% endblock %}

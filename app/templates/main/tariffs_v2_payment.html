@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Тестовая предоплата карточки{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Тестовый счёт №{{ invoice.id }}</h1>
+  <p>{{ invoice.product_name }}</p>
+  <p>Предоплата хранения карточки: <strong>{{ invoice.amount }} ₽</strong>.</p>
+  <p>С {{ invoice.starts_on.strftime('%d.%m.%Y') }} до конца календарного месяца.</p>
+  {% if invoice.status == 'paid' %}
+  <p class="alert alert-success">Тестовая оплата подтверждена. Предоплата учтена только в песочнице.</p>
+  {% elif invoice.status == 'needs_review' %}
+  <p class="alert alert-warning">Платёж получен после изменения или истечения счёта. Требуется проверка, предоплата не начислена.</p>
+  {% elif params %}
+  <p class="alert alert-info">Это тестовый платёж Robokassa. Публикация настоящих карточек не изменится.</p>
+  <form method="post" action="https://auth.robokassa.ru/Merchant/Index.aspx">
+    {% for name, value in params.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+    <button class="btn btn-primary" type="submit">Перейти к тестовой оплате</button>
+  </form>
+  {% else %}<p>Срок оплаты истёк или тестовая оплата отключена. Вернитесь к карточкам для нового расчёта.</p>{% endif %}
+  <p><a href="{{ url_for('tariffs_v2_payments.storage') }}">К предоплате карточек</a></p>
+</div>
+{% endblock %}

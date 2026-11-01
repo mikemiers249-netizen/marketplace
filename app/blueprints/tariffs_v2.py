@@ -8,7 +8,7 @@ from flask_login import current_user
 from app import db
 from app.models.products import Category, Product
 from app.models.users import Admin, Seller
-from app.models.tariffs_v2 import TariffV2Audit, TariffV2Category, TariffV2Rule, TariffV2Seller
+from app.models.tariffs_v2 import TariffV2Audit, TariffV2Category, TariffV2Rule, TariffV2Seller, TariffV2StorageInvoice
 from app.utils.tariffs_v2 import TariffError, benefits_end, integer, quote_line, storage_quote, stored_utc, validate_rule
 
 bp = Blueprint('tariffs_v2', __name__, url_prefix='/main_admin/tariffs-v2')
@@ -52,6 +52,7 @@ def index():
         sellers=Seller.query.order_by(Seller.id).all(),
         owner_email=current_app.config.get('TARIFFS_V2_OWNER_EMAIL', '').strip().casefold(),
         policies={row.seller_id: row for row in TariffV2Seller.query.all()},
+        storage_invoices=TariffV2StorageInvoice.query.order_by(TariffV2StorageInvoice.id.desc()).limit(50).all(),
         history=TariffV2Audit.query.order_by(TariffV2Audit.id.desc()).limit(25).all())
 
 

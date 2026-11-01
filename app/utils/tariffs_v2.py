@@ -195,16 +195,20 @@ def storage_quote(product, at=None):
     deleted = product.status == 'deleted'
     rate = ZERO if deleted or tariff.free_storage or tariff.kind != 'fixed' else tariff.amount
     required = prorated_storage(rate, today, end)
-    coverage = TariffV2Coverage.query.filter(
+    coverage_query = TariffV2Coverage.query.filter(
         TariffV2Coverage.product_id == product.id,
         TariffV2Coverage.seller_id == product.seller_id,
         TariffV2Coverage.starts_on <= today,
         TariffV2Coverage.ends_on == end,
-    ).all()
-    # Payment records carry the additional prepaid amount (not the whole rate again).
-    # Remaining credit declines proportionally within the paid interval.
-    credit = sum((money(row.paid_amount * Decimal((row.ends_on - today).days) /
-                        Decimal((row.ends_on - row.starts_on).days)) for row in coverage), ZERO)
+    )
+    if not current_app.config.get('TARIFFS_V2_SANDBOX', False):
+        coverage_query = coverage_query.filter(TariffV2Coverage.is_test.is_(False))
+    coverage = coverage_query.all()
+    # Each confirmed payment certifies coverage up to its snapshotted monthly rate.
+    # A top-up certifies the new full rate, not an additional full rate to sum.
+    # Reprice the remaining days from that entitlement, rather than dividing an
+    # already-rounded payment: the latter can re-charge a kopeck on a paid card.
+    credit = max((prorated_storage(row.monthly_rate, today, end) for row in coverage), default=ZERO)
     due = max(ZERO, required - credit)
     return dict(monthly_rate=rate, required=required, credit=credit, due=due,
                 starts_on=today, ends_on=end, may_publish=due == ZERO and not deleted)

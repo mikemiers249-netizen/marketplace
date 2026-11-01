@@ -16,9 +16,11 @@ def install(app):
         if db.engine.dialect.name != 'sqlite':
             raise RuntimeError('Tariffs v2 first-stage sandbox supports local SQLite only.')
     from app.blueprints.tariffs_v2 import bp
+    from app.blueprints.tariffs_v2_payments import bp as payments_bp
     from app.utils.tariffs_v2 import MSK, utc
     from datetime import timedelta
     app.register_blueprint(bp)
+    app.register_blueprint(payments_bp)
 
     @app.template_filter('v2_last_benefit_day')
     def last_benefit_day(value):
@@ -37,4 +39,10 @@ def initialize():
     from app.models import tariffs_v2  # noqa: F401
     tables = [table for table in db.metadata.sorted_tables if table.name.startswith('tariff_v2_')]
     db.metadata.create_all(bind=db.engine, tables=tables)
-    click.echo('Tariffs v2 sandbox tables ready. No payments, workers or cleanup enabled.')
+    # Additive upgrade for a local sandbox created during phase one.
+    from sqlalchemy import inspect, text
+    columns = {column['name'] for column in inspect(db.engine).get_columns('tariff_v2_coverage')}
+    if 'is_test' not in columns:
+        db.session.execute(text('ALTER TABLE tariff_v2_coverage ADD COLUMN is_test BOOLEAN NOT NULL DEFAULT 0'))
+        db.session.commit()
+    click.echo('Tariffs v2 sandbox tables ready. No provider calls, workers or cleanup started.')

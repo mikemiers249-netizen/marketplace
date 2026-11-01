@@ -247,6 +247,15 @@ class TariffsV2Tests(unittest.TestCase):
         self.assertFalse(storage_quote(self.product, instant('2026-02-01T12:00:00'))['may_publish'])
         self.assertEqual(storage_quote(self.product, instant('2026-02-01T12:00:00'))['due'], 310)
 
+    def test_paid_card_never_acquires_a_kopeck_debt_from_daily_rounding(self):
+        self.mapping.rule = self.fixed
+        self.fixed.amount = Decimal('0.02')
+        db.session.flush()
+        record_storage_payment(self.product, Decimal('0.01'), 'rounding-safe', instant('2026-01-15T12:00:00'))
+        db.session.flush()
+        for day in range(15, 32):
+            self.assertEqual(storage_quote(self.product, instant(f'2026-01-{day:02d}T12:00:00'))['due'], 0)
+
     def test_payment_amount_must_match_storage_quote(self):
         self.mapping.rule = self.fixed
         db.session.flush()
@@ -456,6 +465,7 @@ class TariffsV2Tests(unittest.TestCase):
             TARIFFS_V2_ENABLED = False
         app = create_app(Disabled)
         self.assertFalse(any(rule.endpoint.startswith('tariffs_v2.') for rule in app.url_map.iter_rules()))
+        self.assertFalse(any(rule.endpoint.startswith('tariffs_v2_payments.') for rule in app.url_map.iter_rules()))
         with app.app_context():
             queries = []
             def capture(conn, cursor, statement, parameters, context, executemany):

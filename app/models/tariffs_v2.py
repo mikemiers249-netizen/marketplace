@@ -62,6 +62,36 @@ class TariffV2Coverage(db.Model):
     paid_amount = db.Column(db.Numeric(14, 2), nullable=False)
     payment_reference = db.Column(db.String(160), nullable=False, unique=True)
     paid_at = db.Column(db.DateTime, nullable=False)
+    is_test = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class TariffV2StorageInvoice(db.Model):
+    """Frozen sandbox invoice. It cannot represent a live provider payment."""
+    __tablename__ = 'tariff_v2_storage_invoices'
+    __table_args__ = (
+        db.CheckConstraint('amount > 0', name='v2_storage_invoice_amount'),
+        db.CheckConstraint("status IN ('pending','paid','expired','needs_review')", name='v2_storage_invoice_status'),
+        db.CheckConstraint('is_test = true', name='v2_storage_invoice_test_only'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    seller_id = db.Column(db.Integer, db.ForeignKey('sellers.id'), nullable=False, index=True)
+    product_id = db.Column(db.Integer, nullable=False)
+    active_product_id = db.Column(db.Integer, db.ForeignKey('products.id', ondelete='SET NULL'), unique=True)
+    product_name = db.Column(db.String(255), nullable=False)
+    merchant_login = db.Column(db.String(128), nullable=False)
+    category_id = db.Column(db.Integer)
+    fingerprint = db.Column(db.String(64), nullable=False)
+    token = db.Column(db.String(64), nullable=False, unique=True)
+    monthly_rate = db.Column(db.Numeric(14, 2), nullable=False)
+    amount = db.Column(db.Numeric(14, 2), nullable=False)
+    starts_on = db.Column(db.Date, nullable=False)
+    ends_on = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    paid_at = db.Column(db.DateTime)
+    status = db.Column(db.String(24), nullable=False, default='pending')
+    review_reason = db.Column(db.String(80))
+    is_test = db.Column(db.Boolean, nullable=False, default=True)
 
 
 class TariffV2OrderLine(db.Model):

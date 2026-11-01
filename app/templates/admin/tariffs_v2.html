@@ -82,6 +82,14 @@
     <button type="submit" class="btn btn-secondary">Рассчитать</button>
   </form>
   <div id="quote-result" aria-live="polite" style="white-space:pre-line"></div>
+  <h2>Тестовые счета предоплаты карточек</h2>
+  <div class="table-responsive"><table class="table">
+    <thead><tr><th>Счёт</th><th>Магазин, ID</th><th>Карточка</th><th>Сумма</th><th>Состояние</th></tr></thead>
+    <tbody>{% for invoice in storage_invoices %}<tr>
+      <td>{{ invoice.id }}</td><td>{{ invoice.seller_id }}</td><td>{{ invoice.product_name }}</td>
+      <td>{{ invoice.amount }} ₽</td><td>{{ {'pending':'Ожидает оплаты', 'paid':'Тестовая оплата подтверждена', 'expired':'Срок истёк', 'needs_review':'Нужна проверка'}.get(invoice.status, invoice.status) }}</td>
+    </tr>{% else %}<tr><td colspan="5">Тестовых счетов пока нет.</td></tr>{% endfor %}</tbody>
+  </table></div>
   <h2>История настроек</h2>
   <ul>{% for item in history %}<li>{{ item.created_at }} — {{ item.actor }} — {{ item.action }}: {{ item.subject }}</li>{% endfor %}</ul>
 </div>
