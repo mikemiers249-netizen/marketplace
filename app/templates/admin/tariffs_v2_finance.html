@@ -46,6 +46,11 @@
     {% endif %}
   </section>
   {% else %}<p>Возвратов нет.</p>{% endfor %}
+  <h2>Очередь отправки возвратов</h2>
+  <p>Отправка рабочего API не включена. Неизвестный результат после отправки требует сверки, а не повторного списания.</p>
+  <ul>{% for dispatch in dispatches %}<li>Заявка #{{ dispatch.id }}, возврат #{{ dispatch.refund_id }}:
+    {{ {'queued':'В очереди', 'sending':'Отправляется', 'submitted':'Создан у провайдера', 'finished':'Успешен', 'canceled':'Отменен у провайдера', 'rejected':'Создание отклонено', 'unknown':'Требуется сверка неизвестного результата'}.get(dispatch.status, dispatch.status) }} — {{ dispatch.amount }} ₽.</li>
+    {% else %}<li>Очередь пуста.</li>{% endfor %}</ul>
   <h2>Месячные счета</h2>
   <ul>{% for invoice in invoices %}<li>#{{ invoice.id }}, магазин #{{ invoice.seller_id }}, {{ invoice.period }}: {{ invoice.amount }} ₽ — {{ 'Оплачен' if invoice.paid_at else 'Не оплачен' }}.</li>{% else %}<li>Счетов нет.</li>{% endfor %}</ul>
 </div>

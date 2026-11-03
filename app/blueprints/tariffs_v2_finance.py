@@ -9,6 +9,7 @@ from app.models.tariffs_v2 import TariffV2Invoice
 from app.models.tariffs_v2_commerce import TariffV2SandboxOrder, TariffV2Checkout
 from app.models.tariffs_v2_finance import TariffV2Claim, TariffV2CheckoutRefund
 from app.models.tariffs_v2_lifecycle import TariffV2StorageExpiry, TariffV2Replica
+from app.models.tariffs_v2_operations import TariffV2BillPayment, TariffV2RefundDispatch
 from app.utils.tariffs_v2 import TariffError, utc
 from app.utils.tariffs_v2_finance import (
     buyer_cancel_order, receive_order, cancel_line, open_claim, respond_claim, decide_claim,
@@ -128,7 +129,31 @@ def bills():
     details = {}
     for refund in TariffV2CheckoutRefund.query.filter(TariffV2CheckoutRefund.invoice_id.in_([row.id for row in rows])):
         details.setdefault(refund.invoice_id, []).append(refund)
-    return render_template('main/tariffs_v2_bills.html', invoices=rows, details=details)
+    from app.utils.tariffs_v2_payments import configured
+    return render_template('main/tariffs_v2_bills.html', invoices=rows, details=details, payment_ready=configured())
+
+
+@bp.post('/tariffs-v2/seller/bills/<int:invoice_id>/payment')
+def create_bill_payment(invoice_id):
+    if not isinstance(current_user, Seller):
+        abort(403)
+    from app.utils.tariffs_v2_bills import issue_bill_payment
+    row = issue_bill_payment(invoice_id, current_user.id)
+    db.session.commit()
+    return redirect(url_for('tariffs_v2_finance.bill_payment', payment_id=row.id))
+
+
+@bp.get('/tariffs-v2/seller/bill-payments/<int:payment_id>')
+def bill_payment(payment_id):
+    if not isinstance(current_user, Seller):
+        abort(403)
+    from app.utils.tariffs_v2_bills import FLOW
+    from app.utils.tariffs_v2_payments import configured, payment_params
+    row = TariffV2BillPayment.query.filter_by(id=payment_id, seller_id=current_user.id).first_or_404()
+    params = payment_params(row, FLOW, f'Доступ к площадке: счет №{row.invoice_id}') if (
+        configured() and row.status == 'pending' and not row.invoice.paid_at and
+        row.amount == row.invoice.amount and utc() < utc(row.expires_at)) else None
+    return render_template('main/tariffs_v2_bill_payment.html', payment=row, params=params)
 
 
 @bp.post('/tariffs-v2/seller/bills/<int:invoice_id>/simulate-payment')
@@ -146,7 +171,8 @@ def admin_finance():
     return render_template('admin/tariffs_v2_finance.html',
         claims=TariffV2Claim.query.order_by(TariffV2Claim.id.desc()).limit(100).all(),
         refunds=TariffV2CheckoutRefund.query.order_by(TariffV2CheckoutRefund.id.desc()).limit(100).all(),
-        invoices=TariffV2Invoice.query.order_by(TariffV2Invoice.id.desc()).limit(100).all(), now=utc())
+        invoices=TariffV2Invoice.query.order_by(TariffV2Invoice.id.desc()).limit(100).all(), now=utc(),
+        dispatches=TariffV2RefundDispatch.query.order_by(TariffV2RefundDispatch.id.desc()).limit(100).all())
 
 
 @bp.post('/main_admin/tariffs-v2/claims/<int:claim_id>/decide')

@@ -155,7 +155,7 @@ def resolve_tariff(seller, category_id, at=None):
         rule.id if rule else None, rule.name if rule else 'Бесплатно',
         rule.kind if rule else 'fixed', money(rule.amount) if rule else ZERO,
         free_storage, free_fee,
-        'full_online' if owner else (policy.payment_mode if policy else 'cod'),
+        'full_online' if owner else 'cod',
         policy.shipping_days if policy else 5,
     )
 

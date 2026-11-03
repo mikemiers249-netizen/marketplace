@@ -340,7 +340,10 @@ def run_finance_tick(at=None):
     require_simulator()
     from app.utils.tariffs_v2 import issue_monthly_invoice
     refunds = process_shipping_overdue(at)
+    db.session.flush()
+    from app.utils.tariffs_v2_refund_queue import stage_pending_refunds
+    queue_counts = stage_pending_refunds(at)
     invoices = [invoice for seller_id, in db.session.query(Seller.id).order_by(Seller.id).all()
                 if (invoice := issue_monthly_invoice(seller_id, at)) is not None]
     audit('finance_tick', 'sandbox', {'refunds_checked': len(refunds), 'invoices_checked': len(invoices)})
-    return {'refunds_checked': len(refunds), 'invoices_checked': len(invoices)}
+    return {'refunds_checked': len(refunds), 'invoices_checked': len(invoices), **queue_counts}

@@ -24,6 +24,7 @@ def install(app):
     from app.models import tariffs_v2_commerce  # noqa: F401
     from app.models import tariffs_v2_finance  # noqa: F401
     from app.models import tariffs_v2_lifecycle  # noqa: F401
+    from app.models import tariffs_v2_operations  # noqa: F401
     from app.blueprints.tariffs_v2_payments import bp as payments_bp
     from app.blueprints.tariffs_v2_commerce import bp as commerce_bp
     from app.blueprints.tariffs_v2_finance import bp as finance_bp
@@ -61,8 +62,15 @@ def initialize():
     from app.models import tariffs_v2_commerce  # noqa: F401
     from app.models import tariffs_v2_finance  # noqa: F401
     from app.models import tariffs_v2_lifecycle  # noqa: F401
+    from app.models import tariffs_v2_operations  # noqa: F401
     tables = [table for table in db.metadata.sorted_tables if table.name.startswith('tariff_v2_')]
     db.metadata.create_all(bind=db.engine, tables=tables)
+    from app.tariffs_v2_schema import upgrade_gateway_purpose, SchemaPreparationError
+    try:
+        with db.engine.begin() as connection:
+            upgrade_gateway_purpose(connection)
+    except SchemaPreparationError as error:
+        raise click.ClickException(str(error)) from error
     # Additive upgrade for a local sandbox created during phase one.
     from sqlalchemy import inspect, text
     columns = {column['name'] for column in inspect(db.engine).get_columns('tariff_v2_coverage')}

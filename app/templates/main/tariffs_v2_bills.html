@@ -10,6 +10,10 @@
     <p>{{ invoice.amount }} ₽. {{ 'Оплачен' if invoice.paid_at else 'Ожидает оплаты' }}.</p>
     <ul>{% for refund in details.get(invoice.id, []) %}<li>Заказ #{{ refund.line.order_id }}: {{ refund.line.snapshot.product_name }} — возвращенный сбор {{ refund.seller_charge }} ₽.</li>{% endfor %}</ul>
     {% if not invoice.paid_at %}
+    {% if payment_ready %}<form method="post" action="{{ url_for('tariffs_v2_finance.create_bill_payment', invoice_id=invoice.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button>Открыть тестовую оплату Robokassa с чеком</button>
+    </form>{% endif %}
     <form method="post" action="{{ url_for('tariffs_v2_finance.pay_bill', invoice_id=invoice.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button>Смоделировать оплату (без списания денег)</button>

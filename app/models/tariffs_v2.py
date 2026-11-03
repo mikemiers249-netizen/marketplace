@@ -70,7 +70,7 @@ class TariffV2GatewayNumber(db.Model):
     __tablename__ = 'tariff_v2_gateway_numbers'
     __table_args__ = (
         db.UniqueConstraint('purpose', 'reference_id', name='v2_gateway_reference'),
-        db.CheckConstraint("purpose IN ('storage', 'checkout')", name='v2_gateway_purpose'),
+        db.CheckConstraint("purpose IN ('storage', 'checkout', 'bill')", name='v2_gateway_purpose'),
         {'sqlite_autoincrement': True},
     )
     id = db.Column(db.Integer, primary_key=True)

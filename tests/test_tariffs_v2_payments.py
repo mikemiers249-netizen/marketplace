@@ -73,7 +73,8 @@ class StoragePaymentTests(unittest.TestCase):
         self.assertEqual(first.status, 'expired')
         self.assertIsNone(first.active_product_id)
         self.assertEqual(first.amount, amount)
-        self.assertEqual(second.amount, amount * 2)
+        self.assertEqual(second.monthly_rate, Decimal('620'))
+        self.assertEqual(second.amount, storage_quote(self.product, self.now)['due'])
 
     def test_zero_storage_amount_never_creates_gateway_invoice(self):
         self.product.seller = self.owner

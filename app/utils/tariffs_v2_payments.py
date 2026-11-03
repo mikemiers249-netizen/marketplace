@@ -11,7 +11,7 @@ import re
 import secrets
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 
 from flask import current_app
 
@@ -117,11 +117,17 @@ def payment_params(invoice, flow, description, at=None):
     password = current_app.config['TARIFFS_V2_ROBOKASSA_TEST_PASSWORD1']
     if invoice.gateway_id is None:
         raise TariffError('Для счета не назначен платежный номер. Обновите схему песочницы.')
-    signed = f'{login}:{amount}:{invoice.gateway_id}:{password}:Shp_flow={flow}:Shp_token={invoice.token}'
-    return dict(MerchantLogin=login, OutSum=amount, InvId=str(invoice.gateway_id), IsTest='1',
+    receipt = getattr(invoice, 'receipt_json', None)
+    encoded = quote(receipt, safe='') if receipt else None
+    receipt_part = ':' + encoded if encoded else ''
+    signed = f'{login}:{amount}:{invoice.gateway_id}{receipt_part}:{password}:Shp_flow={flow}:Shp_token={invoice.token}'
+    params = dict(MerchantLogin=login, OutSum=amount, InvId=str(invoice.gateway_id), IsTest='1',
                 Description=description,
                 Culture='ru', Encoding='utf-8', Shp_flow=flow, Shp_token=invoice.token,
                 SignatureValue=signature(signed))
+    if encoded:
+        params['Receipt'] = encoded
+    return params
 
 
 def gateway_url(invoice):

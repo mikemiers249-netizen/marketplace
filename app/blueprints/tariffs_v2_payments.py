@@ -107,6 +107,11 @@ def payment(invoice_id):
 @bp.post('/robokassa/result')
 @csrf.exempt
 def result():
+    if request.form.get('Shp_flow') == 'tariffs_v2_bill_test':
+        from app.utils.tariffs_v2_bills import accept_bill_result
+        row = accept_bill_result(request.form)
+        db.session.commit()
+        return f'OK{row.gateway_id}', 200, {'Content-Type': 'text/plain; charset=utf-8'}
     # One provider ResultURL can dispatch both flows; each adapter verifies its scope.
     if request.form.get('Shp_flow') == 'tariffs_v2_checkout_test':
         from app.utils.tariffs_v2_commerce import accept_checkout_result

@@ -104,6 +104,29 @@ def encode64(value):
     return base64.urlsafe_b64encode(value).rstrip(b'=').decode('ascii')
 
 
+def validated_receipt_items(receipt_items, amount):
+    amount = exact_amount(amount)
+    if not isinstance(receipt_items, list) or not receipt_items:
+        raise ProviderError('Для возврата необходимо подготовить состав фискального чека.')
+    items, total = [], Decimal('0')
+    for item in receipt_items:
+        if not isinstance(item, dict):
+            raise ProviderError('Некорректная позиция чека возврата.')
+        quantity = item.get('Quantity')
+        if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity < 1:
+            raise ProviderError('Некорректное количество в чеке возврата.')
+        cost = exact_amount(item.get('Cost'))
+        total += cost * quantity
+        strings = {key: item.get(key) for key in ('Name', 'Tax', 'PaymentMethod', 'PaymentObject')}
+        if any(not isinstance(value, str) or not value or len(value) > 128 for value in strings.values()):
+            raise ProviderError('Не заполнены реквизиты чека возврата.')
+        prefix = json.dumps(strings, ensure_ascii=False, separators=(',', ':'))[:-1]
+        items.append(prefix + f',"Quantity":{quantity},"Cost":{cost:.2f}' + '}')
+    if total != amount:
+        raise ProviderError('Сумма чека возврата не совпадает с заявкой.')
+    return items
+
+
 class RobokassaClient:
     def __init__(self, credentials, send=transport):
         self.credentials, self.send = credentials, send
@@ -165,22 +188,7 @@ class RobokassaClient:
         if not isinstance(operation_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,200}', operation_key):
             raise ProviderError('Некорректный идентификатор операции.')
         amount = exact_amount(amount)
-        if not isinstance(receipt_items, list) or not receipt_items:
-            raise ProviderError('Для возврата необходимо подготовить состав фискального чека.')
-        items, total = [], Decimal('0')
-        for item in receipt_items:
-            quantity = item.get('Quantity')
-            if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity < 1:
-                raise ProviderError('Некорректное количество в чеке возврата.')
-            cost = exact_amount(item.get('Cost'))
-            total += cost * quantity
-            strings = {key: item.get(key) for key in ('Name', 'Tax', 'PaymentMethod', 'PaymentObject')}
-            if any(not isinstance(value, str) or not value or len(value) > 128 for value in strings.values()):
-                raise ProviderError('Не заполнены реквизиты чека возврата.')
-            prefix = json.dumps(strings, ensure_ascii=False, separators=(',', ':'))[:-1]
-            items.append(prefix + f',"Quantity":{quantity},"Cost":{cost:.2f}' + '}')
-        if total != amount:
-            raise ProviderError('Сумма чека возврата не совпадает с заявкой.')
+        items = validated_receipt_items(receipt_items, amount)
         header = encode64(b'{"alg":"HS256","typ":"JWT"}')
         payload = '{"OpKey":' + json.dumps(operation_key) + f',"RefundSum":{amount:.2f},"InvoiceItems":[' + ','.join(items) + ']}'
         unsigned = header + '.' + encode64(payload.encode('utf-8'))

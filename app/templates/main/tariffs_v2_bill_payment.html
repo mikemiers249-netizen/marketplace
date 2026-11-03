@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Оплата тестового счета магазина{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Счет магазина №{{ payment.invoice_id }}</h1>
+  <p>Сумма: {{ payment.amount }} ₽. Только тестовый режим Robokassa, без списания настоящих денег.</p>
+  <p>Оплата подтверждается только уведомлением платежной системы. Возврат из формы оплаты сам по себе не оплачивает счет.</p>
+  {% if params %}<form method="post" action="https://auth.robokassa.ru/Merchant/Index.aspx">
+    {% for name, value in params.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+    <button type="submit">Оплатить счет в тестовом режиме</button>
+  </form>{% else %}<p>{{ {'paid':'Оплата подтверждена', 'expired':'Срок формы истек', 'needs_review':'Оплата требует проверки'}.get(payment.status, 'Форма сейчас недоступна') }}.</p>{% endif %}
+  <a href="{{ url_for('tariffs_v2_finance.bills') }}">Вернуться к счетам</a>
+</div>
+{% endblock %}

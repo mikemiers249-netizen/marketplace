@@ -43,6 +43,8 @@ def publication_error(product, at=None):
         return 'Карточка должна пройти модерацию.'
     if not product.seller or not product.seller.is_active:
         return 'Магазин недоступен.'
+    if product.seller.payments_paused:
+        return 'Магазин временно приостановил прием оплаты.'
     if not digital_available(product):
         return 'Электронный товар недоступен или не одобрен модерацией.'
     if blocked_for_new_sales(product.seller_id, at):
@@ -241,6 +243,9 @@ def create_checkout(buyer_id, request_key, deliveries, at=None):
     db.session.flush()
     if online == ZERO:
         complete_checkout(checkout, instant)
+    else:
+        from app.utils.tariffs_v2_receipts import capture_checkout_receipt
+        capture_checkout_receipt(checkout)
     return checkout
 
 

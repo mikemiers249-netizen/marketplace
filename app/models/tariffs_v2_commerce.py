@@ -47,6 +47,12 @@ class TariffV2Checkout(db.Model):
     def amount(self):
         return self.online_amount
 
+    @property
+    def receipt_json(self):
+        from app.models.tariffs_v2_operations import TariffV2FiscalReceipt
+        row = db.session.get(TariffV2FiscalReceipt, self.gateway_id) if self.gateway_id else None
+        return row.receipt_json if row else None
+
 
 class TariffV2CheckoutRequest(db.Model):
     __tablename__ = 'tariff_v2_checkout_requests'

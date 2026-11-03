@@ -11,8 +11,30 @@ class SchemaPreparationError(ValueError):
 
 
 def models():
-    from app.models import tariffs_v2, tariffs_v2_commerce, tariffs_v2_finance, tariffs_v2_lifecycle  # noqa: F401
+    from app.models import tariffs_v2, tariffs_v2_commerce, tariffs_v2_finance, tariffs_v2_lifecycle, tariffs_v2_operations  # noqa: F401
     return [table for table in db.metadata.sorted_tables if table.name.startswith('tariff_v2_')]
+
+
+def upgrade_gateway_purpose(connection):
+    constraints = inspect(connection).get_check_constraints('tariff_v2_gateway_numbers')
+    current = next((item for item in constraints if item['name'] == 'v2_gateway_purpose'), None)
+    if current and "'bill'" in current['sqltext']:
+        return
+    if connection.dialect.name == 'postgresql':
+        connection.execute(text('ALTER TABLE tariff_v2_gateway_numbers DROP CONSTRAINT IF EXISTS v2_gateway_purpose'))
+        connection.execute(text("ALTER TABLE tariff_v2_gateway_numbers ADD CONSTRAINT v2_gateway_purpose CHECK (purpose IN ('storage','checkout','bill'))"))
+    else:
+        if connection.execute(text('PRAGMA foreign_keys')).scalar():
+            raise SchemaPreparationError('Обновление старой SQLite-песочницы требует отдельной локальной копии с отключенной проверкой FK; рабочие данные не пересоздаются.')
+        from alembic.migration import MigrationContext
+        from alembic.operations import Operations
+        old_sequence = connection.execute(text("SELECT seq FROM sqlite_sequence WHERE name='tariff_v2_gateway_numbers'")).scalar() or 0
+        operations = Operations(MigrationContext.configure(connection))
+        with operations.batch_alter_table('tariff_v2_gateway_numbers', recreate='always', table_kwargs={'sqlite_autoincrement': True}) as batch:
+            if current:
+                batch.drop_constraint('v2_gateway_purpose', type_='check')
+            batch.create_check_constraint('v2_gateway_purpose', "purpose IN ('storage','checkout','bill')")
+        connection.execute(text("UPDATE sqlite_sequence SET seq=MAX(seq,:seq) WHERE name='tariff_v2_gateway_numbers'"), {'seq': old_sequence})
 
 
 def prepare_schema(engine):
@@ -28,6 +50,7 @@ def prepare_schema(engine):
         if not required <= existing:
             raise SchemaPreparationError('Не найдена базовая схема marketplace. Сначала подготовьте отдельную копию базы.')
         db.metadata.create_all(bind=connection, tables=tables)
+        upgrade_gateway_purpose(connection)
         columns = {row['name'] for row in inspect(connection).get_columns('tariff_v2_coverage')}
         if 'is_test' not in columns:
             connection.execute(text('ALTER TABLE tariff_v2_coverage ADD COLUMN is_test BOOLEAN NOT NULL DEFAULT FALSE'))

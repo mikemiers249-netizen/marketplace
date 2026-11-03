@@ -23,7 +23,7 @@ from app import create_app, db
 from config import TestingConfig
 from app.models.products import Category, Product
 from app.models.users import Seller, Buyer, BuyerDelivery, SellerDelivery, DeliveryService
-from app.models import tariffs_v2, tariffs_v2_commerce, tariffs_v2_finance, tariffs_v2_lifecycle  # noqa: F401
+from app.models import tariffs_v2, tariffs_v2_commerce, tariffs_v2_finance, tariffs_v2_lifecycle, tariffs_v2_operations  # noqa: F401
 from app.models.tariffs_v2 import TariffV2Rule, TariffV2Category, TariffV2Audit, TariffV2StorageInvoice
 from app.models.tariffs_v2_commerce import TariffV2Checkout, TariffV2Reservation
 from app.models.tariffs_v2_finance import TariffV2CheckoutRefund
@@ -233,11 +233,48 @@ class PostgresConcurrencyTests(unittest.TestCase):
         db.session.execute(text('UPDATE tariff_v2_storage_invoices SET gateway_id=NULL'))
         db.session.execute(text('DELETE FROM tariff_v2_gateway_numbers'))
         db.session.execute(text('ALTER TABLE tariff_v2_coverage DROP COLUMN is_test'))
+        db.session.execute(text('ALTER TABLE tariff_v2_gateway_numbers DROP CONSTRAINT v2_gateway_purpose'))
+        db.session.execute(text("ALTER TABLE tariff_v2_gateway_numbers ADD CONSTRAINT v2_gateway_purpose CHECK (purpose IN ('storage','checkout'))"))
         db.session.commit()
         for _ in range(2):
             self.assertFalse(prepare_schema(self.engine)['activation_changed'])
         db.session.expire_all()
         self.assertEqual(invoice.gateway_id, invoice_id)
         self.assertEqual(db.session.get(TariffV2GatewayNumber, invoice.gateway_id).purpose, 'storage')
-        self.assertGreater(allocate_gateway_number('checkout', 999), invoice.gateway_id)
+        self.assertGreater(allocate_gateway_number('bill', 999), invoice.gateway_id)
         db.session.commit()
+
+    def test_parallel_bill_payments_and_notifications_are_idempotent(self):
+        from app.models.tariffs_v2 import TariffV2Invoice
+        from app.models.tariffs_v2_operations import TariffV2BillPayment
+        from app.utils.tariffs_v2_bills import FLOW, issue_bill_payment, accept_bill_result
+        invoice = TariffV2Invoice(seller_id=self.seller_id, period=moscow_date(self.now).replace(day=1),
+            issued_at=self.now.replace(tzinfo=None), due_at=self.now.replace(tzinfo=None), amount=300)
+        db.session.add(invoice)
+        db.session.commit()
+        invoice_id = invoice.id
+        results = self.race([lambda: issue_bill_payment(invoice_id, self.seller_id, self.now)] * 2)
+        self.assertEqual(results[0], results[1])
+        payment = TariffV2BillPayment.query.one()
+        message = f'300.00:{payment.gateway_id}:fake-two:Shp_flow={FLOW}:Shp_token={payment.token}'
+        data = MultiDict(dict(InvId=str(payment.gateway_id), OutSum='300.00', Shp_flow=FLOW,
+            Shp_token=payment.token, SignatureValue=hashlib.sha256(message.encode()).hexdigest()))
+        results = self.race([lambda: accept_bill_result(data, self.now)] * 2)
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(payment.status, 'paid')
+        self.assertIsNotNone(invoice.paid_at)
+
+    def test_parallel_refund_queue_staging_creates_one_frozen_dispatch(self):
+        from app.utils.tariffs_v2_refund_queue import enqueue_refund
+        from app.models.tariffs_v2_operations import TariffV2RefundDispatch
+        self.add()
+        checkout = self.checkout()
+        accept_checkout_result(self.callback(checkout), self.now)
+        db.session.commit()
+        refund = cancel_line(checkout.orders[0].lines[0].id, self.seller_id, 1, self.now)
+        db.session.commit()
+        refund_id = refund.id
+        results = self.race([lambda: enqueue_refund(refund_id, self.now)] * 2)
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(TariffV2RefundDispatch.query.count(), 1)
+        self.assertEqual(TariffV2RefundDispatch.query.one().receipt_items[0]['Name'], 'Услуга доступа к площадке')
