@@ -1388,7 +1388,10 @@ def product_new():
         name = request.form.get('name')
         category_id = request.form.get('category_id', type=int)
         price = request.form.get('price', type=float)
-        article = request.form.get('article')
+        article = (request.form.get('article') or '').strip()
+        system_sku = Product.generate_system_sku(current_user.id)
+        if not article or article == f'WML-{current_user.id}-XXXXXX':
+            article = system_sku
         description = _sanitize_html(request.form.get('description'))
         stock_quantity = request.form.get('stock_quantity', 0, type=int)
         common_card = request.form.get('common_card')
@@ -1424,6 +1427,7 @@ def product_new():
             description=description,
             price=price,
             article=article,
+            system_sku=system_sku,
             stock_quantity=stock_quantity,
             max_discount_percent=max_discount,
             common_card=common_card or None,
@@ -4567,6 +4571,11 @@ def settings():
     seller = current_user
     
     if request.method == 'POST':
+        if request.form.get('settings_section') == 'payments':
+            seller.payments_paused = request.form.get('payments_paused') == '1'
+            db.session.commit()
+            flash('Приём оплаты приостановлен.' if seller.payments_paused else 'Приём оплаты включён.', 'success')
+            return redirect(url_for('seller.settings'))
         # Обновление данных продавца
         if 'minimum_order_amount' in request.form:
             from app.utils.order_limits import parse_minimum_order_amount

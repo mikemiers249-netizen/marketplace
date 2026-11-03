@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Личная проверка оплаты — Wimli{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1>Личная проверка оплаты</h1>
+  <p>Эти два товара доступны только вашему аккаунту. Каждая покупка оплачивается отдельно, сумма — 1 ₽.</p>
+  <div class="row g-4">
+    {% for kind, product in products %}
+    <div class="col-md-6"><div class="card h-100"><div class="card-body">
+      <h2 class="h4">{{ product.name }}</h2>
+      <p>{{ product.description }}</p>
+      <p class="fs-4 fw-bold">1 ₽</p>
+      <form method="post" action="{{ url_for('payments.private_test_buy', kind=kind) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-success" type="submit">Купить и оплатить 1 ₽</button>
+      </form>
+    </div></div></div>
+    {% endfor %}
+  </div>
+  <p class="mt-4"><a href="{{ url_for('main.profile_orders') }}">Мои заказы</a> · <a href="{{ url_for('digital.library') }}">Моя библиотека</a></p>
+</div>
+{% endblock %}

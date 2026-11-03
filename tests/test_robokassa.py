@@ -1,15 +1,18 @@
 import hashlib
+import json
 import logging
 import tempfile
 import unittest
 from unittest.mock import patch
 from decimal import Decimal
 from pathlib import Path
+from urllib.parse import unquote
+from html.parser import HTMLParser
 from flask import g
 from app import create_app, db
 from config import TestingConfig
 from app.models.users import Buyer, Seller
-from app.models.orders import Order
+from app.models.orders import Order, OrderItem
 from app.models.payments import RobokassaPayment
 
 
@@ -46,6 +49,13 @@ class RobokassaTests(unittest.TestCase):
                            total_price=100, delivery_price=20, bonus_used=10,
                            promo_discount=5, status='processing')
         db.session.add(self.order)
+        from app.models.products import Product, Category
+        category = Category(name='Books', slug='receipt-books')
+        self.receipt_product = Product(name='Книга «Тест» & <пример>', slug='receipt-book',
+            article='receipt-book', seller=self.seller, category=category, price=50,
+            stock_quantity=10, status='approved', current_discount=0)
+        db.session.add(OrderItem(order=self.order, product=self.receipt_product,
+                                 quantity=2, price_at_order=50))
         db.session.commit()
         self.client = self.app.test_client()
         self.login(self.buyer)
@@ -77,6 +87,84 @@ class RobokassaTests(unittest.TestCase):
     def invoice(self):
         self.assertEqual(self.start().status_code, 200)
         return RobokassaPayment.query.one()
+
+    def test_paused_store_blocks_new_and_existing_checkout(self):
+        invoice = self.invoice()
+        self.seller.payments_paused = True
+        db.session.commit()
+        self.assertEqual(self.start().status_code, 403)
+        self.assertEqual(self.client.get(f'/payments/robokassa/checkout/{invoice.id}').status_code, 409)
+        self.seller.payments_paused = False
+        db.session.commit()
+        self.assertEqual(self.client.get(f'/payments/robokassa/checkout/{invoice.id}').status_code, 200)
+
+    def form_params(self, response):
+        class Inputs(HTMLParser):
+            values = None
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == 'input':
+                    self.values[attrs['name']] = attrs.get('value', '')
+        parser = Inputs()
+        parser.values = {}
+        parser.feed(response.get_data(as_text=True))
+        return parser.values
+
+    def test_receipt_contains_discounted_lines_delivery_and_signed_encoded_json(self):
+        params = self.form_params(self.start())
+        receipt = json.loads(unquote(params['Receipt']))
+        self.assertEqual(receipt['items'], [
+            {'name': self.receipt_product.name, 'quantity': 2, 'sum': 85.0, 'cost': 42.5,
+             'payment_method': 'full_prepayment', 'payment_object': 'commodity', 'tax': 'none'},
+            {'name': 'Доставка', 'quantity': 1, 'sum': 20.0, 'cost': 20.0,
+             'payment_method': 'full_prepayment', 'payment_object': 'service', 'tax': 'none'}])
+        self.assertTrue(params['Receipt'].startswith('%7B%22items%22%3A'))
+        expected = hashlib.md5(('shop-test:105.00:' + params['InvId'] + ':' +
+                              params['Receipt'] + ':test-pass-one').encode()).hexdigest()
+        self.assertEqual(params['SignatureValue'], expected)
+        self.assertNotIn('sno', receipt)
+
+    def test_receipt_is_frozen_when_catalog_changes_and_legacy_invoice_is_upgraded(self):
+        invoice = self.invoice()
+        receipt = invoice.receipt_json
+        self.receipt_product.name = 'Changed catalog title'
+        self.receipt_product.price = 9999
+        db.session.commit()
+        params = self.form_params(self.client.get(f'/payments/robokassa/checkout/{invoice.id}'))
+        self.assertEqual(unquote(params['Receipt']), receipt)
+        invoice.receipt_json = None
+        db.session.commit()
+        self.assertEqual(self.client.get(f'/payments/robokassa/checkout/{invoice.id}').status_code, 200)
+        self.assertIsNotNone(invoice.receipt_json)
+
+    def test_receipt_distributes_kopecks_and_handles_digital_goods(self):
+        from app.blueprints.payments import build_receipt
+        from app.models.products import Product
+        second = Product(name='Second', slug='second', article='second', seller=self.seller,
+                         category=self.receipt_product.category, price=100, stock_quantity=2)
+        db.session.add(OrderItem(order=self.order, product=second, quantity=1, price_at_order=100))
+        self.order.total_price = 200
+        self.order.bonus_used = 0
+        self.order.promo_discount = 0.01
+        db.session.flush()
+        receipt = json.loads(build_receipt(self.order, Decimal('219.99')))
+        self.assertEqual([i['sum'] for i in receipt['items']], [100.0, 99.99, 20.0])
+        self.assertEqual(sum(Decimal(str(i['sum'])) for i in receipt['items']), Decimal('219.99'))
+        self.receipt_product.digital_book_id = 999
+        with db.session.no_autoflush:
+            receipt = json.loads(build_receipt(self.order, Decimal('219.99')))
+        self.assertEqual(receipt['items'][0]['payment_object'], 'intellectual_activity')
+        self.assertEqual(receipt['items'][0]['payment_method'], 'full_payment')
+
+    def test_missing_or_inconsistent_nomenclature_blocks_payment(self):
+        self.order.total_price = 101
+        db.session.commit()
+        self.assertEqual(self.start().status_code, 409)
+        db.session.rollback()
+        self.order.total_price = 100
+        self.order.items.delete()
+        db.session.commit()
+        self.assertEqual(self.start().status_code, 409)
 
     def test_exact_discounted_amount_and_no_fake_payment(self):
         response = self.start()
@@ -227,7 +315,10 @@ class RobokassaTests(unittest.TestCase):
         with patch('app.blueprints.main._visible_seller_ids', return_value={product.seller_id}):
             response = self.client.post(route, data={f'delivery[{product.seller_id}]': delivery.id})
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertTrue(response.json['redirect'].startswith('https://auth.robokassa.ru/Merchant/Index.aspx?'))
+        self.assertTrue(response.json['redirect'].startswith('/payments/robokassa/checkout/'))
+        payment = self.client.get(response.json['redirect'])
+        self.assertEqual(payment.status_code, 200)
+        self.assertIn('Receipt', self.form_params(payment))
         return response
 
     def test_no_order_is_accepted_or_notified_until_live_callback(self):
@@ -278,7 +369,7 @@ class RobokassaTests(unittest.TestCase):
             status_mail.assert_not_called()
             admin_mail.assert_not_called()
 
-    def test_late_paid_expired_reservation_is_not_an_accepted_order(self):
+    def test_late_paid_reservation_is_accepted_without_releasing_stock(self):
         from datetime import datetime, timedelta
         product = self.cart_product()
         self.pay_from_review(product)
@@ -288,18 +379,127 @@ class RobokassaTests(unittest.TestCase):
         response = self.client.post('/payments/robokassa/result',
                                      data=self.callback(invoice, amount='100.00'))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(invoice.status, 'needs_review')
-        self.assertEqual(invoice.order.status, 'payment_expired')
+        self.assertEqual(invoice.status, 'paid')
+        self.assertEqual(invoice.order.status, 'processing')
+        self.assertEqual(product.stock_quantity, 19)
+
+    def test_late_paid_after_expiry_restores_accounting_once_while_store_paused(self):
+        from app.blueprints.payments import release_reservation
+        from app.models.orders import Bonus
+        from app.models.loyalty import BuyerBonus
+        from datetime import datetime, timedelta
+        product = self.cart_product()
+        self.pay_from_review(product)
+        invoice = RobokassaPayment.query.one()
+        order = invoice.order
+        order.total_price = 100
+        order.bonus_used = 10
+        invoice.amount = Decimal('90')
+        order.created_at = datetime.utcnow() - timedelta(hours=2)
+        db.session.add_all([BuyerBonus(buyer_id=self.buyer.id, seller_id=self.seller.id, balance=0),
+            Bonus(buyer_id=self.buyer.id, seller_id=self.seller.id, order_id=order.id,
+                  amount=-10, type='spent', reason='test')])
+        db.session.flush()
+        release_reservation(order)
+        self.seller.payments_paused = True
+        db.session.commit()
         self.assertEqual(product.stock_quantity, 20)
+        self.assertEqual(BuyerBonus.query.one().balance, 10)
+        with patch('app.utils.emails.send_new_order_notification_to_seller') as notify:
+            for _ in range(2):
+                response = self.app.test_client().post('/payments/robokassa/result',
+                    data=self.callback(invoice, amount='90.00'))
+                self.assertEqual(response.status_code, 200)
+            notify.assert_called_once_with(order.id)
+        self.assertEqual(invoice.status, 'paid')
+        self.assertEqual(order.status, 'processing')
+        self.assertIsNone(order.canceled_at)
+        self.assertEqual(product.stock_quantity, 19)
+        self.assertEqual(BuyerBonus.query.one().balance, 0)
+        self.assertEqual(Bonus.query.filter_by(type='payment_reclaimed').count(), 1)
+        self.assertTrue(self.seller.payments_paused)
+        self.assertIn(f'/profile/order/{order.id}'.encode(), self.client.get('/profile?section=orders').data)
+        self.login(self.seller)
+        self.assertEqual(self.client.get(f'/seller/orders/{order.id}').status_code, 200)
+
+    def test_verified_incident_orders_recovered_with_original_ids_dates_and_no_duplicates(self):
+        from app.blueprints.payments import recover_incident_paid_orders
+        from datetime import datetime
+        product = self.receipt_product
+        for invoice_id, order_id, amount, received in (
+                (27, 39, 1700, datetime(2026, 11, 2, 16, 40, 43)),
+                (28, 40, 200, datetime(2026, 11, 2, 16, 41, 35))):
+            order = Order(id=order_id, order_number=f'INCIDENT-{order_id}', buyer=self.buyer,
+                seller=self.seller, total_price=amount, status='payment_expired',
+                canceled_at=received)
+            db.session.add(OrderItem(order=order, product=product, quantity=1, price_at_order=amount))
+            db.session.add(RobokassaPayment(id=invoice_id, order=order, amount=amount,
+                is_test=False, status='needs_review', paid_at=received))
+        self.seller.payments_paused = True
+        db.session.commit()
+        with patch('app.utils.emails.send_new_order_notification_to_seller') as notify:
+            recover_incident_paid_orders()
+            recover_incident_paid_orders()
+            self.assertEqual(notify.call_count, 2)
+        self.assertEqual(RobokassaPayment.query.count(), 2)
+        self.assertEqual(Order.query.count(), 3)
+        self.assertEqual(db.session.get(Order, 39).created_at, datetime(2026, 11, 2, 14, 43, 48))
+        self.assertEqual(db.session.get(Order, 40).created_at, datetime(2026, 11, 2, 16, 41, 35))
+        self.assertEqual(product.stock_quantity, 8)
+        for order_id in (39, 40):
+            order = db.session.get(Order, order_id)
+            self.assertEqual(order.status, 'processing')
+            self.assertTrue(order.payment_confirmed)
+            self.assertIsNone(order.canceled_at)
+            self.assertIn(f'/profile/order/{order_id}'.encode(), self.client.get('/profile?section=orders').data)
+        self.login(self.seller)
+        for order_id in (39, 40):
+            self.assertEqual(self.client.get(f'/seller/orders/{order_id}').status_code, 200)
+        self.assertTrue(self.seller.payments_paused)
+
+    def test_incident_repair_refuses_unpaid_test_or_wrong_amount_invoices(self):
+        from app.blueprints.payments import recover_incident_paid_orders
+        from datetime import datetime
+        order = Order(id=39, order_number='NOT-VERIFIED', buyer=self.buyer, seller=self.seller,
+            total_price=1700, status='payment_expired')
+        invoice = RobokassaPayment(id=27, order=order, amount=1700, is_test=False,
+            status='needs_review', paid_at=None)
+        db.session.add_all([order, invoice])
+        db.session.commit()
+        for paid_at, is_test, amount in ((None, False, 1700),
+                (datetime.utcnow(), True, 1700), (datetime.utcnow(), False, 200)):
+            invoice.paid_at, invoice.is_test, invoice.amount = paid_at, is_test, amount
+            db.session.commit()
+            with patch('app.utils.emails.send_new_order_notification_to_seller') as notify:
+                recover_incident_paid_orders()
+                notify.assert_not_called()
+            self.assertEqual(order.status, 'payment_expired')
+            self.assertEqual(invoice.status, 'needs_review')
+
+    def test_paid_expired_order_remains_visible_when_stock_was_sold_meanwhile(self):
+        from app.blueprints.payments import release_reservation
+        product = self.cart_product()
+        self.pay_from_review(product)
+        invoice = RobokassaPayment.query.one()
+        release_reservation(invoice.order)
+        product.stock_quantity = 0
+        db.session.commit()
+        response = self.app.test_client().post('/payments/robokassa/result',
+            data=self.callback(invoice, amount='100.00'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(invoice.status, 'paid')
+        self.assertEqual(invoice.order.status, 'processing')
+        self.assertEqual(product.stock_quantity, -1)
+        self.assertIn(f'/profile/order/{invoice.order.id}'.encode(), self.client.get('/profile?section=orders').data)
 
     def test_switch_to_live_replaces_pending_demo_invoice(self):
         product = self.cart_product()
         self.app.config['ROBOKASSA_TEST_MODE'] = True
         first = self.pay_from_review(product)
+        self.assertEqual(self.form_params(self.client.get(first.json['redirect']))['IsTest'], '1')
         self.app.config['ROBOKASSA_TEST_MODE'] = False
         second = self.pay_from_review(product)
-        self.assertIn('IsTest=1', first.json['redirect'])
-        self.assertNotIn('IsTest=', second.json['redirect'])
+        self.assertNotIn('IsTest', self.form_params(self.client.get(second.json['redirect'])))
         self.assertEqual(RobokassaPayment.query.count(), 2)
         self.assertEqual(product.stock_quantity, 19)
         self.assertEqual(RobokassaPayment.query.order_by(RobokassaPayment.id).first().status, 'expired')

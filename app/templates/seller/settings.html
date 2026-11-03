@@ -8,6 +8,17 @@
 
 {% block content %}
 <div class="settings-page">
+    <div class="dashboard-section settings-section">
+        <div class="section-header"><h2>Приём оплаты</h2></div>
+        <form method="POST" action="{{ url_for('seller.settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="settings_section" value="payments">
+            <label><input type="checkbox" name="payments_paused" value="1" {% if seller.payments_paused %}checked{% endif %}> Приостановить продажи — отключить оплату</label>
+            <p>Покупатели смогут просматривать товары, но переход к оплате будет закрыт. Уже оплаченные заказы продолжают обрабатываться.</p>
+            <p><strong>{{ 'Оплата отключена' if seller.payments_paused else 'Оплата включена' }}</strong></p>
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+        </form>
+    </div>
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}

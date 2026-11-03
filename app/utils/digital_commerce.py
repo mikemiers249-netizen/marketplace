@@ -68,8 +68,15 @@ def hide_closed_pilot_products(state):
         # Signed server callbacks have no buyer session; fulfilment needs order products.
         return
     # Do not resolve current_user while its own Buyer/Seller query is loading.
-    if not any(mapper.class_ is Product for mapper in state.all_mappers):
+    if not any(mapper.class_ in (Product, DigitalBook) for mapper in state.all_mappers):
         return
+    from app.utils.private_payment_tests import private_view_allowed, PRIVATE_SKUS
+    if not private_view_allowed():
+        state.statement = state.statement.options(
+            with_loader_criteria(Product, lambda model:
+                model.system_sku.is_(None) | model.system_sku.notin_(PRIVATE_SKUS), include_aliases=True),
+            with_loader_criteria(DigitalBook, lambda model:
+                model.system_sku.is_(None) | model.system_sku.notin_(PRIVATE_SKUS), include_aliases=True))
     from app.blueprints.digital import pilot_allowed
     if not pilot_allowed():
         state.statement = state.statement.options(with_loader_criteria(

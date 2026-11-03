@@ -132,6 +132,7 @@ class Seller(BaseUser, db.Model):
     # в корзине у покупателей.
     daily_orders_limit = db.Column(db.Integer, nullable=True)
     minimum_order_amount = db.Column(db.Numeric(12, 2), nullable=True)
+    payments_paused = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     
     # Связи
     products = db.relationship('Product', back_populates='seller', lazy='dynamic',

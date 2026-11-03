@@ -110,12 +110,24 @@ def ensure_system_sku_command():
     в БД нет. Эта команда — fallback, чтобы привести схему в порядок
     до старта gunicorn.
     """
-    from sqlalchemy import text
+    from sqlalchemy import text, inspect
     click.echo("Ensuring products.system_sku column...")
+    db.session.execute(text(
+        'ALTER TABLE robokassa_payments ADD COLUMN IF NOT EXISTS receipt_json TEXT'
+    ))
+    click.echo('Robokassa receipt snapshot column ready; nomenclature is required for checkout.')
     for column, size in [('recipient_name', 100), ('recipient_phone', 30)]:
         db.session.execute(text(
             f"ALTER TABLE buyer_deliveries ADD COLUMN IF NOT EXISTS {column} VARCHAR({size})"
         ))
+    if 'payments_paused' not in {c['name'] for c in inspect(db.engine).get_columns('sellers')}:
+        db.session.execute(text('ALTER TABLE sellers ADD COLUMN payments_paused BOOLEAN NOT NULL DEFAULT FALSE'))
+        # Emergency pause requested by the owner; apply once on initial installation.
+        from flask import current_app
+        email = (current_app.config.get('ROBOKASSA_SELLER_EMAIL') or '').strip().lower()
+        if email:
+            updated = db.session.execute(text('UPDATE sellers SET payments_paused = TRUE WHERE lower(trim(email)) = :email'), {'email': email})
+            click.echo(f'Payment pause installed: {updated.rowcount} configured store(s) paused.')
     db.session.execute(text(
         "ALTER TABLE sellers ADD COLUMN IF NOT EXISTS minimum_order_amount NUMERIC(12, 2)"
     ))
@@ -127,6 +139,11 @@ def ensure_system_sku_command():
     ))
     db.session.commit()
     click.echo("Done.")
+    from app.blueprints.payments import recover_incident_paid_orders
+    recover_incident_paid_orders()
+    click.echo('Verified paid incident orders reconciled; payment pause unchanged.')
+    from app.utils.private_payment_tests import retire_private_products_and_enable_payments
+    retire_private_products_and_enable_payments()
 
 
 @click.command("grant-test-tariff")
